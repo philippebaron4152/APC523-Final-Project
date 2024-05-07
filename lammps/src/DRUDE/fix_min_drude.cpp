@@ -102,7 +102,9 @@ void FixMinDrude::init()
   if (ifix == modify->nfix) error->all(FLERR, "fix min/drude requires fix drude");
   fix_drude = dynamic_cast<FixDrude *>(modify->fix[ifix]);
 
-  if (modify->get_fix_by_id("package_omp")) external_force_clear = 1;
+  int omp_fix = modify->find_fix("package_omp");
+  if (omp_fix >= 0) external_force_clear = 1;
+  
   torqueflag = extraflag = 0;
   if (atom->torque_flag) torqueflag = 1;
   if (atom->avec->forceclearflag) extraflag = 1;
