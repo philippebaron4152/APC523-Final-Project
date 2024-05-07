@@ -25,7 +25,7 @@ neighbor 2.0 bin
 timestep 1.0
 
 fix DRUDE all drude C D N
-fix dmin all min/drude
+fix dmin all min/drude 100 100 1.0e-5 1.0e-4
 
 thermo_style custom step cpu etotal ke pe press vol density
 thermo 1

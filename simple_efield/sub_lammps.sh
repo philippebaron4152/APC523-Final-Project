@@ -5,9 +5,6 @@
 #SBATCH --cpus-per-task=1
 #SBATCH --mem=1G
 #SBATCH --time=05:00:00
-#SBATCH --mail-user=pb4152@princeton.edu
-#SBATCH --mail-type=end
-#SBATCH --mail-type=fail
 
 module purge
 module load intel/19.1.1.217

@@ -51,12 +51,12 @@ fix dmin all min/drude 10 100 1.0e-4 1.0e-4
 compute TEMP all temp/drude
 
 thermo_style custom step cpu etotal ke pe press vol density temp c_TEMP[1] c_TEMP[2]
-thermo 1
+thermo 20
 
 log 	log_min.lammps
 
-dump            1 all custom 1 dump.coord id type x y z vx vy vz ix iy iz
+dump            1 all custom 20 dump.coord id type x y z vx vy vz ix iy iz
 dump_modify     1 sort id format line "%5d %3d %13.8f %13.8f %13.8f %13.8f %13.8f %13.8f %3d %3d %3d" flush yes
 
-run 7450
+run 10000
 
