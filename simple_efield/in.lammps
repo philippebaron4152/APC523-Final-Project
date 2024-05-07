@@ -1,0 +1,37 @@
+units real
+boundary p p p
+
+atom_style full
+bond_style harmonic
+special_bonds lj/coul 0.0 0.0 0.0
+
+pair_style coul/cut 6.0
+
+comm_modify vel yes
+read_data data.lammps
+
+pair_coeff * *
+
+group ATOMS type 1 3
+group CORES type 1
+group DRUDES type 2
+
+variable TK equal 300.0
+variable TDK equal 1.0
+variable PBAR equal 1.0
+
+neighbor 2.0 bin
+
+timestep 1.0
+
+fix DRUDE all drude C D N
+fix dmin all min/drude
+
+thermo_style custom step cpu etotal ke pe press vol density
+thermo 1
+
+dump            1 all custom 1 dump.coord id type x y z
+dump_modify     1 sort id format line "%5d %3d %13.8f %13.8f %13.8f" flush yes
+
+run 1
+

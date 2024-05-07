@@ -1,0 +1,111 @@
+LAMMPS (17 Apr 2024)
+units real
+boundary p p p
+
+atom_style full
+bond_style harmonic
+special_bonds lj/coul 0.0 0.0 0.0
+
+pair_style coul/cut 6.0
+
+comm_modify vel yes
+read_data data.lammps
+Reading data file ...
+  orthogonal box = (-6 -6 -6) to (6 6 6)
+  1 by 1 by 1 MPI processor grid
+  reading atoms ...
+  3 atoms
+  scanning bonds ...
+  1 = max bonds/atom
+  orthogonal box = (-6 -6 -6) to (6 6 6)
+  1 by 1 by 1 MPI processor grid
+  reading bonds ...
+  1 bonds
+Finding 1-2 1-3 1-4 neighbors ...
+  special bond factors lj:    0        0        0       
+  special bond factors coul:  0        0        0       
+     1 = max # of 1-2 neighbors
+     0 = max # of 1-3 neighbors
+     0 = max # of 1-4 neighbors
+     1 = max # of special neighbors
+  special bonds CPU = 0.000 seconds
+  read_data CPU = 0.007 seconds
+
+pair_coeff * *
+
+group ATOMS type 1 3
+2 atoms in group ATOMS
+group CORES type 1
+1 atoms in group CORES
+group DRUDES type 2
+1 atoms in group DRUDES
+
+variable TK equal 300.0
+variable TDK equal 1.0
+variable PBAR equal 1.0
+
+neighbor 2.0 bin
+
+timestep 1.0
+
+fix DRUDE all drude C D N
+fix dmin all min/drude
+
+thermo_style custom step cpu etotal ke pe press vol density
+thermo 1
+
+dump            1 all custom 1 dump.coord id type x y z
+dump_modify     1 sort id format line "%5d %3d %13.8f %13.8f %13.8f" flush yes
+
+run 1
+WARNING: No fixes with time integration, atoms won't move (src/verlet.cpp:60)
+Generated 0 of 3 mixed pair_coeff terms from geometric mixing rule
+Rebuild special list taking Drude particles into account
+Old max number of 1-2 to 1-4 neighbors: 1
+New max number of 1-2 to 1-4 neighbors: 1 (+0)
+Neighbor list info ...
+  update: every = 1 steps, delay = 0 steps, check = yes
+  max neighbors/atom: 2000, page size: 100000
+  master list distance cutoff = 8
+  ghost atom cutoff = 8
+  binsize = 4, bins = 3 3 3
+  1 neighbor lists, perpetual/occasional/extra = 1 0 0
+  (1) pair coul/cut, perpetual
+      attributes: half, newton on
+      pair build: half/bin/newton
+      stencil: half/bin/3d
+      bin: standard
+Per MPI rank memory allocation (min/avg/max) = 6.128 | 6.128 | 6.128 Mbytes
+   Step          CPU           TotEng         KinEng         PotEng         Press          Volume        Density    
+         0   0             -42.199858      0             -42.199858     -1454.9606      1728           0.076776862  
+         1   0.006684375   -73.046135      0             -73.046135     -2859.8859      1728           0.076776862  
+Loop time of 0.00670908 on 1 procs for 1 steps with 3 atoms
+
+Performance: 12.878 ns/day, 1.864 hours/ns, 149.052 timesteps/s, 447.155 atom-step/s
+96.3% CPU use with 1 MPI tasks x no OpenMP threads
+
+MPI task timing breakdown:
+Section |  min time  |  avg time  |  max time  |%varavg| %total
+---------------------------------------------------------------
+Pair    | 9.58e-07   | 9.58e-07   | 9.58e-07   |   0.0 |  0.01
+Bond    | 1.67e-07   | 1.67e-07   | 1.67e-07   |   0.0 |  0.00
+Neigh   | 0          | 0          | 0          |   0.0 |  0.00
+Comm    | 2.167e-06  | 2.167e-06  | 2.167e-06  |   0.0 |  0.03
+Output  | 2.5292e-05 | 2.5292e-05 | 2.5292e-05 |   0.0 |  0.38
+Modify  | 0.006678   | 0.006678   | 0.006678   |   0.0 | 99.54
+Other   |            | 2.54e-06   |            |       |  0.04
+
+Nlocal:              3 ave           3 max           3 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Nghost:             60 ave          60 max          60 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+Neighs:              4 ave           4 max           4 min
+Histogram: 1 0 0 0 0 0 0 0 0 0
+
+Total # of neighbors = 4
+Ave neighs/atom = 1.3333333
+Ave special neighs/atom = 0.66666667
+Neighbor list builds = 1
+Dangerous builds = 0
+
+Total wall time: 0:00:00
