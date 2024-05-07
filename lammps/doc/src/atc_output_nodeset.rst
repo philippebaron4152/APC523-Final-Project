@@ -6,7 +6,7 @@ fix_modify AtC output nodeset command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> output nodeset <nodeset_name> <operation>
 

@@ -34,9 +34,9 @@ TEST(MPI, global_box)
     int boxflag;
 
     ::testing::internal::CaptureStdout();
-    const char *args[] = {"LAMMPS_test", "-log", "none", "-echo", "screen", "-nocite", nullptr};
+    const char *args[] = {"LAMMPS_test", "-log", "none", "-echo", "screen", "-nocite"};
     char **argv        = (char **)args;
-    int argc           = (sizeof(args) / sizeof(char *)) - 1;
+    int argc           = sizeof(args) / sizeof(char *);
     void *lmp          = lammps_open(argc, argv, MPI_COMM_WORLD, nullptr);
     lammps_command(lmp, "units           lj");
     lammps_command(lmp, "atom_style      atomic");
@@ -77,9 +77,9 @@ TEST(MPI, sub_box)
     int boxflag;
 
     ::testing::internal::CaptureStdout();
-    const char *args[] = {"LAMMPS_test", "-log", "none", "-echo", "screen", "-nocite", nullptr};
+    const char *args[] = {"LAMMPS_test", "-log", "none", "-echo", "screen", "-nocite"};
     char **argv        = (char **)args;
-    int argc           = (sizeof(args) / sizeof(char *)) - 1;
+    int argc           = sizeof(args) / sizeof(char *);
     void *lmp          = lammps_open(argc, argv, MPI_COMM_WORLD, nullptr);
     lammps_command(lmp, "units           lj");
     lammps_command(lmp, "atom_style      atomic");
@@ -143,9 +143,9 @@ TEST(MPI, split_comm)
 
     MPI_Comm_split(MPI_COMM_WORLD, color, key, &newcomm);
 
-    const char *args[] = {"LAMMPS_test", "-log", "none", "-echo", "screen", "-nocite", nullptr};
+    const char *args[] = {"LAMMPS_test", "-log", "none", "-echo", "screen", "-nocite"};
     char **argv        = (char **)args;
-    int argc           = (sizeof(args) / sizeof(char *)) - 1;
+    int argc           = sizeof(args) / sizeof(char *);
     void *lmp          = lammps_open(argc, argv, newcomm, nullptr);
     lammps_command(lmp, "units           lj");
     lammps_command(lmp, "atom_style      atomic");
@@ -167,15 +167,16 @@ TEST(MPI, split_comm)
 
 TEST(MPI, multi_partition)
 {
+    FILE *fp;
     int nprocs, me;
     lammps_mpi_init();
     MPI_Comm_size(MPI_COMM_WORLD, &nprocs);
     MPI_Comm_rank(MPI_COMM_WORLD, &me);
 
     const char *args[] = {"LAMMPS_test", "-log",   "none",    "-partition", "4x1",
-                          "-echo",       "screen", "-nocite", "-in",        "none", nullptr};
+                          "-echo",       "screen", "-nocite", "-in",        "none"};
     char **argv        = (char **)args;
-    int argc           = (sizeof(args) / sizeof(char *)) - 1;
+    int argc           = sizeof(args) / sizeof(char *);
     void *lmp          = lammps_open(argc, argv, MPI_COMM_WORLD, nullptr);
 
     lammps_command(lmp, "units           lj");
@@ -205,9 +206,9 @@ protected:
 
     void SetUp() override
     {
-        const char *args[] = {testbinary, "-log", "none", "-echo", "screen", "-nocite", nullptr};
+        const char *args[] = {testbinary, "-log", "none", "-echo", "screen", "-nocite"};
         char **argv        = (char **)args;
-        int argc           = (sizeof(args) / sizeof(char *)) - 1;
+        int argc           = sizeof(args) / sizeof(char *);
         if (!verbose) ::testing::internal::CaptureStdout();
         lmp = lammps_open(argc, argv, MPI_COMM_WORLD, nullptr);
         InitSystem();

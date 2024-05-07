@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -42,12 +42,13 @@ using namespace LAMMPS_NS;
 // EMACH = machine accuracy limit of energy changes (1.0e-8)
 // EPS_QUAD = tolerance for quadratic projection
 
-static constexpr double ALPHA_MAX = 1.0;
-static constexpr double ALPHA_REDUCE = 0.5;
-static constexpr double BACKTRACK_SLOPE = 0.4;
-static constexpr double QUADRATIC_TOL = 0.1;
-static constexpr double EMACH = 1.0e-8;
-static constexpr double EPS_QUAD = 1.0e-28;
+#define ALPHA_MAX 1.0
+#define ALPHA_REDUCE 0.5
+#define BACKTRACK_SLOPE 0.4
+#define QUADRATIC_TOL 0.1
+//#define EMACH 1.0e-8
+#define EMACH 1.0e-8
+#define EPS_QUAD 1.0e-28
 
 /* ---------------------------------------------------------------------- */
 
@@ -62,11 +63,11 @@ MinLineSearch::MinLineSearch(LAMMPS *lmp) : Min(lmp)
 
 MinLineSearch::~MinLineSearch()
 {
-  delete[] gextra;
-  delete[] hextra;
-  delete[] x0extra_atom;
-  delete[] gextra_atom;
-  delete[] hextra_atom;
+  delete [] gextra;
+  delete [] hextra;
+  delete [] x0extra_atom;
+  delete [] gextra_atom;
+  delete [] hextra_atom;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -75,17 +76,17 @@ void MinLineSearch::init()
 {
   Min::init();
 
-  if (linestyle == BACKTRACK) linemin = &MinLineSearch::linemin_backtrack;
-  else if (linestyle == QUADRATIC) linemin = &MinLineSearch::linemin_quadratic;
-  else if (linestyle == FORCEZERO) linemin = &MinLineSearch::linemin_forcezero;
+  if (linestyle == 0) linemin = &MinLineSearch::linemin_backtrack;
+  else if (linestyle == 1) linemin = &MinLineSearch::linemin_quadratic;
+  else if (linestyle == 2) linemin = &MinLineSearch::linemin_forcezero;
 
-  delete[] gextra;
-  delete[] hextra;
+  delete [] gextra;
+  delete [] hextra;
   gextra = hextra = nullptr;
 
-  delete[] x0extra_atom;
-  delete[] gextra_atom;
-  delete[] hextra_atom;
+  delete [] x0extra_atom;
+  delete [] gextra_atom;
+  delete [] hextra_atom;
   x0extra_atom = gextra_atom = hextra_atom = nullptr;
 }
 
@@ -202,7 +203,7 @@ int MinLineSearch::linemin_backtrack(double eoriginal, double &alpha)
   // for atom coords, max amount = dmax
   // for extra per-atom dof, max amount = extra_max[]
   // for extra global dof, max amount is set by fix
-  // also ensure alpha <= ALPHA_MAX
+  // also insure alpha <= ALPHA_MAX
   // else will have to backtrack from huge value when forces are tiny
   // if all search dir components are already 0.0, exit with error
 
@@ -252,7 +253,7 @@ int MinLineSearch::linemin_backtrack(double eoriginal, double &alpha)
 
   // backtrack with alpha until energy decrease is sufficient
 
-  while (true) {
+  while (1) {
     ecurrent = alpha_step(alpha,1);
 
     // if energy change is better than ideal, exit with success
@@ -327,8 +328,8 @@ int MinLineSearch::linemin_quadratic(double eoriginal, double &alpha)
   int i,m,n;
   double fdothall,fdothme,hme,hmax,hmaxall;
   double de_ideal,de;
-  double delfh,engprev,relerr,alphaprev,fhprev,fh,alpha0;
-  double dot,dotall;
+  double delfh,engprev,relerr,alphaprev,fhprev,ff,fh,alpha0;
+  double dot[2],dotall[2];
   double *xatom,*x0atom,*fatom,*hatom;
   double alphamax;
 
@@ -354,7 +355,7 @@ int MinLineSearch::linemin_quadratic(double eoriginal, double &alpha)
   // for atom coords, max amount = dmax
   // for extra per-atom dof, max amount = extra_max[]
   // for extra global dof, max amount is set by fix
-  // also ensure alphamax <= ALPHA_MAX
+  // also insure alphamax <= ALPHA_MAX
   // else will have to backtrack from huge value when forces are tiny
   // if all search dir components are already 0.0, exit with error
 
@@ -411,14 +412,15 @@ int MinLineSearch::linemin_quadratic(double eoriginal, double &alpha)
   //        etmp-eoriginal+alphatmp*fdothall);
   // alpha_step(0.0,1);
 
-  while (true) {
+  while (1) {
     ecurrent = alpha_step(alpha,1);
 
     // compute new fh, alpha, delfh
 
-    dot = 0.0;
+    dot[0] = dot[1] = 0.0;
     for (i = 0; i < nvec; i++) {
-      dot += fvec[i]*h[i];
+      dot[0] += fvec[i]*fvec[i];
+      dot[1] += fvec[i]*h[i];
     }
     if (nextra_atom)
       for (m = 0; m < nextra_atom; m++) {
@@ -426,17 +428,23 @@ int MinLineSearch::linemin_quadratic(double eoriginal, double &alpha)
         hatom = hextra_atom[m];
         n = extra_nlen[m];
         for (i = 0; i < n; i++) {
-          dot += fatom[i]*hatom[i];
+          dot[0] += fatom[i]*fatom[i];
+          dot[1] += fatom[i]*hatom[i];
         }
       }
-    MPI_Allreduce(&dot,&dotall,1,MPI_DOUBLE,MPI_SUM,world);
+    MPI_Allreduce(dot,dotall,2,MPI_DOUBLE,MPI_SUM,world);
     if (nextra_global) {
       for (i = 0; i < nextra_global; i++) {
-        dotall += fextra[i]*hextra[i];
+        dotall[0] += fextra[i]*fextra[i];
+        dotall[1] += fextra[i]*hextra[i];
       }
     }
-    fh = dotall;
-    if (output->thermo->normflag) fh /= atom->natoms;
+    ff = dotall[0];
+    fh = dotall[1];
+    if (output->thermo->normflag) {
+      ff /= atom->natoms;
+      fh /= atom->natoms;
+    }
 
     delfh = fh - fhprev;
 
@@ -626,7 +634,7 @@ int MinLineSearch::linemin_forcezero(double eoriginal, double &alpha)
   // for extra per-atom dof, max amount = extra_max[]
   // for extra global dof, max amount is set by fix
 
-  // also ensure alpha <= ALPHA_MAX else will have
+  // also insure alpha <= ALPHA_MAX else will have
   // to backtrack from huge value when forces are tiny
 
   // if all search dir components are already 0.0, exit with error
@@ -700,7 +708,7 @@ int MinLineSearch::linemin_forcezero(double eoriginal, double &alpha)
 
   // main linesearch loop
 
-  while (true) {
+  while (1) {
     backtrack = false;
     fhPrev = fhCurr;
     engPrev = engCurr;

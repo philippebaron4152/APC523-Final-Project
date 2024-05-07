@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,12 +27,12 @@ namespace LAMMPS_NS {
 class ComputeFragmentAtom : public Compute {
  public:
   ComputeFragmentAtom(class LAMMPS *, int, char **);
-  ~ComputeFragmentAtom() override;
-  void init() override;
-  void compute_peratom() override;
-  int pack_forward_comm(int, int *, double *, int, int *) override;
-  void unpack_forward_comm(int, int, double *) override;
-  double memory_usage() override;
+  ~ComputeFragmentAtom();
+  void init();
+  void compute_peratom();
+  int pack_forward_comm(int, int *, double *, int, int *);
+  void unpack_forward_comm(int, int, double *);
+  double memory_usage();
 
  private:
   int nmax, commflag, singleflag;
@@ -44,3 +44,29 @@ class ComputeFragmentAtom : public Compute {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal ... command
+
+Self-explanatory.  Check the input script syntax and compare to the
+documentation for the command.  You can use -echo screen as a
+command-line option when running LAMMPS to see the offending line.
+
+E: Compute fragment/atom used when bonds are not allowed
+
+UNDOCUMENTED
+
+E: Cannot use compute fragment/atom unless atoms have IDs
+
+Atom IDs are used to identify fragments.
+
+E: Compute fragment/atom requires a bond style to be defined
+
+This is so that a bond list is generated which is used to find fragments.
+
+W: More than one compute fragment/atom
+
+It is not efficient to use compute fragment/atom  more than once.
+
+*/

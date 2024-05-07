@@ -1,18 +1,46 @@
+/*
 //@HEADER
 // ************************************************************************
 //
-//                        Kokkos v. 4.0
-//       Copyright (2022) National Technology & Engineering
+//                        Kokkos v. 3.0
+//       Copyright (2020) National Technology & Engineering
 //               Solutions of Sandia, LLC (NTESS).
 //
 // Under the terms of Contract DE-NA0003525 with NTESS,
 // the U.S. Government retains certain rights in this software.
 //
-// Part of Kokkos, under the Apache License v2.0 with LLVM Exceptions.
-// See https://kokkos.org/LICENSE for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
 //
+// 1. Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright
+// notice, this list of conditions and the following disclaimer in the
+// documentation and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the Corporation nor the names of the
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY NTESS "AS IS" AND ANY
+// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NTESS OR THE
+// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+// Questions? Contact Christian R. Trott (crtrott@sandia.gov)
+//
+// ************************************************************************
 //@HEADER
+*/
 
 #ifndef KOKKOS_EBO_HPP
 #define KOKKOS_EBO_HPP
@@ -51,20 +79,43 @@ struct EBOBaseImpl;
 
 template <class T, template <class...> class CtorNotOnDevice>
 struct EBOBaseImpl<T, true, CtorNotOnDevice> {
-  template <class... Args, class _ignored = void,
-            std::enable_if_t<std::is_void<_ignored>::value &&
-                                 std::is_constructible<T, Args...>::value &&
-                                 !CtorNotOnDevice<Args...>::value,
-                             int> = 0>
-  KOKKOS_FORCEINLINE_FUNCTION constexpr explicit EBOBaseImpl(
-      Args&&...) noexcept {}
+  /*
+   * Workaround for constexpr in C++11: we need to still call T(args...), but we
+   * can't do so in the body of a constexpr function (in C++11), and there's no
+   * data member to construct into. But we can construct into an argument
+   * of a delegating constructor...
+   */
+  // TODO @minor DSH the destructor gets called too early with this workaround
+  struct _constexpr_14_workaround_tag {};
+  struct _constexpr_14_workaround_no_device_tag {};
+  KOKKOS_FORCEINLINE_FUNCTION
+  constexpr EBOBaseImpl(_constexpr_14_workaround_tag, T&&) noexcept {}
+  inline constexpr EBOBaseImpl(_constexpr_14_workaround_no_device_tag,
+                               T&&) noexcept {}
 
-  template <class... Args, class _ignored = void,
-            std::enable_if_t<std::is_void<_ignored>::value &&
-                                 std::is_constructible<T, Args...>::value &&
-                                 CtorNotOnDevice<Args...>::value,
-                             long> = 0>
-  inline constexpr explicit EBOBaseImpl(Args&&...) noexcept {}
+  template <
+      class... Args, class _ignored = void,
+      typename std::enable_if<std::is_void<_ignored>::value &&
+                                  std::is_constructible<T, Args...>::value &&
+                                  !CtorNotOnDevice<Args...>::value,
+                              int>::type = 0>
+  KOKKOS_FORCEINLINE_FUNCTION constexpr explicit EBOBaseImpl(
+      Args&&... args) noexcept(noexcept(T(std::forward<Args>(args)...)))
+      // still call the constructor
+      : EBOBaseImpl(_constexpr_14_workaround_tag{},
+                    T(std::forward<Args>(args)...)) {}
+
+  template <
+      class... Args, class _ignored = void,
+      typename std::enable_if<std::is_void<_ignored>::value &&
+                                  std::is_constructible<T, Args...>::value &&
+                                  CtorNotOnDevice<Args...>::value,
+                              long>::type = 0>
+  inline constexpr explicit EBOBaseImpl(Args&&... args) noexcept(
+      noexcept(T(std::forward<Args>(args)...)))
+      // still call the constructor
+      : EBOBaseImpl(_constexpr_14_workaround_no_device_tag{},
+                    T(std::forward<Args>(args)...)) {}
 
   KOKKOS_DEFAULTED_FUNCTION
   constexpr EBOBaseImpl(EBOBaseImpl const&) = default;
@@ -73,16 +124,19 @@ struct EBOBaseImpl<T, true, CtorNotOnDevice> {
   constexpr EBOBaseImpl(EBOBaseImpl&&) = default;
 
   KOKKOS_DEFAULTED_FUNCTION
-  constexpr EBOBaseImpl& operator=(EBOBaseImpl const&) = default;
+  KOKKOS_CONSTEXPR_14
+  EBOBaseImpl& operator=(EBOBaseImpl const&) = default;
 
   KOKKOS_DEFAULTED_FUNCTION
-  constexpr EBOBaseImpl& operator=(EBOBaseImpl&&) = default;
+  KOKKOS_CONSTEXPR_14
+  EBOBaseImpl& operator=(EBOBaseImpl&&) = default;
 
   KOKKOS_DEFAULTED_FUNCTION
   ~EBOBaseImpl() = default;
 
   KOKKOS_INLINE_FUNCTION
-  constexpr T& _ebo_data_member() & { return *reinterpret_cast<T*>(this); }
+  KOKKOS_CONSTEXPR_14
+  T& _ebo_data_member() & { return *reinterpret_cast<T*>(this); }
 
   KOKKOS_INLINE_FUNCTION
   constexpr T const& _ebo_data_member() const& {
@@ -100,29 +154,30 @@ struct EBOBaseImpl<T, true, CtorNotOnDevice> {
   }
 
   KOKKOS_INLINE_FUNCTION
-  constexpr T&& _ebo_data_member() && {
-    return std::move(*reinterpret_cast<T*>(this));
-  }
+  KOKKOS_CONSTEXPR_14
+  T&& _ebo_data_member() && { return std::move(*reinterpret_cast<T*>(this)); }
 };
 
 template <class T, template <class...> class CTorsNotOnDevice>
 struct EBOBaseImpl<T, false, CTorsNotOnDevice> {
   T m_ebo_object;
 
-  template <class... Args, class _ignored = void,
-            std::enable_if_t<std::is_void<_ignored>::value &&
-                                 !CTorsNotOnDevice<Args...>::value &&
-                                 std::is_constructible<T, Args...>::value,
-                             int> = 0>
+  template <
+      class... Args, class _ignored = void,
+      typename std::enable_if<std::is_void<_ignored>::value &&
+                                  !CTorsNotOnDevice<Args...>::value &&
+                                  std::is_constructible<T, Args...>::value,
+                              int>::type = 0>
   KOKKOS_FORCEINLINE_FUNCTION constexpr explicit EBOBaseImpl(
       Args&&... args) noexcept(noexcept(T(std::forward<Args>(args)...)))
       : m_ebo_object(std::forward<Args>(args)...) {}
 
-  template <class... Args, class _ignored = void,
-            std::enable_if_t<std::is_void<_ignored>::value &&
-                                 CTorsNotOnDevice<Args...>::value &&
-                                 std::is_constructible<T, Args...>::value,
-                             long> = 0>
+  template <
+      class... Args, class _ignored = void,
+      typename std::enable_if<std::is_void<_ignored>::value &&
+                                  CTorsNotOnDevice<Args...>::value &&
+                                  std::is_constructible<T, Args...>::value,
+                              long>::type = 0>
   inline constexpr explicit EBOBaseImpl(Args&&... args) noexcept(
       noexcept(T(std::forward<Args>(args)...)))
       : m_ebo_object(std::forward<Args>(args)...) {}
@@ -136,10 +191,12 @@ struct EBOBaseImpl<T, false, CTorsNotOnDevice> {
   constexpr EBOBaseImpl(EBOBaseImpl&&) noexcept = default;
 
   KOKKOS_DEFAULTED_FUNCTION
-  constexpr EBOBaseImpl& operator=(EBOBaseImpl const&) = default;
+  KOKKOS_CONSTEXPR_14
+  EBOBaseImpl& operator=(EBOBaseImpl const&) = default;
 
   KOKKOS_DEFAULTED_FUNCTION
-  constexpr EBOBaseImpl& operator=(EBOBaseImpl&&) = default;
+  KOKKOS_CONSTEXPR_14
+  EBOBaseImpl& operator=(EBOBaseImpl&&) = default;
 
   KOKKOS_DEFAULTED_FUNCTION
   ~EBOBaseImpl() = default;
@@ -175,7 +232,8 @@ struct StandardLayoutNoUniqueAddressMemberEmulation
   using ebo_base_t::ebo_base_t;
 
   KOKKOS_FORCEINLINE_FUNCTION
-  constexpr T& no_unique_address_data_member() & {
+  KOKKOS_CONSTEXPR_14
+  T& no_unique_address_data_member() & {
     return this->ebo_base_t::_ebo_data_member();
   }
 
@@ -195,7 +253,8 @@ struct StandardLayoutNoUniqueAddressMemberEmulation
   }
 
   KOKKOS_FORCEINLINE_FUNCTION
-  constexpr T&& no_unique_address_data_member() && {
+  KOKKOS_CONSTEXPR_14
+  T&& no_unique_address_data_member() && {
     return this->ebo_base_t::_ebo_data_member();
   }
 };

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -39,10 +39,10 @@ class ImproperHarmonicKokkos : public ImproperHarmonic {
   typedef ArrayTypes<DeviceType> AT;
 
   ImproperHarmonicKokkos(class LAMMPS *);
-  ~ImproperHarmonicKokkos() override;
-  void compute(int, int) override;
-  void coeff(int, char **) override;
-  void read_restart(FILE *) override;
+  virtual ~ImproperHarmonicKokkos();
+  void compute(int, int);
+  void coeff(int, char **);
+  void read_restart(FILE *);
 
   template<int NEWTON_BOND, int EVFLAG>
   KOKKOS_INLINE_FUNCTION
@@ -87,7 +87,7 @@ class ImproperHarmonicKokkos : public ImproperHarmonic {
   typename Kokkos::DualView<F_FLOAT*,DeviceType>::t_dev d_k;
   typename Kokkos::DualView<F_FLOAT*,DeviceType>::t_dev d_chi;
 
-  void allocate() override;
+  void allocate();
 };
 
 }
@@ -95,3 +95,11 @@ class ImproperHarmonicKokkos : public ImproperHarmonic {
 #endif
 #endif
 
+/* ERROR/WARNING messages:
+
+W: Dihedral problem
+
+Conformation of the 4 listed dihedral atoms is extreme; you may want
+to check your simulation geometry.
+
+*/

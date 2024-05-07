@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -14,6 +14,7 @@
 #ifdef PAIR_CLASS
 // clang-format off
 PairStyle(reaxff/omp,PairReaxFFOMP);
+PairStyle(reax/c/omp,PairReaxFFOMP);
 // clang-format on
 #else
 
@@ -21,16 +22,16 @@ PairStyle(reaxff/omp,PairReaxFFOMP);
 #define LMP_PAIR_REAXFF_OMP_H
 
 #include "pair_reaxff.h"
-#include "thr_omp.h"    // IWYU pragma: export
+#include "thr_omp.h"
 
 namespace LAMMPS_NS {
 
 class PairReaxFFOMP : public PairReaxFF, public ThrOMP {
  public:
   PairReaxFFOMP(class LAMMPS *);
-  ~PairReaxFFOMP() override;
-  void compute(int, int) override;
-  void init_style() override;
+  ~PairReaxFFOMP();
+  virtual void compute(int, int);
+  virtual void init_style();
 
   inline FixOMP *getFixOMP() { return fix; };
 
@@ -97,7 +98,7 @@ class PairReaxFFOMP : public PairReaxFF, public ThrOMP {
   }
 
  protected:
-  void setup() override;
+  virtual void setup();
   virtual void write_reax_atoms();
   virtual int estimate_reax_lists();
   virtual int write_reax_lists();
@@ -112,3 +113,13 @@ class PairReaxFFOMP : public PairReaxFF, public ThrOMP {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Too many ghost atoms
+
+Number of ghost atoms has increased too much during simulation and has exceeded
+the size of reaxff arrays.  Increase safe_zone and min_cap in pair_style reaxff
+command
+
+*/

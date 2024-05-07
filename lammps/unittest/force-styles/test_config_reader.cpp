@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS Development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,12 +27,10 @@
 #include <vector>
 
 using LAMMPS_NS::utils::split_words;
-using LAMMPS_NS::utils::trim;
 
-TestConfigReader::TestConfigReader(TestConfig &config) : config(config)
+TestConfigReader::TestConfigReader(TestConfig &config) : YamlReader(), config(config)
 {
     consumers["lammps_version"] = &TestConfigReader::lammps_version;
-    consumers["tags"]           = &TestConfigReader::tags;
     consumers["date_generated"] = &TestConfigReader::date_generated;
     consumers["epsilon"]        = &TestConfigReader::epsilon;
     consumers["skip_tests"]     = &TestConfigReader::skip_tests;
@@ -85,10 +83,10 @@ void TestConfigReader::prerequisites(const yaml_event_t &event)
     std::stringstream data((char *)event.data.scalar.value);
     std::string key, value;
 
-    while (true) {
+    while (1) {
         data >> key >> value;
         if (data.eof()) break;
-        config.prerequisites.emplace_back(key, value);
+        config.prerequisites.push_back(std::make_pair(key, value));
     }
 }
 
@@ -140,10 +138,10 @@ void TestConfigReader::extract(const yaml_event_t &event)
     std::stringstream data((char *)event.data.scalar.value);
     std::string name;
     int value;
-    while (true) {
+    while (1) {
         data >> name >> value;
         if (data.eof()) break;
-        config.extract.emplace_back(name, value);
+        config.extract.push_back(make_pair(name, value));
     }
 }
 
@@ -367,14 +365,5 @@ void TestConfigReader::global_vector(const yaml_event_t &event)
     for (std::size_t i = 0; i < num; ++i) {
         data >> value;
         config.global_vector.push_back(value);
-    }
-}
-
-void TestConfigReader::tags(const yaml_event_t &event)
-{
-    std::stringstream data((char *)event.data.scalar.value);
-    config.tags.clear();
-    for (std::string tag; std::getline(data, tag, ',');) {
-        config.tags.push_back(trim(tag));
     }
 }

@@ -65,7 +65,7 @@ class DPD : public BaseDPD<numtyp, acctyp> {
   UCL_D_Vec<numtyp> cutsq;
 
   /// Special LJ values
-  UCL_D_Vec<numtyp> sp_lj, sp_sqrt;
+  UCL_D_Vec<numtyp> sp_lj;
 
   /// If atom type constants fit in shared memory, use fast kernels
   bool shared_types;

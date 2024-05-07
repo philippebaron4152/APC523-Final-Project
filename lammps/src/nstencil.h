@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -14,7 +14,7 @@
 #ifndef LMP_NSTENCIL_H
 #define LMP_NSTENCIL_H
 
-#include "pointers.h"    // IWYU pragma: keep
+#include "pointers.h"
 
 namespace LAMMPS_NS {
 
@@ -45,11 +45,10 @@ class NStencil : protected Pointers {
   // Arrays to store options for multi itype-jtype stencils
   bool **flag_half_multi;    // flag creation of a half stencil for icollection-jcollection
   bool **flag_skip_multi;    // skip creation of icollection-jcollection stencils (for newton on)
-  bool **flag_same_multi;    // flag same size collection (doesn't always correspond to a half, e.g. newton + tri)
   int **bin_collection_multi;    // what collection to use for bin information
 
   NStencil(class LAMMPS *);
-  ~NStencil() override;
+  virtual ~NStencil();
   void post_constructor(class NeighRequest *);
   void copy_neighbor_info();
   virtual void create_setup();
@@ -122,3 +121,7 @@ class NStencil : protected Pointers {
 }    // namespace LAMMPS_NS
 
 #endif
+
+/* ERROR/WARNING messages:
+
+*/

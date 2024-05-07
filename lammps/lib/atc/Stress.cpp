@@ -237,7 +237,7 @@ StressCubicElastic::StressCubicElastic(fstream &fileId)
   }
 }
 
-void StressCubicElastic::set_tangent()
+void StressCubicElastic::set_tangent(void)
 {
   C_.reset(6,6);
   C_(0,0)=C_(1,1)=C_(2,2)                        =c11_;
@@ -374,7 +374,7 @@ StressCauchyBorn::~StressCauchyBorn()
 //==============================================================================
 // initialize
 //==============================================================================
-void StressCauchyBorn::initialize()
+void StressCauchyBorn::initialize(void)
 {
   if (!initialized_) {
     if (makeLinear_) linearize();
@@ -393,7 +393,7 @@ void StressCauchyBorn::initialize()
 //==============================================================================
 // compute the bond stiffness consistent with the einstein freq
 //==============================================================================
-double StressCauchyBorn::stiffness() const
+double StressCauchyBorn::stiffness(void) const
 {
   AtomCluster vac;
   cblattice_->atom_cluster(eye<double>(3,3), potential_->cutoff_radius(), vac);

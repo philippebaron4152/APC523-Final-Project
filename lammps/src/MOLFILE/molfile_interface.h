@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -113,7 +113,7 @@ class MolfileInterface {
   // inquire on interface status
 
   // true if file stream is active.
-  bool is_open() const { return (_ptr != nullptr); };
+  bool is_open() const { return (_ptr != 0); };
   // true if file format requires or provides atom properties
   bool has_props() const { return (_mode & (M_RSTRUCT | M_WSTRUCT)) != 0; };
   // true if file format can read or write velocities

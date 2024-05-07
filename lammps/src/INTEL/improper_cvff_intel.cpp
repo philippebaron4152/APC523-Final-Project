@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,9 +27,9 @@
 #include "modify.h"
 #include "neighbor.h"
 #include "suffix.h"
+#include "update.h"
 
 #include <cmath>
-#include <cstring>
 
 #include "omp_compat.h"
 
@@ -48,6 +48,12 @@ ImproperCvffIntel::ImproperCvffIntel(LAMMPS *lmp) :
   ImproperCvff(lmp)
 {
   suffix_flag |= Suffix::INTEL;
+}
+
+/* ---------------------------------------------------------------------- */
+
+ImproperCvffIntel::~ImproperCvffIntel()
+{
 }
 
 /* ---------------------------------------------------------------------- */
@@ -168,11 +174,11 @@ void ImproperCvffIntel::eval(const int vflag,
     #else
     for (int n = nfrom; n < nto; n += npl) {
     #endif
-      const int i1 = IP_PRE_dword_index(improperlist[n].a);
-      const int i2 = IP_PRE_dword_index(improperlist[n].b);
-      const int i3 = IP_PRE_dword_index(improperlist[n].c);
-      const int i4 = IP_PRE_dword_index(improperlist[n].d);
-      const int type = IP_PRE_dword_index(improperlist[n].t);
+      const int i1 = improperlist[n].a;
+      const int i2 = improperlist[n].b;
+      const int i3 = improperlist[n].c;
+      const int i4 = improperlist[n].d;
+      const int type = improperlist[n].t;
 
       // geometry of 4-body
 
@@ -191,15 +197,15 @@ void ImproperCvffIntel::eval(const int vflag,
       // 1st and 2nd angle
 
       const flt_t b1mag2 = vb1x*vb1x + vb1y*vb1y + vb1z*vb1z;
-      const flt_t rb1 = (flt_t)1.0 / std::sqrt(b1mag2);
+      const flt_t rb1 = (flt_t)1.0 / sqrt(b1mag2);
       const flt_t sb1 = (flt_t)1.0 / b1mag2;
 
       const flt_t b2mag2 = vb2xm*vb2xm + vb2ym*vb2ym + vb2zm*vb2zm;
-      const flt_t rb2 = (flt_t)1.0 / std::sqrt(b2mag2);
+      const flt_t rb2 = (flt_t)1.0 / sqrt(b2mag2);
       const flt_t sb2 = (flt_t)1.0 / b2mag2;
 
       const flt_t b3mag2 = vb3x*vb3x + vb3y*vb3y + vb3z*vb3z;
-      const flt_t rb3 = (flt_t)1.0 / std::sqrt(b3mag2);
+      const flt_t rb3 = (flt_t)1.0 / sqrt(b3mag2);
       const flt_t sb3 = (flt_t)1.0 / b3mag2;
 
       const flt_t c0 = (vb1x * vb3x + vb1y * vb3y + vb1z * vb3z) * rb1 * rb3;
@@ -215,11 +221,11 @@ void ImproperCvffIntel::eval(const int vflag,
       // cos and sin of 2 angles and final c
 
       const flt_t sd1 = (flt_t)1.0 - c1mag * c1mag;
-      flt_t sc1 = (flt_t)1.0/std::sqrt(sd1);
+      flt_t sc1 = (flt_t)1.0/sqrt(sd1);
       if (sd1 < SMALL2) sc1 = INVSMALL;
 
       const flt_t sd2 = (flt_t)1.0 - c2mag * c2mag;
-      flt_t sc2 = (flt_t)1.0/std::sqrt(sd2);
+      flt_t sc2 = (flt_t)1.0/sqrt(sd2);
       if (sc2 < SMALL2) sc2 = INVSMALL;
 
       const flt_t s1 = sc1 * sc1;
@@ -390,8 +396,11 @@ void ImproperCvffIntel::eval(const int vflag,
 
 void ImproperCvffIntel::init_style()
 {
-  fix = static_cast<FixIntel *>(modify->get_fix_by_id("package_intel"));
-  if (!fix) error->all(FLERR, "The 'package intel' command is required for /intel styles");
+  int ifix = modify->find_fix("package_intel");
+  if (ifix < 0)
+    error->all(FLERR,
+               "The 'package intel' command is required for /intel styles");
+  fix = static_cast<FixIntel *>(modify->fix[ifix]);
 
   #ifdef _LMP_INTEL_OFFLOAD
   _use_base = 0;
@@ -417,10 +426,10 @@ template <class flt_t, class acc_t>
 void ImproperCvffIntel::pack_force_const(ForceConst<flt_t> &fc,
                                          IntelBuffers<flt_t,acc_t> * /*buffers*/)
 {
-  const int ip1 = atom->nimpropertypes + 1;
-  fc.set_ntypes(ip1,memory);
+  const int bp1 = atom->nimpropertypes + 1;
+  fc.set_ntypes(bp1,memory);
 
-  for (int i = 1; i < ip1; i++) {
+  for (int i = 1; i < bp1; i++) {
     fc.fc[i].k = k[i];
     fc.fc[i].sign = sign[i];
     fc.fc[i].multiplicity = multiplicity[i];
@@ -430,14 +439,15 @@ void ImproperCvffIntel::pack_force_const(ForceConst<flt_t> &fc,
 /* ---------------------------------------------------------------------- */
 
 template <class flt_t>
-void ImproperCvffIntel::ForceConst<flt_t>::set_ntypes(const int nimpropertypes,
+void ImproperCvffIntel::ForceConst<flt_t>::set_ntypes(const int nimproper,
                                                           Memory *memory) {
-  if (memory != nullptr) _memory = memory;
-  if (nimpropertypes != _nimpropertypes) {
-    _memory->destroy(fc);
+  if (nimproper != _nimpropertypes) {
+    if (_nimpropertypes > 0)
+      _memory->destroy(fc);
 
-    if (nimpropertypes > 0)
-      _memory->create(fc,nimpropertypes,"improperharmonicintel.fc");
+    if (nimproper > 0)
+      _memory->create(fc,nimproper,"improperharmonicintel.fc");
   }
-  _nimpropertypes = nimpropertypes;
+  _nimpropertypes = nimproper;
+  _memory = memory;
 }

@@ -86,7 +86,7 @@ int crml_gpu_init(const int ntypes, double cut_bothsq, double **host_lj1,
                           qqrd2e, g_ewald,  cut_lj_innersq, denom_lj, epsilon,
                           sigma, mix_arithmetic);
 
-    CRMLMF.device->serialize_init();
+    CRMLMF.device->gpu_barrier();
     if (message)
       fprintf(screen,"Done.\n");
   }

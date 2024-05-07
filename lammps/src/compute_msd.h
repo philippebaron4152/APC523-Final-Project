@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,10 +27,10 @@ namespace LAMMPS_NS {
 class ComputeMSD : public Compute {
  public:
   ComputeMSD(class LAMMPS *, int, char **);
-  ~ComputeMSD() override;
-  void init() override;
-  void compute_vector() override;
-  void set_arrays(int) override;
+  virtual ~ComputeMSD();
+  void init();
+  virtual void compute_vector();
+  void set_arrays(int);
 
  protected:
   int comflag;     // comflag = 1 if reference moves with center of mass
@@ -39,10 +39,24 @@ class ComputeMSD : public Compute {
   bigint nmsd;
   double masstotal;
   char *id_fix;
-  class FixStoreAtom *fix;
+  class FixStore *fix;
 };
 
 }    // namespace LAMMPS_NS
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal ... command
+
+Self-explanatory.  Check the input script syntax and compare to the
+documentation for the command.  You can use -echo screen as a
+command-line option when running LAMMPS to see the offending line.
+
+E: Could not find compute msd fix ID
+
+Self-explanatory.
+
+*/

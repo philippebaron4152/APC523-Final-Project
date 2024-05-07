@@ -24,6 +24,8 @@ using namespace std;
 Mat3x3::Mat3x3(){
   numrows = numcols = 3;
 }
+Mat3x3::~Mat3x3(){
+}
 
 Mat3x3::Mat3x3(const Mat3x3& A){
   numrows = numcols = 3;

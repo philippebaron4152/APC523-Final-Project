@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -37,12 +37,12 @@ class PairLJCutCoulDSFKokkos : public PairLJCutCoulDSF {
   typedef DeviceType device_type;
   typedef ArrayTypes<DeviceType> AT;
   PairLJCutCoulDSFKokkos(class LAMMPS *);
-  ~PairLJCutCoulDSFKokkos() override;
+  ~PairLJCutCoulDSFKokkos();
 
-  void compute(int, int) override;
+  void compute(int, int);
 
-  void init_style() override;
-  double init_one(int, int) override;
+  void init_style();
+  double init_one(int, int);
 
  protected:
   template<bool STACKPARAMS, class Specialisation>
@@ -100,19 +100,16 @@ class PairLJCutCoulDSFKokkos : public PairLJCutCoulDSF {
   double special_lj[4];
   double qqrd2e;
 
-  void allocate() override;
-  friend struct PairComputeFunctor<PairLJCutCoulDSFKokkos,FULL,true,0>;
-  friend struct PairComputeFunctor<PairLJCutCoulDSFKokkos,FULL,true,1>;
+  void allocate();
+  friend struct PairComputeFunctor<PairLJCutCoulDSFKokkos,FULL,true>;
   friend struct PairComputeFunctor<PairLJCutCoulDSFKokkos,HALF,true>;
   friend struct PairComputeFunctor<PairLJCutCoulDSFKokkos,HALFTHREAD,true>;
-  friend struct PairComputeFunctor<PairLJCutCoulDSFKokkos,FULL,false,0>;
-  friend struct PairComputeFunctor<PairLJCutCoulDSFKokkos,FULL,false,1>;
+  friend struct PairComputeFunctor<PairLJCutCoulDSFKokkos,FULL,false>;
   friend struct PairComputeFunctor<PairLJCutCoulDSFKokkos,HALF,false>;
   friend struct PairComputeFunctor<PairLJCutCoulDSFKokkos,HALFTHREAD,false>;
-  friend EV_FLOAT pair_compute_neighlist<PairLJCutCoulDSFKokkos,FULL,0>(PairLJCutCoulDSFKokkos*,NeighListKokkos<DeviceType>*);
-  friend EV_FLOAT pair_compute_neighlist<PairLJCutCoulDSFKokkos,FULL,1>(PairLJCutCoulDSFKokkos*,NeighListKokkos<DeviceType>*);
-  friend EV_FLOAT pair_compute_neighlist<PairLJCutCoulDSFKokkos,HALF>(PairLJCutCoulDSFKokkos*,NeighListKokkos<DeviceType>*);
-  friend EV_FLOAT pair_compute_neighlist<PairLJCutCoulDSFKokkos,HALFTHREAD>(PairLJCutCoulDSFKokkos*,NeighListKokkos<DeviceType>*);
+  friend EV_FLOAT pair_compute_neighlist<PairLJCutCoulDSFKokkos,FULL,void>(PairLJCutCoulDSFKokkos*,NeighListKokkos<DeviceType>*);
+  friend EV_FLOAT pair_compute_neighlist<PairLJCutCoulDSFKokkos,HALF,void>(PairLJCutCoulDSFKokkos*,NeighListKokkos<DeviceType>*);
+  friend EV_FLOAT pair_compute_neighlist<PairLJCutCoulDSFKokkos,HALFTHREAD,void>(PairLJCutCoulDSFKokkos*,NeighListKokkos<DeviceType>*);
   friend EV_FLOAT pair_compute<PairLJCutCoulDSFKokkos,void>(PairLJCutCoulDSFKokkos*,
                                                             NeighListKokkos<DeviceType>*);
   friend void pair_virial_fdotr_compute<PairLJCutCoulDSFKokkos>(PairLJCutCoulDSFKokkos*);
@@ -124,3 +121,14 @@ class PairLJCutCoulDSFKokkos : public PairLJCutCoulDSF {
 #endif
 #endif
 
+/* ERROR/WARNING messages:
+
+E: Cannot use Kokkos pair style with rRESPA inner/middle
+
+Self-explanatory.
+
+E: Cannot use chosen neighbor list style with lj/cut/coul/cut/kk
+
+That style is not supported by Kokkos.
+
+*/

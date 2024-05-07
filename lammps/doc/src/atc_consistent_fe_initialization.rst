@@ -6,7 +6,7 @@ fix_modify AtC consistent_fe_initialization command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> consistent_fe_initialization <on|off>
 

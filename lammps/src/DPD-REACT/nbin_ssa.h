@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -41,11 +41,12 @@ class NBinSSA : public NBinStandard {
   int lbinzhi;    // highest local bin z-dim coordinate
 
   NBinSSA(class LAMMPS *);
+  ~NBinSSA();
 
-  void bin_atoms_setup(int) override;
-  void bin_atoms() override;
+  void bin_atoms_setup(int);
+  void bin_atoms();
 
-  double memory_usage() override;
+  double memory_usage();
 
   inline int coord2bin(const double &x, const double &y, const double &z, int &ixo, int &iyo,
                        int &izo) const
@@ -95,3 +96,7 @@ class NBinSSA : public NBinStandard {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+*/

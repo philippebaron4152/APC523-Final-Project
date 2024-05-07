@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -31,24 +31,24 @@ class PairEAMCD : public PairEAMAlloy {
   PairEAMCD(class LAMMPS *, int cdeamVersion);
 
   /// Destructor.
-  ~PairEAMCD() override;
+  virtual ~PairEAMCD();
 
   /// Calculates the energies and forces for all atoms in the system.
-  void compute(int, int) override;
+  virtual void compute(int, int);
 
   /// Parses the pair_coeff command parameters for this pair style.
-  void coeff(int, char **) override;
+  void coeff(int, char **);
 
   /// This is for MPI communication with neighbor nodes.
-  int pack_forward_comm(int, int *, double *, int, int *) override;
-  void unpack_forward_comm(int, int, double *) override;
-  int pack_reverse_comm(int, int, double *) override;
-  void unpack_reverse_comm(int, int *, double *) override;
+  int pack_forward_comm(int, int *, double *, int, int *);
+  void unpack_forward_comm(int, int, double *);
+  int pack_reverse_comm(int, int, double *);
+  void unpack_reverse_comm(int, int *, double *);
 
   /// Reports the memory usage of this pair style to LAMMPS.
-  double memory_usage() override;
+  double memory_usage();
 
-  void *extract(const char *, int &) override { return nullptr; }
+  void *extract(const char *, int &) { return nullptr; }
 
   /// Parses the coefficients of the h polynomial from the end of the EAM file.
   void read_h_coeff(char *filename);
@@ -120,7 +120,6 @@ class PairEAMCD : public PairEAMAlloy {
     index.p = r * rdr + 1.0;
     index.m = static_cast<int>(index.p);
     index.m = index.m <= (nr - 1) ? index.m : (nr - 1);
-    index.m = index.m > 1 ? index.m : 1;
     index.p -= index.m;
     index.p = index.p <= 1.0 ? index.p : 1.0;
     return index;
@@ -133,7 +132,6 @@ class PairEAMCD : public PairEAMAlloy {
     index.p = rho * rdrho + 1.0;
     index.m = static_cast<int>(index.p);
     index.m = index.m <= (nrho - 1) ? index.m : (nrho - 1);
-    index.m = index.m > 1 ? index.m : 1;
     index.p -= index.m;
     index.p = index.p <= 1.0 ? index.p : 1.0;
     return index;

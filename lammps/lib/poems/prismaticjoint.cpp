@@ -27,7 +27,8 @@ PrismaticJoint::PrismaticJoint(){
   u.Dim(1);
   udot.Dim(1);
 }
-PrismaticJoint::~PrismaticJoint() = default;
+PrismaticJoint::~PrismaticJoint(){
+}
 
 JointType PrismaticJoint::GetType(){
   return PRISMATICJOINT;

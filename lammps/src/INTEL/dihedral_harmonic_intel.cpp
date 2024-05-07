@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -26,9 +26,9 @@
 #include "modify.h"
 #include "neighbor.h"
 #include "suffix.h"
+#include "update.h"
 
 #include <cmath>
-#include <cstring>
 
 #include "omp_compat.h"
 
@@ -163,11 +163,11 @@ void DihedralHarmonicIntel::eval(const int vflag,
     #else
     for (int n = nfrom; n < nto; n += npl) {
     #endif
-      const int i1 = IP_PRE_dword_index(dihedrallist[n].a);
-      const int i2 = IP_PRE_dword_index(dihedrallist[n].b);
-      const int i3 = IP_PRE_dword_index(dihedrallist[n].c);
-      const int i4 = IP_PRE_dword_index(dihedrallist[n].d);
-      const int type = IP_PRE_dword_index(dihedrallist[n].t);
+      const int i1 = dihedrallist[n].a;
+      const int i2 = dihedrallist[n].b;
+      const int i3 = dihedrallist[n].c;
+      const int i4 = dihedrallist[n].d;
+      const int type = dihedrallist[n].t;
 
       // 1st bond
 
@@ -199,14 +199,14 @@ void DihedralHarmonicIntel::eval(const int vflag,
       const flt_t rasq = ax*ax + ay*ay + az*az;
       const flt_t rbsq = bx*bx + by*by + bz*bz;
       const flt_t rgsq = vb2xm*vb2xm + vb2ym*vb2ym + vb2zm*vb2zm;
-      const flt_t rg = std::sqrt(rgsq);
+      const flt_t rg = sqrt(rgsq);
 
       flt_t rginv, ra2inv, rb2inv;
       rginv = ra2inv = rb2inv = (flt_t)0.0;
       if (rg > 0) rginv = (flt_t)1.0/rg;
       if (rasq > 0) ra2inv = (flt_t)1.0/rasq;
       if (rbsq > 0) rb2inv = (flt_t)1.0/rbsq;
-      const flt_t rabinv = std::sqrt(ra2inv*rb2inv);
+      const flt_t rabinv = sqrt(ra2inv*rb2inv);
 
       flt_t c = (ax*bx + ay*by + az*bz)*rabinv;
       const flt_t s = rg*rabinv*(ax*vb3x + ay*vb3y + az*vb3z);
@@ -220,12 +220,12 @@ void DihedralHarmonicIntel::eval(const int vflag,
       if (c > (flt_t)1.0) c = (flt_t)1.0;
       if (c < (flt_t)-1.0) c = (flt_t)-1.0;
 
-      const flt_t tcos_shift = fc.fc[type].cos_shift;
-      const flt_t tsin_shift = fc.fc[type].sin_shift;
-      const flt_t tk = fc.fc[type].k;
-      const int m = fc.fc[type].multiplicity;
+      const flt_t tcos_shift = fc.bp[type].cos_shift;
+      const flt_t tsin_shift = fc.bp[type].sin_shift;
+      const flt_t tk = fc.bp[type].k;
+      const int m = fc.bp[type].multiplicity;
 
-      auto  p = (flt_t)1.0;
+      flt_t p = (flt_t)1.0;
       flt_t ddf1, df1;
       ddf1 = df1 = (flt_t)0.0;
 
@@ -359,8 +359,11 @@ void DihedralHarmonicIntel::init_style()
 {
   DihedralHarmonic::init_style();
 
-  fix = static_cast<FixIntel *>(modify->get_fix_by_id("package_intel"));
-  if (!fix) error->all(FLERR, "The 'package intel' command is required for /intel styles");
+  int ifix = modify->find_fix("package_intel");
+  if (ifix < 0)
+    error->all(FLERR,
+               "The 'package intel' command is required for /intel styles");
+  fix = static_cast<FixIntel *>(modify->fix[ifix]);
 
   #ifdef _LMP_INTEL_OFFLOAD
   _use_base = 0;
@@ -386,28 +389,29 @@ template <class flt_t, class acc_t>
 void DihedralHarmonicIntel::pack_force_const(ForceConst<flt_t> &fc,
                                              IntelBuffers<flt_t,acc_t> * /*buffers*/)
 {
-  const int dp1 = atom->ndihedraltypes + 1;
-  fc.set_ntypes(dp1,memory);
+  const int bp1 = atom->ndihedraltypes + 1;
+  fc.set_ntypes(bp1,memory);
 
-  for (int i = 1; i < dp1; i++) {
-    fc.fc[i].multiplicity = multiplicity[i];
-    fc.fc[i].cos_shift = cos_shift[i];
-    fc.fc[i].sin_shift = sin_shift[i];
-    fc.fc[i].k = k[i];
+  for (int i = 1; i < bp1; i++) {
+    fc.bp[i].multiplicity = multiplicity[i];
+    fc.bp[i].cos_shift = cos_shift[i];
+    fc.bp[i].sin_shift = sin_shift[i];
+    fc.bp[i].k = k[i];
   }
 }
 
 /* ---------------------------------------------------------------------- */
 
 template <class flt_t>
-void DihedralHarmonicIntel::ForceConst<flt_t>::set_ntypes(const int ndihderaltypes,
+void DihedralHarmonicIntel::ForceConst<flt_t>::set_ntypes(const int nbondtypes,
                                                           Memory *memory) {
-  if (memory != nullptr) _memory = memory;
-  if (ndihderaltypes != _ndihderaltypes) {
-    _memory->destroy(fc);
+  if (nbondtypes != _nbondtypes) {
+    if (_nbondtypes > 0)
+      _memory->destroy(bp);
 
-    if (ndihderaltypes > 0)
-      _memory->create(fc,ndihderaltypes,"dihedralcharmmintel.fc");
+    if (nbondtypes > 0)
+      _memory->create(bp,nbondtypes,"dihedralcharmmintel.bp");
   }
-  _ndihderaltypes = ndihderaltypes;
+  _nbondtypes = nbondtypes;
+  _memory = memory;
 }

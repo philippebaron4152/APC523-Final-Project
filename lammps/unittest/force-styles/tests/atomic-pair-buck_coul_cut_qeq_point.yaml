@@ -1,9 +1,8 @@
 ---
-lammps_version: 17 Feb 2022
-tags: unstable
-date_generated: Fri Mar 18 22:17:36 2022
+lammps_version: 8 Apr 2021
+date_generated: Tue Apr 20 14:47:51 2021
 epsilon: 7.5e-13
-skip_tests: gpu intel single
+skip_tests: intel single gpu
 prerequisites: ! |
   pair buck/coul/cut
   fix qeq/point

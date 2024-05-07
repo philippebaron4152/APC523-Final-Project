@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -18,16 +18,16 @@
 
 #include "pair_lj_charmm_coul_charmm.h"
 
-#include "atom.h"
-#include "comm.h"
-#include "error.h"
-#include "force.h"
-#include "memory.h"
-#include "neigh_list.h"
-#include "neighbor.h"
-
 #include <cmath>
 #include <cstring>
+#include "atom.h"
+#include "comm.h"
+#include "force.h"
+#include "neighbor.h"
+#include "neigh_list.h"
+#include "memory.h"
+#include "error.h"
+
 
 using namespace LAMMPS_NS;
 
@@ -281,14 +281,15 @@ void PairLJCharmmCoulCharmm::coeff(int narg, char **arg)
 void PairLJCharmmCoulCharmm::init_style()
 {
   if (!atom->q_flag)
-    error->all(FLERR, "Pair style lj/charmm/coul/charmm requires atom attribute q");
+    error->all(FLERR,
+               "Pair style lj/charmm/coul/charmm requires atom attribute q");
 
-  neighbor->add_request(this);
+  neighbor->request(this,instance_me);
 
   // require cut_lj_inner < cut_lj, cut_coul_inner < cut_coul
 
   if (cut_lj_inner >= cut_lj || cut_coul_inner >= cut_coul)
-    error->all(FLERR, "Pair inner cutoff >= Pair outer cutoff");
+    error->all(FLERR,"Pair inner cutoff >= Pair outer cutoff");
 
   cut_lj_innersq = cut_lj_inner * cut_lj_inner;
   cut_ljsq = cut_lj * cut_lj;

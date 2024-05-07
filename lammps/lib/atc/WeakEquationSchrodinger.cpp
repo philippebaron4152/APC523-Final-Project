@@ -18,7 +18,7 @@ WeakEquationSchrodinger::WeakEquationSchrodinger()
 //--------------------------------------------------------------
 //  Destructor
 //---------------------------------------------------------------------
-WeakEquationSchrodinger::~WeakEquationSchrodinger()
+WeakEquationSchrodinger::~WeakEquationSchrodinger(void)
 {}
 
 //---------------------------------------------------------------------

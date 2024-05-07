@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -16,7 +16,8 @@
 
 #include "error.h"
 
-#if defined(LMP_INTEL) && ((defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)))
+#if defined(LMP_INTEL) && \
+  ((defined(__INTEL_COMPILER) || defined(__INTEL_LLVM_COMPILER)))
 #ifndef LMP_INTEL_NO_TBB
 #define LMP_USE_TBB_ALLOCATOR
 #include "tbb/scalable_allocator.h"
@@ -62,7 +63,8 @@ void *Memory::smalloc(bigint nbytes, const char *name)
   void *ptr = malloc(nbytes);
 #endif
   if (ptr == nullptr)
-    error->one(FLERR,"Failed to allocate {} bytes for array {}", nbytes,name);
+    error->one(FLERR,"Failed to allocate {} bytes for array {}",
+                                 nbytes,name);
   return ptr;
 }
 
@@ -125,5 +127,6 @@ void Memory::sfree(void *ptr)
 
 void Memory::fail(const char *name)
 {
-  error->one(FLERR,"Cannot create/grow a vector/array of pointers for {}",name);
+  error->one(FLERR,"Cannot create/grow a vector/array of "
+                               "pointers for {}",name);
 }

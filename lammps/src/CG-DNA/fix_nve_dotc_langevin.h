@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,10 +27,10 @@ namespace LAMMPS_NS {
 class FixNVEDotcLangevin : public FixNVE {
  public:
   FixNVEDotcLangevin(class LAMMPS *, int, char **);
-  ~FixNVEDotcLangevin() override;
-  void init() override;
-  void initial_integrate(int) override;
-  void final_integrate() override;
+  virtual ~FixNVEDotcLangevin();
+  void init();
+  void initial_integrate(int);
+  void final_integrate();
 
  private:
   double dt, dthlf, dthlfm, dtqrt;
@@ -64,3 +64,15 @@ class FixNVEDotcLangevin : public FixNVE {
 }    // namespace LAMMPS_NS
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Compute nve/dotc/langevin requires atom style ellipsoid
+
+Self-explanatory.
+
+E: Fix nve/dotc/langevin requires extended particles
+
+This fix can only be used for particles with a shape setting.
+
+*/

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,7 +21,6 @@ namespace LAMMPS_NS {
 class Region : protected Pointers {
  public:
   char *id, *style;
-  Region **reglist;
   int interior;                     // 1 for interior, 0 for exterior
   int scaleflag;                    // 1 for lattice, 0 for box
   double xscale, yscale, zscale;    // scale factors for box/lattice units
@@ -67,9 +66,10 @@ class Region : protected Pointers {
                         //   prevents multiple fix/wall/gran/region calls
   int nregion;          // For union and intersect
   int size_restart;
+  int *list;
 
   Region(class LAMMPS *, int, char **);
-  ~Region() override;
+  virtual ~Region();
   virtual void init();
   int dynamic_check();
 
@@ -115,3 +115,33 @@ class Region : protected Pointers {
 }    // namespace LAMMPS_NS
 
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Variable name for region does not exist
+
+Self-explanatory.
+
+E: Variable for region is invalid style
+
+Only equal-style variables can be used.
+
+E: Variable for region is not equal style
+
+Self-explanatory.
+
+E: Illegal ... command
+
+Self-explanatory.  Check the input script syntax and compare to the
+documentation for the command.  You can use -echo screen as a
+command-line option when running LAMMPS to see the offending line.
+
+E: Region union or intersect cannot be dynamic
+
+The sub-regions can be dynamic, but not the combined region.
+
+E: Region cannot have 0 length rotation vector
+
+Self-explanatory.
+
+*/

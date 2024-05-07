@@ -10,7 +10,6 @@
    * :ref:`Dihedral styles <dihedral>`
    * :ref:`Improper styles <improper>`
    * :doc:`KSpace styles <Commands_kspace>`
-   * :doc:`Dump styles <Commands_dump>`
 
 .. _bond:
 
@@ -33,20 +32,14 @@ OPT.
    *
    *
    *
-   * :doc:`bpm/rotational <bond_bpm_rotational>`
-   * :doc:`bpm/spring <bond_bpm_spring>`
    * :doc:`class2 (ko) <bond_class2>`
    * :doc:`fene (iko) <bond_fene>`
    * :doc:`fene/expand (o) <bond_fene_expand>`
-   * :doc:`fene/nm <bond_fene>`
    * :doc:`gaussian <bond_gaussian>`
    * :doc:`gromos (o) <bond_gromos>`
    * :doc:`harmonic (iko) <bond_harmonic>`
-   * :doc:`harmonic/restrain <bond_harmonic_restrain>`
    * :doc:`harmonic/shift (o) <bond_harmonic_shift>`
    * :doc:`harmonic/shift/cut (o) <bond_harmonic_shift_cut>`
-   * :doc:`lepton (o) <bond_lepton>`
-   * :doc:`mesocnt <bond_mesocnt>`
    * :doc:`mm3 <bond_mm3>`
    * :doc:`morse (o) <bond_morse>`
    * :doc:`nonlinear (o) <bond_nonlinear>`
@@ -78,7 +71,6 @@ OPT.
    *
    *
    *
-   * :doc:`amoeba <angle_amoeba>`
    * :doc:`charmm (iko) <angle_charmm>`
    * :doc:`class2 (ko) <angle_class2>`
    * :doc:`class2/p6 <angle_class2>`
@@ -89,18 +81,15 @@ OPT.
    * :doc:`cosine/shift (o) <angle_cosine_shift>`
    * :doc:`cosine/shift/exp (o) <angle_cosine_shift_exp>`
    * :doc:`cosine/squared (o) <angle_cosine_squared>`
-   * :doc:`cosine/squared/restricted (o) <angle_cosine_squared_restricted>`
    * :doc:`cross <angle_cross>`
    * :doc:`dipole (o) <angle_dipole>`
    * :doc:`fourier (o) <angle_fourier>`
    * :doc:`fourier/simple (o) <angle_fourier_simple>`
-   * :doc:`gaussian <angle_gaussian>`
+   * :doc:`gaussian <angle_gaussian>` - multicentered Gaussian-based angle potential
    * :doc:`harmonic (iko) <angle_harmonic>`
-   * :doc:`lepton (o) <angle_lepton>`
-   * :doc:`mesocnt <angle_mesocnt>`
    * :doc:`mm3 <angle_mm3>`
    * :doc:`quartic (o) <angle_quartic>`
-   * :doc:`spica (o) <angle_spica>`
+   * :doc:`sdk (o) <angle_sdk>`
    * :doc:`table (o) <angle_table>`
 
 .. _dihedral:
@@ -125,14 +114,12 @@ OPT.
    *
    *
    * :doc:`charmm (iko) <dihedral_charmm>`
-   * :doc:`charmmfsw (k) <dihedral_charmm>`
+   * :doc:`charmmfsw <dihedral_charmm>`
    * :doc:`class2 (ko) <dihedral_class2>`
    * :doc:`cosine/shift/exp (o) <dihedral_cosine_shift_exp>`
-   * :doc:`cosine/squared/restricted <dihedral_cosine_squared_restricted>`
    * :doc:`fourier (io) <dihedral_fourier>`
    * :doc:`harmonic (iko) <dihedral_harmonic>`
    * :doc:`helix (o) <dihedral_helix>`
-   * :doc:`lepton (o) <dihedral_lepton>`
    * :doc:`multi/harmonic (o) <dihedral_multi_harmonic>`
    * :doc:`nharmonic (o) <dihedral_nharmonic>`
    * :doc:`opls (iko) <dihedral_opls>`
@@ -162,7 +149,6 @@ OPT.
    *
    *
    *
-   * :doc:`amoeba <improper_amoeba>`
    * :doc:`class2 (ko) <improper_class2>`
    * :doc:`cossq (o) <improper_cossq>`
    * :doc:`cvff (io) <improper_cvff>`

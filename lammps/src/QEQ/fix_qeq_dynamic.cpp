@@ -1,7 +1,8 @@
+// clang-format off
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,9 +22,12 @@
 #include "comm.h"
 #include "error.h"
 #include "force.h"
+#include "group.h"
 #include "kspace.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "neighbor.h"
+#include "respa.h"
 #include "update.h"
 
 #include <cmath>
@@ -33,7 +37,8 @@ using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
 
-FixQEqDynamic::FixQEqDynamic(LAMMPS *lmp, int narg, char **arg) : FixQEq(lmp, narg, arg)
+FixQEqDynamic::FixQEqDynamic(LAMMPS *lmp, int narg, char **arg) :
+  FixQEq(lmp, narg, arg)
 {
   qdamp = 0.10;
   qstep = 0.02;
@@ -41,20 +46,21 @@ FixQEqDynamic::FixQEqDynamic(LAMMPS *lmp, int narg, char **arg) : FixQEq(lmp, na
   int iarg = 8;
   while (iarg < narg) {
 
-    if (strcmp(arg[iarg], "qdamp") == 0) {
-      if (iarg + 2 > narg) utils::missing_cmd_args(FLERR, "fix qeq/dynamic qdamp", error);
-      qdamp = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
+    if (strcmp(arg[iarg],"qdamp") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal fix qeq/dynamic command");
+      qdamp = atof(arg[iarg+1]);
       iarg += 2;
-    } else if (strcmp(arg[iarg], "qstep") == 0) {
-      if (iarg + 2 > narg) utils::missing_cmd_args(FLERR, "fix qeq/dynamic qstep", error);
-      qstep = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
+    } else if (strcmp(arg[iarg],"qstep") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal fix qeq/dynamic command");
+      qstep = atof(arg[iarg+1]);
       iarg += 2;
-    } else if (strcmp(arg[iarg], "warn") == 0) {
-      if (iarg + 2 > narg) utils::missing_cmd_args(FLERR, "fix qeq/dynamic warn", error);
-      maxwarn = utils::logical(FLERR, arg[iarg + 1], false, lmp);
+    } else if (strcmp(arg[iarg],"warn") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal fix qeq/dynamic command");
+      if (strcmp(arg[iarg+1],"no") == 0) maxwarn = 0;
+      else if (strcmp(arg[iarg+1],"yes") == 0) maxwarn = 1;
+      else error->all(FLERR,"Illegal fix qeq/dynamic command");
       iarg += 2;
-    } else
-      error->all(FLERR, "Unknown fix qeq/dynamic keyword: {}", arg[iarg]);
+    } else error->all(FLERR,"Illegal fix qeq/dynamic command");
   }
 }
 
@@ -62,23 +68,35 @@ FixQEqDynamic::FixQEqDynamic(LAMMPS *lmp, int narg, char **arg) : FixQEq(lmp, na
 
 void FixQEqDynamic::init()
 {
-  FixQEq::init();
+  if (!atom->q_flag)
+    error->all(FLERR,"Fix qeq/dynamic requires atom attribute q");
 
-  neighbor->add_request(this);
+  ngroup = group->count(igroup);
+  if (ngroup == 0) error->all(FLERR,"Fix qeq/dynamic group has no atoms");
+
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->pair = 0;
+  neighbor->requests[irequest]->fix  = 1;
+  neighbor->requests[irequest]->half = 1;
+  neighbor->requests[irequest]->full = 0;
 
   if (tolerance < 1e-4)
     if (comm->me == 0)
-      error->warning(FLERR, "Fix qeq/dynamic tolerance {} may be too small for damped dynamics",
-                     tolerance);
+      error->warning(FLERR,"Fix qeq/dynamic tolerance may be too small"
+                    " for damped dynamics");
+
+  if (utils::strmatch(update->integrate_style,"^respa"))
+    nlevels_respa = ((Respa *) update->integrate)->nlevels;
+
 }
 
 /* ---------------------------------------------------------------------- */
 
 void FixQEqDynamic::pre_force(int /*vflag*/)
 {
-  int i, ii, iloop, inum, *ilist;
-  double qmass, dtq2;
-  double enegchkall, enegmaxall;
+  int i,ii,iloop,inum,*ilist;
+  double qmass,dtq2;
+  double enegchkall,enegmaxall;
 
   double *q = atom->q;
   int *mask = atom->mask;
@@ -94,57 +112,59 @@ void FixQEqDynamic::pre_force(int /*vflag*/)
   inum = list->inum;
   ilist = list->ilist;
 
-  qmass = 0.016;
-  dtq2 = 0.5 * qstep * qstep / qmass;
+  qmass  = 0.016;
+  dtq2   = 0.5*qstep*qstep/qmass;
 
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
     q1[i] = q2[i] = qf[i] = 0.0;
   }
 
-  for (iloop = 0; iloop < maxiter; iloop++) {
+  for (iloop = 0; iloop < maxiter; iloop ++) {
     for (ii = 0; ii < inum; ii++) {
       i = ilist[ii];
       if (mask[i] & groupbit) {
-        q1[i] += qf[i] * dtq2 - qdamp * q1[i];
-        q[i] += q1[i];
+        q1[i] += qf[i]*dtq2 - qdamp*q1[i];
+        q[i]  += q1[i];
       }
     }
 
     pack_flag = 1;
-    comm->forward_comm(this);
+    comm->forward_comm_fix(this);
 
     enegtot = compute_eneg();
     enegtot /= ngroup;
 
     enegchk = enegmax = 0.0;
 
-    for (ii = 0; ii < inum; ii++) {
+    for (ii = 0; ii < inum ; ii++) {
       i = ilist[ii];
       if (mask[i] & groupbit) {
-        q2[i] = enegtot - qf[i];
-        enegmax = MAX(enegmax, fabs(q2[i]));
+        q2[i] = enegtot-qf[i];
+        enegmax = MAX(enegmax,fabs(q2[i]));
         enegchk += fabs(q2[i]);
         qf[i] = q2[i];
       }
     }
 
-    MPI_Allreduce(&enegchk, &enegchkall, 1, MPI_DOUBLE, MPI_SUM, world);
-    enegchk = enegchkall / ngroup;
-    MPI_Allreduce(&enegmax, &enegmaxall, 1, MPI_DOUBLE, MPI_MAX, world);
+    MPI_Allreduce(&enegchk,&enegchkall,1,MPI_DOUBLE,MPI_SUM,world);
+    enegchk = enegchkall/ngroup;
+    MPI_Allreduce(&enegmax,&enegmaxall,1,MPI_DOUBLE,MPI_MAX,world);
     enegmax = enegmaxall;
 
-    if ((enegchk <= tolerance) && (enegmax <= 100.0 * tolerance)) break;
+    if ((enegchk <= tolerance) && (enegmax <= 100.0*tolerance)) break;
 
     for (ii = 0; ii < inum; ii++) {
       i = ilist[ii];
-      if (mask[i] & groupbit) q1[i] += qf[i] * dtq2 - qdamp * q1[i];
+      if (mask[i] & groupbit)
+        q1[i] += qf[i]*dtq2 - qdamp*q1[i];
     }
   }
   matvecs = iloop;
 
   if ((comm->me == 0) && maxwarn && (iloop >= maxiter))
-    error->warning(FLERR, "Charges did not converge at step {}: {}", update->ntimestep, enegchk);
+      error->warning(FLERR,"Charges did not converge at step {}: {}",
+                     update->ntimestep,enegchk);
 
   if (force->kspace) force->kspace->qsum_qsq();
 }
@@ -170,12 +190,13 @@ double FixQEqDynamic::compute_eneg()
 
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
-    if (mask[i] & groupbit) qf[i] = 0.0;
+    if (mask[i] & groupbit)
+      qf[i] = 0.0;
   }
 
   // communicating charge force to all nodes, first forward then reverse
   pack_flag = 2;
-  comm->forward_comm(this);
+  comm->forward_comm_fix(this);
 
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
@@ -195,12 +216,12 @@ double FixQEqDynamic::compute_eneg()
         delr[0] = x[i][0] - x[j][0];
         delr[1] = x[i][1] - x[j][1];
         delr[2] = x[i][2] - x[j][2];
-        rsq = delr[0] * delr[0] + delr[1] * delr[1] + delr[2] * delr[2];
+        rsq = delr[0]*delr[0] + delr[1]*delr[1] + delr[2]*delr[2];
 
         if (rsq > cutoff_sq) continue;
 
         r = sqrt(rsq);
-        rinv = 1.0 / r;
+        rinv = 1.0/r;
         qf[i] += q[j] * rinv;
         qf[j] += q[i] * rinv;
       }
@@ -208,24 +229,27 @@ double FixQEqDynamic::compute_eneg()
   }
 
   pack_flag = 2;
-  comm->reverse_comm(this);
+  comm->reverse_comm_fix(this);
 
   // sum charge force on each node and return it
 
   eneg = enegtot = 0.0;
   for (ii = 0; ii < inum; ii++) {
     i = ilist[ii];
-    if (mask[i] & groupbit) eneg += qf[i];
+    if (mask[i] & groupbit)
+      eneg += qf[i];
   }
-  MPI_Allreduce(&eneg, &enegtot, 1, MPI_DOUBLE, MPI_SUM, world);
+  MPI_Allreduce(&eneg,&enegtot,1,MPI_DOUBLE,MPI_SUM,world);
   return enegtot;
+
 }
 
 /* ---------------------------------------------------------------------- */
 
-int FixQEqDynamic::pack_forward_comm(int n, int *list, double *buf, int /*pbc_flag*/, int * /*pbc*/)
+int FixQEqDynamic::pack_forward_comm(int n, int *list, double *buf,
+                          int /*pbc_flag*/, int * /*pbc*/)
 {
-  int m = 0;
+  int m=0;
 
   if (pack_flag == 1)
     for (m = 0; m < n; m++) buf[m] = atom->q[list[m]];

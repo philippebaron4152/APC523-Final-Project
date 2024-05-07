@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -23,7 +23,7 @@
 #include "domain.h"
 #include "error.h"
 #include "force.h"
-#include "grid3d.h"
+#include "gridcomm.h"
 #include "memory.h"
 #include "neighbor.h"
 #include "thr_omp.h"
@@ -38,8 +38,8 @@
 
 using namespace LAMMPS_NS;
 
-static constexpr int OFFSET = 16384;
-static constexpr double SMALLQ = 0.00001;
+#define OFFSET 16384
+#define SMALLQ 0.00001
 
 enum{REVERSE_RHO,REVERSE_AD,REVERSE_AD_PERATOM};
 enum{FORWARD_RHO,FORWARD_AD,FORWARD_AD_PERATOM};
@@ -59,7 +59,7 @@ MSMCGOMP::MSMCGOMP(LAMMPS *lmp) : MSMOMP(lmp),
 void MSMCGOMP::settings(int narg, char **arg)
 {
   if ((narg < 1) || (narg > 2))
-    error->all(FLERR,"Illegal kspace_style {} command", force->kspace_style);
+    error->all(FLERR,"Illegal kspace_style msm/cg/omp command");
 
   MSMOMP::settings(narg,arg);
 
@@ -138,10 +138,11 @@ void MSMCGOMP::compute(int eflag, int vflag)
                    / static_cast<double>(atom->natoms);
 
     if (me == 0)
-      utils::logmesg(MSM::lmp,"  MSM/cg optimization cutoff: {:.8}\n"
-                     "  Total charged atoms: {:.1f}%\n"
-                     "  Min/max charged atoms/proc: {:.1f}%"
-                     " {:.1f}%\n",smallq, charged_frac,charged_fmin,charged_fmax);
+      utils::logmesg(MSM::lmp,fmt::format("  MSM/cg optimization cutoff: {:.8}\n"
+                                          "  Total charged atoms: {:.1f}%\n"
+                                          "  Min/max charged atoms/proc: {:.1f}%"
+                                          " {:.1f}%\n",smallq,
+                                          charged_frac,charged_fmin,charged_fmax));
   }
 
   // only need to rebuild this list after a neighbor list update
@@ -165,7 +166,7 @@ void MSMCGOMP::compute(int eflag, int vflag)
   //   to fully sum contribution in their 3d grid
 
   current_level = 0;
-  gcall->reverse_comm(Grid3d::KSPACE,this,REVERSE_RHO,1,sizeof(double),
+  gcall->reverse_comm(GridComm::KSPACE,this,1,sizeof(double),REVERSE_RHO,
                       gcall_buf1,gcall_buf2,MPI_DOUBLE);
 
   // forward communicate charge density values to fill ghost grid points
@@ -174,7 +175,7 @@ void MSMCGOMP::compute(int eflag, int vflag)
   for (int n=0; n<=levels-2; n++) {
     if (!active_flag[n]) continue;
     current_level = n;
-    gc[n]->forward_comm(Grid3d::KSPACE,this,FORWARD_RHO,1,sizeof(double),
+    gc[n]->forward_comm(GridComm::KSPACE,this,1,sizeof(double),FORWARD_RHO,
                         gc_buf1[n],gc_buf2[n],MPI_DOUBLE);
     direct(n);
     restriction(n);
@@ -187,15 +188,15 @@ void MSMCGOMP::compute(int eflag, int vflag)
     if (domain->nonperiodic) {
       current_level = levels-1;
       gc[levels-1]->
-        forward_comm(Grid3d::KSPACE,this,FORWARD_RHO,1,sizeof(double),
+        forward_comm(GridComm::KSPACE,this,1,sizeof(double),FORWARD_RHO,
                      gc_buf1[levels-1],gc_buf2[levels-1],MPI_DOUBLE);
       direct_top(levels-1);
       gc[levels-1]->
-        reverse_comm(Grid3d::KSPACE,this,REVERSE_AD,1,sizeof(double),
+        reverse_comm(GridComm::KSPACE,this,1,sizeof(double),REVERSE_AD,
                      gc_buf1[levels-1],gc_buf2[levels-1],MPI_DOUBLE);
       if (vflag_atom)
         gc[levels-1]->
-          reverse_comm(Grid3d::KSPACE,this,REVERSE_AD_PERATOM,6,sizeof(double),
+          reverse_comm(GridComm::KSPACE,this,6,sizeof(double),REVERSE_AD_PERATOM,
                        gc_buf1[levels-1],gc_buf2[levels-1],MPI_DOUBLE);
 
     } else {
@@ -206,7 +207,7 @@ void MSMCGOMP::compute(int eflag, int vflag)
       current_level = levels-1;
       if (vflag_atom)
         gc[levels-1]->
-          reverse_comm(Grid3d::KSPACE,this,REVERSE_AD_PERATOM,6,sizeof(double),
+          reverse_comm(GridComm::KSPACE,this,6,sizeof(double),REVERSE_AD_PERATOM,
                        gc_buf1[levels-1],gc_buf2[levels-1],MPI_DOUBLE);
     }
   }
@@ -219,27 +220,27 @@ void MSMCGOMP::compute(int eflag, int vflag)
     prolongation(n);
 
     current_level = n;
-    gc[n]->reverse_comm(Grid3d::KSPACE,this,REVERSE_AD,1,sizeof(double),
+    gc[n]->reverse_comm(GridComm::KSPACE,this,1,sizeof(double),REVERSE_AD,
                         gc_buf1[n],gc_buf2[n],MPI_DOUBLE);
 
     // extra per-atom virial communication
 
     if (vflag_atom)
-      gc[n]->reverse_comm(Grid3d::KSPACE,this,REVERSE_AD_PERATOM,6,sizeof(double),
-                          gc_buf1[n],gc_buf2[n],MPI_DOUBLE);
+      gc[n]->reverse_comm(GridComm::KSPACE,this,6,sizeof(double),
+                          REVERSE_AD_PERATOM,gc_buf1[n],gc_buf2[n],MPI_DOUBLE);
   }
 
   // all procs communicate E-field values
   // to fill ghost cells surrounding their 3d bricks
 
   current_level = 0;
-  gcall->forward_comm(Grid3d::KSPACE,this,FORWARD_AD,1,sizeof(double),
+  gcall->forward_comm(GridComm::KSPACE,this,1,sizeof(double),FORWARD_AD,
                       gcall_buf1,gcall_buf2,MPI_DOUBLE);
 
   // extra per-atom energy/virial communication
 
   if (vflag_atom)
-    gcall->forward_comm(Grid3d::KSPACE,this,FORWARD_AD_PERATOM,6,sizeof(double),
+    gcall->forward_comm(GridComm::KSPACE,this,6,sizeof(double),FORWARD_AD_PERATOM,
                         gcall_buf1,gcall_buf2,MPI_DOUBLE);
 
   // calculate the force on my particles (interpolation)

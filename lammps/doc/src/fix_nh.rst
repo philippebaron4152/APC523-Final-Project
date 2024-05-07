@@ -30,7 +30,7 @@ Accelerator Variants: *nph/kk*, *nph/omp*
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID style_name keyword value ...
 
@@ -208,9 +208,9 @@ The relaxation rate of the barostat is set by its inertia :math:`W`:
 
 .. math::
 
-   W = (N + 1) k_B T_{\rm target} P_{\rm damp}^2
+   W = (N + 1) k T_{\rm target} P_{\rm damp}^2
 
-where :math:`N` is the number of atoms, :math:`k_B` is the Boltzmann constant,
+where :math:`N` is the number of atoms, :math:`k` is the Boltzmann constant,
 and :math:`T_{\rm target}` is the target temperature of the barostat :ref:`(Martyna) <nh-Martyna>`.
 If a thermostat is defined, :math:`T_{\rm target}` is the target temperature
 of the thermostat. If a thermostat is not defined, :math:`T_{\rm target}`
@@ -371,7 +371,7 @@ flipping the box when it is exceeded.  If the *flip* value is set to
 applied stress induces large deformations (e.g. in a liquid), this
 means the box shape can tilt dramatically and LAMMPS will run less
 efficiently, due to the large volume of communication needed to
-acquire ghost atoms around a processor's irregular-shaped subdomain.
+acquire ghost atoms around a processor's irregular-shaped sub-domain.
 For extreme values of tilt, LAMMPS may also lose atoms and generate an
 error.
 
@@ -486,20 +486,19 @@ temperature or pressure during thermodynamic output via the
 compute-ID.  It also means that changing attributes of *thermo_temp*
 or *thermo_press* will have no effect on this fix.
 
-Like other fixes that perform thermostatting, this fix can be used
-with :doc:`compute commands <compute>` that remove a "bias" from the
-atom velocities.  E.g. to apply the thermostat only to atoms within a
-spatial :doc:`region <region>`, or to remove the center-of-mass
-velocity from a group of atoms, or to remove the x-component of
-velocity from the calculation.
-
-This is not done by default, but only if the :doc:`fix_modify
-<fix_modify>` command is used to assign a temperature compute to this
-fix that includes such a bias term.  See the doc pages for individual
-:doc:`compute temp commands <compute>` to determine which ones include
-a bias.  In this case, the thermostat works in the following manner:
-bias is removed from each atom, thermostatting is performed on the
-remaining thermal degrees of freedom, and the bias is added back in.
+Like other fixes that perform thermostatting, fix nvt and fix npt can
+be used with :doc:`compute commands <compute>` that calculate a
+temperature after removing a "bias" from the atom velocities.
+E.g. removing the center-of-mass velocity from a group of atoms or
+only calculating temperature on the x-component of velocity or only
+calculating temperature for atoms in a geometric region.  This is not
+done by default, but only if the :doc:`fix_modify <fix_modify>` command
+is used to assign a temperature compute to this fix that includes such
+a bias term.  See the doc pages for individual :doc:`compute commands <compute>` to determine which ones include a bias.  In
+this case, the thermostat works in the following manner: the current
+temperature is calculated taking the bias into account, bias is
+removed from each atom, thermostatting is performed on the remaining
+thermal degrees of freedom, and the bias is added back in.
 
 ----------
 

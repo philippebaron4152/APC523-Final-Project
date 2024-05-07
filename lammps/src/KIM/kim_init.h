@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -62,8 +62,7 @@
 #include "pointers.h"
 
 // Forward declaration.
-struct KIM_Model;
-struct KIM_Collections;
+typedef struct KIM_Model KIM_Model;
 
 namespace LAMMPS_NS {
 
@@ -81,10 +80,48 @@ class KimInit : protected Pointers {
   void determine_model_type_and_units(char *, char *, char **, KIM_Model *&);
   void do_init(char *, char *, char *, KIM_Model *&);
   void do_variables(const std::string &, const std::string &);
-
-  void print_dirs(struct KIM_Collections *const collections) const;
 };
 
 }    // namespace LAMMPS_NS
 
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal kim_init command
+
+Incorrect number or kind of arguments to kim_init.
+
+E: Must use 'kim_init' command before simulation box is defined
+
+Self-explanatory.
+
+E: KIM Model does not support the requested unit system
+
+Self-explanatory.
+
+E: KIM Model does not support any lammps unit system
+
+Self-explanatory.
+
+E: KIM model name not found
+
+Self-explanatory.
+
+E: Incompatible KIM Simulator Model
+
+The requested KIM Simulator Model was defined for a different MD code
+and thus is not compatible with LAMMPS.
+
+E: Incompatible units for KIM Simulator Model
+
+The selected unit style is not compatible with the requested KIM
+Simulator Model.
+
+E: KIM Simulator Model has no Model definition
+
+There is no model definition (key: model-defn) in the KIM Simulator
+Model.  Please contact the OpenKIM database maintainers to verify
+and potentially correct this.
+
+*/

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,14 +21,14 @@ namespace LAMMPS_NS {
 class ImproperZero2 : public Improper {
  public:
   ImproperZero2(class LAMMPS *);
-  ~ImproperZero2() override;
-  void compute(int, int) override;
-  void coeff(int, char **) override;
-  void settings(int, char **) override;
+  virtual ~ImproperZero2();
+  virtual void compute(int, int);
+  virtual void coeff(int, char **);
+  virtual void settings(int, char **);
 
-  void write_restart(FILE *) override;
-  void read_restart(FILE *) override;
-  void write_data(FILE *) override;
+  void write_restart(FILE *);
+  void read_restart(FILE *);
+  void write_data(FILE *);
 
  protected:
   int coeffflag;

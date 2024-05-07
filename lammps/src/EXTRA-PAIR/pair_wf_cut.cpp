@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -56,6 +56,7 @@ PairWFCut::~PairWFCut()
     memory->destroy(e0nm);  //Alpha * epsilon
     memory->destroy(rcmu);
     memory->destroy(sigma_mu);
+    memory->destroy(offset);
   }
 }
 
@@ -126,7 +127,8 @@ void PairWFCut::compute(int eflag, int vflag)
         }
 
         if (eflag) {
-          evdwl = e0nm[itype][jtype] * (rm*powint(rn,2*nu[itype][jtype]));
+          evdwl = e0nm[itype][jtype] *
+            (rm*powint(rn,2*nu[itype][jtype])) - offset[itype][jtype];
           evdwl *= factor_lj;
         }
 
@@ -164,6 +166,7 @@ void PairWFCut::allocate()
   memory->create(e0nm,n+1,n+1,"pair:e0nm");
   memory->create(rcmu,n+1,n+1,"pair:rcmu");
   memory->create(sigma_mu,n+1,n+1,"pair:sigma_mu");
+  memory->create(offset,n+1,n+1,"pair:offset");
 }
 
 /* ----------------------------------------------------------------------
@@ -239,6 +242,10 @@ double PairWFCut::init_one(int i, int j)
   rcmu[i][j] = powint(cut[i][j],2*mu[i][j]);
   sigma_mu[i][j] = powint(sigma[i][j], 2*mu[i][j]);
 
+  if (offset_flag && (cut[i][j] > 0.0)) {
+    offset[i][j] = 0.0;
+  } else offset[i][j] = 0.0;
+
   epsilon[j][i] = epsilon[i][j];
   nu[j][i] = nu[i][j];
   mu[j][i] = mu[i][j];
@@ -247,6 +254,7 @@ double PairWFCut::init_one(int i, int j)
   e0nm[j][i] = e0nm[i][j];
   rcmu[j][i] = rcmu[i][j];
   sigma_mu[j][i] = sigma_mu[i][j];
+  offset[j][i] = offset[i][j];
 
   return cut[i][j];
 }
@@ -286,15 +294,15 @@ void PairWFCut::read_restart(FILE *fp)
   int me = comm->me;
   for (i = 1; i <= atom->ntypes; i++)
     for (j = i; j <= atom->ntypes; j++) {
-      if (me == 0) utils::sfread(FLERR, &setflag[i][j],sizeof(int),1,fp, nullptr, error);
+      if (me == 0) fread(&setflag[i][j],sizeof(int),1,fp);
       MPI_Bcast(&setflag[i][j],1,MPI_INT,0,world);
       if (setflag[i][j]) {
         if (me == 0) {
-          utils::sfread(FLERR, &epsilon[i][j],sizeof(double),1,fp, nullptr, error);
-          utils::sfread(FLERR, &sigma[i][j],sizeof(double),1,fp, nullptr, error);
-          utils::sfread(FLERR, &nu[i][j],sizeof(int),1,fp, nullptr, error);
-          utils::sfread(FLERR, &mu[i][j],sizeof(int),1,fp, nullptr, error);
-          utils::sfread(FLERR, &cut[i][j],sizeof(double),1,fp, nullptr, error);
+          fread(&epsilon[i][j],sizeof(double),1,fp);
+          fread(&sigma[i][j],sizeof(double),1,fp);
+          fread(&nu[i][j],sizeof(int),1,fp);
+          fread(&mu[i][j],sizeof(int),1,fp);
+          fread(&cut[i][j],sizeof(double),1,fp);
         }
         MPI_Bcast(&epsilon[i][j],1,MPI_DOUBLE,0,world);
         MPI_Bcast(&sigma[i][j],1,MPI_DOUBLE,0,world);
@@ -312,6 +320,7 @@ void PairWFCut::read_restart(FILE *fp)
 void PairWFCut::write_restart_settings(FILE *fp)
 {
   fwrite(&cut_global,sizeof(double),1,fp);
+  fwrite(&offset_flag,sizeof(int),1,fp);
   fwrite(&mix_flag,sizeof(int),1,fp);
 }
 
@@ -322,10 +331,12 @@ void PairWFCut::write_restart_settings(FILE *fp)
 void PairWFCut::read_restart_settings(FILE *fp)
 {
   if (comm->me == 0) {
-    utils::sfread(FLERR, &cut_global,sizeof(double),1,fp,nullptr,error);
-    utils::sfread(FLERR, &mix_flag,sizeof(int),1,fp,nullptr,error);
+    fread(&cut_global,sizeof(double),1,fp);
+    fread(&offset_flag,sizeof(int),1,fp);
+    fread(&mix_flag,sizeof(int),1,fp);
   }
   MPI_Bcast(&cut_global,1,MPI_DOUBLE,0,world);
+  MPI_Bcast(&offset_flag,1,MPI_INT,0,world);
   MPI_Bcast(&mix_flag,1,MPI_INT,0,world);
 }
 
@@ -367,7 +378,8 @@ double PairWFCut::single(int /*i*/, int /*j*/, int itype, int jtype,
                 + 4.0*nm[itype][jtype] *rcmu[itype][jtype]*rm*powint(rn,2*nu[itype][jtype]-1);
   fforce = factor_lj*e0nm[itype][jtype]*forcenm*powint(r2inv,mu[itype][jtype]+1);
 
-  phinm = e0nm[itype][jtype] * rm*powint(rn,2*nu[itype][jtype]);
+  phinm = e0nm[itype][jtype] * rm*powint(rn,2*nu[itype][jtype]) -
+    offset[itype][jtype];
   return factor_lj*phinm;
 }
 

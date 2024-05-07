@@ -4,7 +4,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -26,7 +26,8 @@
 #include "tokenizer.h"
 
 using namespace LAMMPS_NS;
-static constexpr int BUFLEN = 4096;
+#define BUFLEN 4096
+#define DELTA 16384
 
 // read file until next section "name" or any next section if name == ""
 
@@ -75,13 +76,11 @@ void Ndx2Group::command(int narg, char **arg)
   int len;
   bigint num;
   FILE *fp;
-  std::string name, next;
+  std::string name = "", next;
 
   if (narg < 1) error->all(FLERR,"Illegal ndx2group command");
   if (atom->tag_enable == 0)
     error->all(FLERR,"Must have atom IDs for ndx2group command");
-  if (atom->map_style == Atom::MAP_NONE)
-    error->all(FLERR,"Must have an atom map for ndx2group command");
   if (comm->me == 0) {
     fp = fopen(arg[0], "r");
     if (fp == nullptr)
@@ -122,7 +121,7 @@ void Ndx2Group::command(int narg, char **arg)
 
     } else {
 
-      while (true) {
+      while (1) {
         MPI_Bcast(&len,1,MPI_INT,0,world);
         if (len < 0) break;
         if (len > 1) {
@@ -154,12 +153,11 @@ void Ndx2Group::command(int narg, char **arg)
           MPI_Bcast((void *)name.c_str(),len,MPI_CHAR,0,world);
 
           // read tags for atoms in group and broadcast
-          std::vector<tagint> tags = read_section(fp,next);
+          std::vector<tagint> tags = read_section(fp,name);
           num = tags.size();
           MPI_Bcast(&num,1,MPI_LMP_BIGINT,0,world);
           MPI_Bcast((void *)tags.data(),num,MPI_LMP_TAGINT,0,world);
           create(name,tags);
-          name = next;
         }
       } else {
         MPI_Bcast(&len,1,MPI_INT,0,world);

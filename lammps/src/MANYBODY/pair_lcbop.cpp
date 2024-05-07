@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -24,6 +24,7 @@
 #include "comm.h"
 #include "neighbor.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "my_page.h"
 #include "memory.h"
 #include "error.h"
@@ -33,9 +34,9 @@
 
 using namespace LAMMPS_NS;
 
-static constexpr int MAXLINE = 1024;
-static constexpr double TOL = 1.0e-9;
-static constexpr int PGDELTA = 1;
+#define MAXLINE 1024
+#define TOL 1.0e-9
+#define PGDELTA 1
 
 /* ---------------------------------------------------------------------- */
 
@@ -115,7 +116,7 @@ void PairLCBOP::allocate()
 ------------------------------------------------------------------------- */
 
 void PairLCBOP::settings(int narg, char **/*arg*/) {
-  if (narg != 0) error->all(FLERR,"Illegal pair_style command");
+  if (narg != 0 ) error->all(FLERR,"Illegal pair_style command");
 }
 
 /* ----------------------------------------------------------------------
@@ -152,7 +153,10 @@ void PairLCBOP::init_style()
 
   // need a full neighbor list, including neighbors of ghosts
 
-  neighbor->add_request(this, NeighConst::REQ_FULL | NeighConst::REQ_GHOST);
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
+  neighbor->requests[irequest]->ghost = 1;
 
   // local SR neighbor list
   // create pages if first time or if neighbor pgsize/oneatom has changed
@@ -931,7 +935,7 @@ void PairLCBOP::read_file(char *filename)
 
     // skip initial comment lines
 
-    while (true) {
+    while (1) {
       utils::sfgets(FLERR,s,MAXLINE,fp,filename,error);
       if (s[0] != '#') break;
     }
@@ -967,7 +971,7 @@ void PairLCBOP::read_file(char *filename)
     utils::sfgets(FLERR,s,MAXLINE,fp,filename,error);    sscanf(s,"%lg",&eps);
     utils::sfgets(FLERR,s,MAXLINE,fp,filename,error);    sscanf(s,"%lg",&delta);
 
-    while (true) {
+    while (1) {
       utils::sfgets(FLERR,s,MAXLINE,fp,filename,error);
       if (s[0] != '#') break;
     }
@@ -984,7 +988,7 @@ void PairLCBOP::read_file(char *filename)
             &F_conj_data[i][2][k][l],
             &F_conj_data[i][3][k][l]);
         }
-        while (true) { utils::sfgets(FLERR,s,MAXLINE,fp,filename,error); if (s[0] != '#') break; }
+        while (1) { utils::sfgets(FLERR,s,MAXLINE,fp,filename,error); if (s[0] != '#') break; }
       }
     }
 

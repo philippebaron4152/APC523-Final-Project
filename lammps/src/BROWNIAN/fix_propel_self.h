@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -26,11 +26,11 @@ namespace LAMMPS_NS {
 class FixPropelSelf : public Fix {
  public:
   FixPropelSelf(class LAMMPS *, int, char **);
-
-  void init() override;
-  void post_force(int) override;
-  void setup(int) override;
-  int setmask() override;
+  virtual ~FixPropelSelf(){};
+  void init();
+  void post_force(int);
+  void setup(int);
+  int setmask();
 
  private:
   double magnitude;
@@ -46,3 +46,23 @@ class FixPropelSelf : public Fix {
 }    // namespace LAMMPS_NS
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal fix propel/self command.
+
+Wrong number/type of input arguments.
+
+E: Fix propel/self requires atom attribute mu with option dipole.
+
+Self-explanatory.
+
+E: Fix propel/self requires atom style ellipsoid with option quat.
+
+Self-explanatory.
+
+Fix propel/self requires extended particles with option quat.
+
+Self-explanatory.
+
+*/

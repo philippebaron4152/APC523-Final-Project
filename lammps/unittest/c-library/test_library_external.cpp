@@ -64,12 +64,12 @@ static void callback(void *handle, step_t timestep, int nlocal, tag_t *, double 
 
 TEST(lammps_external, callback)
 {
-    const char *args[] = {"liblammps", "-log", "none", "-nocite", nullptr};
+    const char *args[] = {"liblammps", "-log", "none", "-nocite"};
     char **argv        = (char **)args;
-    int argc           = (sizeof(args) / sizeof(char *)) - 1;
+    int argc           = sizeof(args) / sizeof(char *);
 
     ::testing::internal::CaptureStdout();
-    void *handle       = lammps_open_no_mpi(argc, argv, nullptr);
+    void *handle       = lammps_open_no_mpi(argc, argv, NULL);
     std::string output = ::testing::internal::GetCapturedStdout();
     if (verbose) std::cout << output;
 
@@ -131,12 +131,12 @@ TEST(lammps_external, callback)
 
 TEST(lammps_external, array)
 {
-    const char *args[] = {"liblammps", "-log", "none", "-nocite", nullptr};
+    const char *args[] = {"liblammps", "-log", "none", "-nocite"};
     char **argv        = (char **)args;
-    int argc           = (sizeof(args) / sizeof(char *)) - 1;
+    int argc           = sizeof(args) / sizeof(char *);
 
     ::testing::internal::CaptureStdout();
-    void *handle       = lammps_open_no_mpi(argc, argv, nullptr);
+    void *handle       = lammps_open_no_mpi(argc, argv, NULL);
     std::string output = ::testing::internal::GetCapturedStdout();
     if (verbose) std::cout << output;
 

@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -31,8 +31,7 @@
 
 using namespace LAMMPS_NS;
 
-static constexpr double BIG = 1.0e20;
-static constexpr int MAXLOOP = 100;
+#define BIG 1.0e20
 
 /* ---------------------------------------------------------------------- */
 
@@ -55,7 +54,9 @@ ComputeFragmentAtom::ComputeFragmentAtom(LAMMPS *lmp, int narg, char **arg) :
   while (iarg < narg) {
     if (strcmp(arg[iarg],"single") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal compute fragment/atom command");
-      singleflag = utils::logical(FLERR,arg[iarg+1],false,lmp);
+      if (strcmp(arg[iarg+1],"yes") == 0) singleflag = 1;
+      else if (strcmp(arg[iarg+1],"no") == 0) singleflag = 0;
+      else error->all(FLERR,"Illegal compute fragment/atom command");
       iarg += 2;
     } else error->all(FLERR,"Illegal compute fragment/atom command");
   }
@@ -85,8 +86,11 @@ void ComputeFragmentAtom::init()
   if (atom->molecular != Atom::MOLECULAR)
     error->all(FLERR,"Compute fragment/atom requires a molecular system");
 
-  if (modify->get_compute_by_style(style).size() > 1)
-    if (comm->me == 0) error->warning(FLERR, "More than one compute {}", style);
+  int count = 0;
+  for (int i = 0; i < modify->ncompute; i++)
+    if (strcmp(modify->compute[i]->style,"fragment/atom") == 0) count++;
+  if (count > 1 && comm->me == 0)
+    error->warning(FLERR,"More than one compute fragment/atom");
 }
 
 /* ---------------------------------------------------------------------- */
@@ -115,11 +119,11 @@ void ComputeFragmentAtom::compute_peratom()
     vector_atom = fragmentID;
   }
 
-  // if group is dynamic, ensure ghost atom masks are current
+  // if group is dynamic, insure ghost atom masks are current
 
   if (group->dynamic[igroup]) {
     commflag = 0;
-    comm->forward_comm(this);
+    comm->forward_comm_compute(this);
   }
 
   // owned + ghost atoms start with fragmentID = atomID
@@ -146,11 +150,12 @@ void ComputeFragmentAtom::compute_peratom()
 
   commflag = 1;
 
-  int counter = 0;
-  // stop after MAXLOOP iterations
-  while (counter < MAXLOOP) {
-    comm->forward_comm(this);
-    ++counter;
+  int iteration = 0;
+
+  while (1) {
+    iteration++;
+
+    comm->forward_comm_compute(this);
     done = 1;
 
     // set markflag = 0 for all owned atoms, for new iteration
@@ -227,8 +232,6 @@ void ComputeFragmentAtom::compute_peratom()
     MPI_Allreduce(&done,&alldone,1,MPI_INT,MPI_MIN,world);
     if (alldone) break;
   }
-  if ((comm->me == 0) && (counter >= MAXLOOP))
-    error->warning(FLERR, "Compute fragment/atom did not converge after {} iterations", MAXLOOP);
 }
 
 /* ---------------------------------------------------------------------- */

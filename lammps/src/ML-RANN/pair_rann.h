@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -39,6 +39,9 @@ PairStyle(rann,PairRANN);
 
 #include "pair.h"
 
+#include <string>
+#include <vector>
+
 namespace LAMMPS_NS {
 
 namespace RANN {
@@ -51,13 +54,13 @@ class PairRANN : public Pair {
  public:
   //inherited functions
   PairRANN(class LAMMPS *);
-  ~PairRANN() override;
-  void compute(int, int) override;
-  void settings(int, char **) override;
-  void coeff(int, char **) override;
-  void init_style() override;
-  double init_one(int, int) override;
-  void init_list(int, NeighList *) override;
+  ~PairRANN();
+  void compute(int, int);
+  void settings(int, char **);
+  void coeff(int, char **);
+  void init_style();
+  double init_one(int, int);
+  void init_list(int, NeighList *);
   void errorf(const char *, int, const char *);
   int factorial(int);
 
@@ -158,9 +161,9 @@ class PairRANN : public Pair {
   void read_mass(const std::vector<std::string> &, const std::vector<std::string> &, const char *,
                  int);
   bool check_potential();    //after finishing reading potential file
-  void propagateforward(double &, double **, int,
+  void propagateforward(double *, double **, int,
                         int);    //called by compute to get force and energy
-  void propagateforwardspin(double &, double **, double **, int,
+  void propagateforwardspin(double *, double **, double **, int,
                             int);    //called by compute to get force and energy
   void screening(int, int, int);
   void cull_neighbor_list(int *, int, int);

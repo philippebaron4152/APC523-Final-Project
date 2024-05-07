@@ -6,7 +6,7 @@ timer command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    timer args
 

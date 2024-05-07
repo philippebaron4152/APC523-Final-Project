@@ -6,7 +6,7 @@ timestep command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    timestep dt
 

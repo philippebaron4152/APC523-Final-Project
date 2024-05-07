@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -20,44 +20,58 @@ ComputeStyle(reduce/chunk,ComputeReduceChunk);
 #ifndef LMP_COMPUTE_REDUCE_CHUNK_H
 #define LMP_COMPUTE_REDUCE_CHUNK_H
 
-#include "compute_chunk.h"
+#include "compute.h"
 
 namespace LAMMPS_NS {
 
-class ComputeReduceChunk : public ComputeChunk {
+class ComputeReduceChunk : public Compute {
  public:
   ComputeReduceChunk(class LAMMPS *, int, char **);
-  ~ComputeReduceChunk() override;
-  void init() override;
-  void compute_vector() override;
-  void compute_array() override;
+  ~ComputeReduceChunk();
+  void init();
+  void compute_vector();
+  void compute_array();
 
-  double memory_usage() override;
+  void lock_enable();
+  void lock_disable();
+  int lock_length();
+  void lock(class Fix *, bigint, bigint);
+  void unlock(class Fix *);
+
+  double memory_usage();
 
  private:
-  struct value_t {
-    int which;
-    int argindex;
-    std::string id;
-    union {
-      class Compute *c;
-      class Fix *f;
-      int v;
-    } val;
-  };
-  std::vector<value_t> values;
+  int mode, nvalues;
+  int *which, *argindex, *value2index;
+  char *idchunk;
+  char **ids;
 
-  int mode, maxatom;
+  int nchunk;
+  int maxchunk, maxatom;
   double initvalue;
   double *vlocal, *vglobal;
   double **alocal, **aglobal;
   double *varatom;
 
+  class ComputeChunkAtom *cchunk;
   int *ichunk;
 
+  void init_chunk();
   void compute_one(int, double *, int);
   void combine(double &, double);
 };
+
 }    // namespace LAMMPS_NS
+
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal ... command
+
+Self-explanatory.  Check the input script syntax and compare to the
+documentation for the command.  You can use -echo screen as a
+command-line option when running LAMMPS to see the offending line.
+
+*/

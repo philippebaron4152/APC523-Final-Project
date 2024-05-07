@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
@@ -29,8 +29,8 @@ class PairTersoffMODOMP : public PairTersoffMOD, public ThrOMP {
  public:
   PairTersoffMODOMP(class LAMMPS *);
 
-  void compute(int, int) override;
-  double memory_usage() override;
+  virtual void compute(int, int);
+  virtual double memory_usage();
 
  private:
   template <int SHIFT_FLAG, int EVFLAG, int EFLAG, int VFLAG_ATOM>

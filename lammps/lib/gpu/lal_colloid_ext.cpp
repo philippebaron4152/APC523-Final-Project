@@ -83,7 +83,7 @@ int colloid_gpu_init(const int ntypes, double **cutsq, double **host_lj1,
                           inum, nall, max_nbors, maxspecial,
                           cell_size, gpu_split, screen);
 
-    COLLMF.device->serialize_init();
+    COLLMF.device->gpu_barrier();
     if (message)
       fprintf(screen,"Done.\n");
   }

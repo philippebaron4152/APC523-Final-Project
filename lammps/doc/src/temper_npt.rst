@@ -6,7 +6,7 @@ temper/npt command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    temper/npt  N M temp fix-ID seed1 seed2 pressure index
 

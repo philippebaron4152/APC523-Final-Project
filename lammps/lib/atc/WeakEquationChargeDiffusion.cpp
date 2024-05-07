@@ -19,7 +19,7 @@ WeakEquationChargeDiffusion::WeakEquationChargeDiffusion()
 //--------------------------------------------------------------
 //  Destructor
 //--------------------------------------------------------------
-WeakEquationChargeDiffusion::~WeakEquationChargeDiffusion()
+WeakEquationChargeDiffusion::~WeakEquationChargeDiffusion(void)
 {}
 //---------------------------------------------------------------------
 //   compute capacity

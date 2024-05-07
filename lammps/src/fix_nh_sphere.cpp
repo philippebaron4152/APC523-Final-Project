@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -36,10 +36,8 @@ using namespace MathExtra;
 FixNHSphere::FixNHSphere(LAMMPS *lmp, int narg, char **arg) :
   FixNH(lmp, narg, arg)
 {
-  if (!atom->omega_flag)
-    error->all(FLERR,"Fix {} requires atom attribute omega", style);
-  if (!atom->radius_flag)
-    error->all(FLERR,"Fix {} requires atom attribute radius", style);
+  if (!atom->sphere_flag)
+    error->all(FLERR,"Fix nvt/nph/npt sphere requires atom style sphere");
 
   // inertia = moment of inertia prefactor for sphere or disc
 
@@ -50,7 +48,8 @@ FixNHSphere::FixNHSphere(LAMMPS *lmp, int narg, char **arg) :
     if (strcmp(arg[iarg],"disc") == 0) {
       inertia = 0.5;
       if (domain->dimension != 2)
-        error->all(FLERR, "Fix {} disc option requires 2d simulation", style);
+        error->all(FLERR,
+                   "Fix nvt/nph/npt sphere disc option requires 2d simulation");
     }
     iarg++;
   }

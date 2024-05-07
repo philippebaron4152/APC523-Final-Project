@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,18 +27,20 @@
 #include "memory.h"
 #include "my_page.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "neighbor.h"
-#include "potential_file_reader.h"
 
 #include <cmath>
 #include <cstring>
+#include <cctype>
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
 using namespace MathExtra;
 
-static constexpr int DELTA = 4;
-static constexpr int PGDELTA = 1;
+#define MAXLINE 1024
+#define DELTA 4
+#define PGDELTA 1
 
 /* ---------------------------------------------------------------------- */
 
@@ -74,7 +76,7 @@ PairExTeP::~PairExTeP()
 
   memory->destroy(SR_numneigh);
   memory->sfree(SR_firstneigh);
-  delete[] ipage;
+  delete [] ipage;
   memory->destroy(Nt);
   memory->destroy(Nd);
 
@@ -471,7 +473,12 @@ void PairExTeP::init_style()
 
   // need a full neighbor list
 
-  neighbor->add_request(this, NeighConst::REQ_FULL | NeighConst::REQ_GHOST);
+  int irequest = neighbor->request(this);
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
+
+  // including neighbors of ghosts
+  neighbor->requests[irequest]->ghost = 1;
 
   // create pages if first time or if neighbor pgsize/oneatom has changed
 
@@ -481,7 +488,7 @@ void PairExTeP::init_style()
   if (oneatom != neighbor->oneatom) create = 1;
 
   if (create) {
-    delete[] ipage;
+    delete [] ipage;
     pgsize = neighbor->pgsize;
     oneatom = neighbor->oneatom;
 
@@ -510,168 +517,234 @@ double PairExTeP::init_one(int i, int j)
 
 void PairExTeP::read_file(char *file)
 {
+  int params_per_line = 17;
+  char **words = new char*[params_per_line+1];
+
   memory->sfree(params);
   params = nullptr;
   nparams = maxparam = 0;
 
   // open file on proc 0
 
+  FILE *fp;
   if (comm->me == 0) {
-    PotentialFileReader reader(lmp, file, "ExTeP");
-    char *line;
+    fp = utils::open_potential(file,lmp,nullptr);
+    if (fp == nullptr)
+      error->one(FLERR,"Cannot open ExTeP potential file {}: {}",file,utils::getsyserror());
+  }
 
-    while ((line = reader.next_line(17))) {
-      try {
-        ValueTokenizer values(line);
+  // read each line out of file, skipping blank lines or leading '#'
+  // store line of params if all 3 element tags are in element list
 
-        std::string iname = values.next_string();
-        std::string jname = values.next_string();
-        std::string kname = values.next_string();
+  int n,nwords,ielement,jelement,kelement;
+  char line[MAXLINE],*ptr;
+  int eof = 0;
 
-        // ielement,jelement,kelement = 1st args
-        // if all 3 args are in element list, then parse this line
-        // else skip to next entry in file
-        int ielement, jelement, kelement;
+  while (1) {
+    if (comm->me == 0) {
+      ptr = fgets(line,MAXLINE,fp);
+      if (ptr == nullptr) {
+        eof = 1;
+        fclose(fp);
+      } else n = strlen(line) + 1;
+    }
+    MPI_Bcast(&eof,1,MPI_INT,0,world);
+    if (eof) break;
+    MPI_Bcast(&n,1,MPI_INT,0,world);
+    MPI_Bcast(line,n,MPI_CHAR,0,world);
 
-        for (ielement = 0; ielement < nelements; ielement++)
-          if (iname == elements[ielement]) break;
-        if (ielement == nelements) continue;
-        for (jelement = 0; jelement < nelements; jelement++)
-          if (jname == elements[jelement]) break;
-        if (jelement == nelements) continue;
-        for (kelement = 0; kelement < nelements; kelement++)
-          if (kname == elements[kelement]) break;
-        if (kelement == nelements) continue;
+    // strip comment, skip line if blank
 
-        // load up parameter settings and error check their values
+    if ((ptr = strchr(line,'#'))) *ptr = '\0';
+    nwords = utils::count_words(line);
+    if (nwords == 0) continue;
 
-        if (nparams == maxparam) {
-          maxparam += DELTA;
-          params = (Param *) memory->srealloc(params,maxparam*sizeof(Param), "pair:params");
+    // concatenate additional lines until have params_per_line words
 
-          // make certain all addional allocated storage is initialized
-          // to avoid false positives when checking with valgrind
-
-          memset(params + nparams, 0, DELTA*sizeof(Param));
-        }
-
-        params[nparams].ielement  = ielement;
-        params[nparams].jelement  = jelement;
-        params[nparams].kelement  = kelement;
-        params[nparams].powerm    = values.next_double();
-        params[nparams].gamma     = values.next_double();
-        params[nparams].lam3      = values.next_double();
-        params[nparams].c         = values.next_double();
-        params[nparams].d         = values.next_double();
-        params[nparams].h         = values.next_double();
-        params[nparams].powern    = values.next_double();
-        params[nparams].beta      = values.next_double();
-        params[nparams].lam2      = values.next_double();
-        params[nparams].bigb      = values.next_double();
-        params[nparams].bigr      = values.next_double();
-        params[nparams].bigd      = values.next_double();
-        params[nparams].lam1      = values.next_double();
-        params[nparams].biga      = values.next_double();
-
-        // currently only allow m exponent of 1 or 3
-
-        params[nparams].powermint = int(params[nparams].powerm);
-
-      } catch (TokenizerException &e) {
-        error->one(FLERR, e.what());
+    while (nwords < params_per_line) {
+      n = strlen(line);
+      if (comm->me == 0) {
+        ptr = fgets(&line[n],MAXLINE-n,fp);
+        if (ptr == nullptr) {
+          eof = 1;
+          fclose(fp);
+        } else n = strlen(line) + 1;
       }
-
-      if (params[nparams].c < 0.0 ||
-          params[nparams].d < 0.0 ||
-          params[nparams].powern < 0.0 ||
-          params[nparams].beta < 0.0 ||
-          params[nparams].lam2 < 0.0 ||
-          params[nparams].bigb < 0.0 ||
-          params[nparams].bigr < 0.0 ||
-          params[nparams].bigd < 0.0 ||
-          params[nparams].bigd > params[nparams].bigr ||
-          params[nparams].lam1 < 0.0 ||
-          params[nparams].biga < 0.0 ||
-          params[nparams].powerm - params[nparams].powermint != 0.0 ||
-          (params[nparams].powermint != 3 &&
-           params[nparams].powermint != 1) ||
-          params[nparams].gamma < 0.0)
-        error->one(FLERR,"Illegal ExTeP parameter");
-
-      nparams++;
-      if (nparams >= pow((double)nelements,3)) break;
+      MPI_Bcast(&eof,1,MPI_INT,0,world);
+      if (eof) break;
+      MPI_Bcast(&n,1,MPI_INT,0,world);
+      MPI_Bcast(line,n,MPI_CHAR,0,world);
+      if ((ptr = strchr(line,'#'))) *ptr = '\0';
+      nwords = utils::count_words(line);
     }
 
-    /* F_IJ (3) */
-    // initialize F_corr_data to all zeros
-    for (int iel=0; iel < nelements; iel++)
-      for (int jel=0; jel < nelements; jel++)
-        for (int in=0; in < 4; in++)
-          for (int jn=0; jn < 4; jn++)
-            for (int ivar=0; ivar < 3; ivar++)
-              F_corr_data[iel][jel][in][jn][ivar]=0;
+    if (nwords != params_per_line)
+      error->all(FLERR,"Insufficient spline parameters in potential file");
 
-    // read the spline coefficients
+    // words = ptrs to all words in line
 
-    while ((line = reader.next_line(8))) {
-      try {
-        ValueTokenizer values(line);
+    nwords = 0;
+    words[nwords++] = strtok(line," \t\n\r\f");
+    while ((words[nwords++] = strtok(nullptr," \t\n\r\f"))) continue;
 
-        std::string iname = values.next_string();
-        std::string jname = values.next_string();
-        std::string kname = values.next_string();
+    // ielement,jelement,kelement = 1st args
+    // if all 3 args are in element list, then parse this line
+    // else skip to next line
 
-        // ielement,jelement = 1st args
-        // if all 2 args are in element list, then parse this line
-        // else skip to next entry in file
-        int ielement, jelement;
+    for (ielement = 0; ielement < nelements; ielement++)
+      if (strcmp(words[0],elements[ielement]) == 0) break;
+    if (ielement == nelements) continue;
+    for (jelement = 0; jelement < nelements; jelement++)
+      if (strcmp(words[1],elements[jelement]) == 0) break;
+    if (jelement == nelements) continue;
+    for (kelement = 0; kelement < nelements; kelement++)
+      if (strcmp(words[2],elements[kelement]) == 0) break;
+    if (kelement == nelements) continue;
 
-        for (ielement = 0; ielement < nelements; ielement++)
-          if (iname == elements[ielement]) break;
-        if (ielement == nelements) continue;
-        for (jelement = 0; jelement < nelements; jelement++)
-          if (jname == elements[jelement]) break;
-        if (jelement == nelements) continue;
+    // load up parameter settings and error check their values
 
-        // skip line if it is a leftover from the previous section,
-        // which can be identified by having 3 elements (instead of 2)
-        // as first words.
+    if (nparams == maxparam) {
+      maxparam += DELTA;
+      params = (Param *) memory->srealloc(params,maxparam*sizeof(Param),
+                                          "pair:params");
 
-        if (!utils::is_integer(kname))
-          continue;
+      // make certain all addional allocated storage is initialized
+      // to avoid false positives when checking with valgrind
 
-        int Ni  = atoi(kname.c_str());
-        int Nj  = values.next_int();
-        double spline_val = values.next_double();
-        double spline_derx = values.next_double();
-        double spline_dery = values.next_double();
+      memset(params + nparams, 0, DELTA*sizeof(Param));
+    }
 
-        // Set value for all pairs of ielement,jelement  (any kelement)
-        for (int iparam = 0; iparam < nparams; iparam++) {
-          if ( ielement == params[iparam].ielement && jelement == params[iparam].jelement) {
-            F_corr_data[ielement][jelement][Ni][Nj][0] = spline_val;
-            F_corr_data[ielement][jelement][Ni][Nj][1] = spline_derx;
-            F_corr_data[ielement][jelement][Ni][Nj][2] = spline_dery;
+    params[nparams].ielement = ielement;
+    params[nparams].jelement = jelement;
+    params[nparams].kelement = kelement;
+    params[nparams].powerm = atof(words[3]);
+    params[nparams].gamma = atof(words[4]);
+    params[nparams].lam3 = atof(words[5]);
+    params[nparams].c = atof(words[6]);
+    params[nparams].d = atof(words[7]);
+    params[nparams].h = atof(words[8]);
+    params[nparams].powern = atof(words[9]);
+    params[nparams].beta = atof(words[10]);
+    params[nparams].lam2 = atof(words[11]);
+    params[nparams].bigb = atof(words[12]);
+    params[nparams].bigr = atof(words[13]);
+    params[nparams].bigd = atof(words[14]);
+    params[nparams].lam1 = atof(words[15]);
+    params[nparams].biga = atof(words[16]);
 
-            F_corr_data[jelement][ielement][Nj][Ni][0] = spline_val;
-            F_corr_data[jelement][ielement][Nj][Ni][1] = spline_dery;
-            F_corr_data[jelement][ielement][Nj][Ni][2] = spline_derx;
-          }
-        }
-      } catch (TokenizerException &e) {
-        error->one(FLERR, e.what());
+    // currently only allow m exponent of 1 or 3
+
+    params[nparams].powermint = int(params[nparams].powerm);
+
+    if (params[nparams].c < 0.0 || params[nparams].d < 0.0 ||
+        params[nparams].powern < 0.0 || params[nparams].beta < 0.0 ||
+        params[nparams].lam2 < 0.0 || params[nparams].bigb < 0.0 ||
+        params[nparams].bigr < 0.0 ||params[nparams].bigd < 0.0 ||
+        params[nparams].bigd > params[nparams].bigr ||
+        params[nparams].lam1 < 0.0 || params[nparams].biga < 0.0 ||
+        params[nparams].powerm - params[nparams].powermint != 0.0 ||
+        (params[nparams].powermint != 3 && params[nparams].powermint != 1) ||
+        params[nparams].gamma < 0.0)
+      error->all(FLERR,"Illegal ExTeP parameter");
+
+    nparams++;
+    if (nparams >= pow(nelements,3)) break;
+  }
+
+  // deallocate words array
+  delete [] words;
+
+  /* F_IJ (3) */
+  // read the spline coefficients
+  params_per_line = 8;
+  // reallocate with new size
+  words = new char*[params_per_line+1];
+
+  // initialize F_corr_data to all zeros
+  for (int iel=0;iel<nelements;iel++)
+    for (int jel=0;jel<nelements;jel++)
+      for (int in=0;in<4;in++)
+        for (int jn=0;jn<4;jn++)
+          for (int ivar=0;ivar<3;ivar++)
+            F_corr_data[iel][jel][in][jn][ivar]=0;
+
+  // loop until EOF
+  while (1) {
+    if (comm->me == 0) {
+      ptr = fgets(line,MAXLINE,fp);
+      //fputs(line,stdout);
+      if (ptr == nullptr) {
+        eof = 1;
+        fclose(fp);
+      } else n = strlen(line) + 1;
+    }
+    MPI_Bcast(&eof,1,MPI_INT,0,world);
+    if (eof) break;
+    MPI_Bcast(&n,1,MPI_INT,0,world);
+    MPI_Bcast(line,n,MPI_CHAR,0,world);
+
+    // strip comment, skip line if blank
+
+    if ((ptr = strchr(line,'#'))) *ptr = '\0';
+    nwords = utils::count_words(line);
+    if (nwords == 0) continue;
+
+    // words = ptrs to all words in line
+
+    nwords = 0;
+    words[nwords++] = strtok(line," \t\n\r\f");
+    while ((nwords < params_per_line)
+           && (words[nwords++] = strtok(nullptr," \t\n\r\f"))) continue;
+
+    // skip line if it is a leftover from the previous section,
+    // which can be identified by having 3 elements (instead of 2)
+    // as first words.
+
+    if (isupper(words[0][0]) && isupper(words[1][0]) && isupper(words[2][0]))
+      continue;
+
+    // need to have two elements followed by a number in each line
+    if (!(isupper(words[0][0]) && isupper(words[1][0])
+        && !isupper(words[2][0])))
+      error->all(FLERR,"Incorrect format in ExTeP potential file");
+
+    // ielement,jelement = 1st args
+    // if all 3 args are in element list, then parse this line
+    // else skip to next line
+    // these lines set ielement and jelement to the
+    // integers matching the strings from the input
+
+    for (ielement = 0; ielement < nelements; ielement++)
+      if (strcmp(words[0],elements[ielement]) == 0) break;
+    if (ielement == nelements) continue;
+    for (jelement = 0; jelement < nelements; jelement++)
+      if (strcmp(words[1],elements[jelement]) == 0) break;
+    if (jelement == nelements) continue;
+
+    int Ni  = atoi(words[2]);
+    int Nj  = atoi(words[3]);
+    double spline_val = atof(words[4]);
+    double spline_derx = atof(words[5]);
+    double spline_dery = atof(words[6]);
+
+    // Set value for all pairs of ielement,jelement  (any kelement)
+    for (int iparam = 0; iparam < nparams; iparam++) {
+      if ( ielement == params[iparam].ielement
+           && jelement == params[iparam].jelement) {
+        F_corr_data[ielement][jelement][Ni][Nj][0] = spline_val;
+        F_corr_data[ielement][jelement][Ni][Nj][1] = spline_derx;
+        F_corr_data[ielement][jelement][Ni][Nj][2] = spline_dery;
+
+        F_corr_data[jelement][ielement][Nj][Ni][0] = spline_val;
+        F_corr_data[jelement][ielement][Nj][Ni][1] = spline_dery;
+        F_corr_data[jelement][ielement][Nj][Ni][2] = spline_derx;
       }
     }
   }
 
-  MPI_Bcast(&nparams, 1, MPI_INT, 0, world);
-  MPI_Bcast(&maxparam, 1, MPI_INT, 0, world);
+  delete [] words;
+  /* END F_IJ (3) */
 
-  if (comm->me != 0) {
-    params = (Param *) memory->srealloc(params,maxparam*sizeof(Param), "pair:params");
-  }
-  MPI_Bcast(params, maxparam*sizeof(Param), MPI_BYTE, 0, world);
-  MPI_Bcast(&F_corr_data[0][0][0][0][0], MAXTYPES*MAXTYPES*NSPLINE*NSPLINE*3, MPI_DOUBLE, 0, world);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -694,13 +767,11 @@ void PairExTeP::setup()
         for (m = 0; m < nparams; m++) {
           if (i == params[m].ielement && j == params[m].jelement &&
               k == params[m].kelement) {
-            if (n >= 0) error->all(FLERR,"Potential file has a duplicate entry for: {} {} {}",
-                                   elements[i], elements[j], elements[k]);
+            if (n >= 0) error->all(FLERR,"Potential file has duplicate entry");
             n = m;
           }
         }
-        if (n < 0) error->all(FLERR,"Potential file is missing an entry for: {} {} {}",
-                              elements[i], elements[j], elements[k]);
+        if (n < 0) error->all(FLERR,"Potential file is missing an entry");
         elem3param[i][j][k] = n;
       }
 

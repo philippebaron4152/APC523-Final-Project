@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -41,7 +41,7 @@
 #if defined(__PLUMED_DEFAULT_KERNEL)
 #define PLUMED_QUOTE_DIRECT(name) #name
 #define PLUMED_QUOTE(macro) PLUMED_QUOTE_DIRECT(macro)
-static const char plumed_default_kernel[] = "PLUMED_KERNEL=" PLUMED_QUOTE(__PLUMED_DEFAULT_KERNEL);
+static char plumed_default_kernel[] = "PLUMED_KERNEL=" PLUMED_QUOTE(__PLUMED_DEFAULT_KERNEL);
 #endif
 
 /* -------------------------------------------------------------------- */
@@ -68,7 +68,7 @@ FixPlumed::FixPlumed(LAMMPS *lmp, int narg, char **arg) :
 
 #if defined(__PLUMED_DEFAULT_KERNEL)
   if (getenv("PLUMED_KERNEL") == nullptr)
-    platform::putenv(plumed_default_kernel);
+    putenv(plumed_default_kernel);
 #endif
 
   p=new PLMD::Plumed;
@@ -77,9 +77,9 @@ FixPlumed::FixPlumed(LAMMPS *lmp, int narg, char **arg) :
 
   int api_version=0;
   p->cmd("getApiVersion",&api_version);
-  if ((api_version < 5) || (api_version > 9))
+  if ((api_version < 5) || (api_version > 8))
     error->all(FLERR,"Incompatible API version for PLUMED in fix plumed. "
-               "Only Plumed 2.4.x, 2.5.x, 2.6.x, 2.7.x, 2.8.x are tested and supported.");
+               "Only Plumed 2.4.x, 2.5.x, 2.6.x, 2.7.x are tested and supported.");
 
 #if !defined(MPI_STUBS)
   // If the -partition option is activated then enable
@@ -176,7 +176,11 @@ FixPlumed::FixPlumed(LAMMPS *lmp, int narg, char **arg) :
       if (universe->existflag == 1) {
         // Each replica writes an independent log file
         //  with suffix equal to the replica id
-        p->cmd("setLogFile",fmt::format("{}.{}",arg[i],universe->iworld).c_str());
+        char str_num[32], logFile[1024];
+        sprintf(str_num,".%d",universe->iworld);
+        strncpy(logFile,arg[i],1024-32);
+        strcat(logFile,str_num);
+        p->cmd("setLogFile",logFile);
         next=0;
       } else {
         // partition option not used
@@ -215,13 +219,31 @@ FixPlumed::FixPlumed(LAMMPS *lmp, int narg, char **arg) :
 
   // Define compute to calculate potential energy
 
-  id_pe = utils::strdup("plmd_pe");
-  c_pe = modify->add_compute(std::string(id_pe) + " all pe");
+  id_pe = new char[8];
+  strcpy(id_pe,"plmd_pe");
+  char **newarg = new char*[3];
+  newarg[0] = id_pe;
+  newarg[1] = (char *) "all";
+  newarg[2] = (char *) "pe";
+  modify->add_compute(3,newarg);
+  delete [] newarg;
+  int ipe = modify->find_compute(id_pe);
+  c_pe = modify->compute[ipe];
 
   // Define compute to calculate pressure tensor
 
-  id_press = utils::strdup("plmd_press");
-  c_press = modify->add_compute(std::string(id_press) + " all pressure NULL virial");
+  id_press = new char[11];
+  strcpy(id_press,"plmd_press");
+  newarg = new char*[5];
+  newarg[0] = id_press;
+  newarg[1] = (char *) "all";
+  newarg[2] = (char *) "pressure";
+  newarg[3] = (char *) "NULL";
+  newarg[4] = (char *) "virial";
+  modify->add_compute(5,newarg);
+  delete [] newarg;
+  int ipress = modify->find_compute(id_press);
+  c_press = modify->compute[ipress];
 
   for (int i = 0; i < modify->nfix; i++) {
     const char * const check_style = modify->fix[i]->style;
@@ -321,9 +343,9 @@ void FixPlumed::post_force(int /* vflag */)
 
   if (nlocal != atom->nlocal) {
 
-    delete[] charges;
-    delete[] masses;
-    delete[] gatindex;
+    if (charges) delete [] charges;
+    if (masses) delete [] masses;
+    if (gatindex) delete [] gatindex;
 
     nlocal=atom->nlocal;
     gatindex=new int [nlocal];
@@ -522,13 +544,14 @@ int FixPlumed::modify_param(int narg, char **arg)
     delete[] id_pe;
     id_pe = utils::strdup(arg[1]);
 
-    c_pe = modify->get_compute_by_id(id_pe);
-    if (!c_pe) error->all(FLERR,"Could not find fix_modify potential energy ID {}", id_pe);
+    int icompute = modify->find_compute(arg[1]);
+    if (icompute < 0) error->all(FLERR,"Could not find fix_modify potential energy ID");
+    c_pe = modify->compute[icompute];
 
     if (c_pe->peflag == 0)
-      error->all(FLERR,"Fix_modify compute pe ID {} does not compute potential energy", id_pe);
+      error->all(FLERR,"Fix_modify plmd_pe ID does not compute potential energy");
     if (c_pe->igroup != 0 && comm->me == 0)
-      error->warning(FLERR,"Potential energy compute {} for fix PLUMED is not for group all", id_pe);
+      error->warning(FLERR,"Potential for fix PLUMED is not for group all");
 
     return 2;
 
@@ -538,11 +561,12 @@ int FixPlumed::modify_param(int narg, char **arg)
     delete[] id_press;
     id_press = utils::strdup(arg[1]);
 
-    c_press = modify->get_compute_by_id(id_press);
-    if (!c_press) error->all(FLERR,"Could not find fix_modify compute pressure ID {}", id_press);
+    int icompute = modify->find_compute(arg[1]);
+    if (icompute < 0) error->all(FLERR,"Could not find fix_modify pressure ID");
+    c_press = modify->compute[icompute];
 
     if (c_press->pressflag == 0)
-      error->all(FLERR,"Fix_modify compute pressure ID {} does not compute pressure", id_press);
+      error->all(FLERR,"Fix_modify pressure ID does not compute pressure");
     if (c_press->igroup != 0 && comm->me == 0)
       error->warning(FLERR,"Virial for fix PLUMED is not for group all");
 

@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -54,7 +54,7 @@ https://doi.org/10.1103/PhysRevE.92.043303
 #include "domain.h"
 #include "error.h"
 #include "fix.h"
-#include "fix_store_atom.h"
+#include "fix_store.h"
 #include "force.h"
 #include "group.h"
 #include "improper.h"
@@ -62,6 +62,7 @@ https://doi.org/10.1103/PhysRevE.92.043303
 #include "memory.h"
 #include "modify.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "neighbor.h"
 #include "pair.h"
 #include "update.h"
@@ -90,8 +91,8 @@ ComputeHMA::ComputeHMA(LAMMPS *lmp, int narg, char **arg) :
   // our new fix's group = same as compute group
 
   id_fix = utils::strdup(std::string(id)+"_COMPUTE_STORE");
-  fix = dynamic_cast<FixStoreAtom *>(
-    modify->add_fix(fmt::format("{} {} STORE/ATOM 3 0 0 1", id_fix, group->names[igroup])));
+  fix = (FixStore *)modify->add_fix(fmt::format("{} {} STORE peratom 1 3",
+                                                id_fix, group->names[igroup]));
 
   // calculate xu,yu,zu for fix store array
   // skip if reset from restart file
@@ -177,7 +178,10 @@ void ComputeHMA::init() {
       error->all(FLERR,"Pair style does not support compute hma cv");
   }
 
-  neighbor->add_request(this, NeighConst::REQ_OCCASIONAL);
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->pair = 0;
+  neighbor->requests[irequest]->compute = 1;
+  neighbor->requests[irequest]->occasional = 1;
 }
 
 void ComputeHMA::init_list(int /* id */, NeighList *ptr)
@@ -188,16 +192,17 @@ void ComputeHMA::init_list(int /* id */, NeighList *ptr)
 void ComputeHMA::setup()
 {
   int dummy=0;
-  Fix *ifix = modify->get_fix_by_id(id_temp);
-  if (!ifix) error->all(FLERR,"Could not find compute hma temperature fix ID {}", id_temp);
-  auto  temperat = (double *) ifix->extract("t_target",dummy);
-  if (temperat == nullptr) error->all(FLERR,"Fix ID {} is not a thermostat {}", id_temp);
-  finaltemp = *temperat;
+  int ifix = modify->find_fix(id_temp);
+  if (ifix < 0) error->all(FLERR,"Could not find compute hma temperature ID");
+  double * temperat = (double *) modify->fix[ifix]->extract("t_target",dummy);
+  if (temperat==nullptr) error->all(FLERR,"Could not find compute hma temperature ID");
+  finaltemp = * temperat;
 
   // set fix which stores original atom coords
 
-  fix = dynamic_cast<FixStoreAtom *>(modify->get_fix_by_id(id_fix));
-  if (!fix) error->all(FLERR,"Could not find hma per-atom store fix ID {}", id_fix);
+  int ifix2 = modify->find_fix(id_fix);
+  if (ifix2 < 0) error->all(FLERR,"Could not find hma store fix ID");
+  fix = (FixStore *) modify->fix[ifix2];
 }
 
 /* ---------------------------------------------------------------------- */
@@ -281,7 +286,7 @@ void ComputeHMA::compute_vector()
 
   double phiSum = 0.0;
   if (computeCv>-1) {
-    comm->forward_comm(this);
+    comm->forward_comm_compute(this);
     double** cutsq = force->pair->cutsq;
     if (force->pair) {
       double **x = atom->x;

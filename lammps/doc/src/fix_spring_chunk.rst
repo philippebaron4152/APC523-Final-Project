@@ -6,7 +6,7 @@ fix spring/chunk command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID spring/chunk K chunkID comID
 

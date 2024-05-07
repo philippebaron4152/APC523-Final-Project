@@ -34,7 +34,7 @@ BornCoulLongT::BornCoulLong() : BaseCharge<numtyp,acctyp>(),
 }
 
 template <class numtyp, class acctyp>
-BornCoulLongT::~BornCoulLong() {
+BornCoulLongT::~BornCoulLongT() {
   clear();
 }
 

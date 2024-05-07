@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -55,7 +55,7 @@ using namespace user_manifold;
 enum { CONST, EQUAL }; // For treating the variables.
 
 static const char* cite_fix_nve_manifold_rattle =
-  "fix nve/manifold/rattle command: doi:10.1016/j.bpj.2016.02.017\n\n"
+  "fix nve/manifold/rattle command:\n\n"
   "@article{paquay-2016,\n"
   "   author        = {Paquay, Stefan and Kusters, Remy},\n"
   "   doi           = {10.1016/j.bpj.2016.02.017},\n"
@@ -140,8 +140,10 @@ FixNVEManifoldRattle::FixNVEManifoldRattle( LAMMPS *lmp, int &narg, char **arg,
     if (strcmp(arg[argi], "every") == 0) {
       nevery = utils::inumeric(FLERR,arg[argi+1],false,lmp);
       next_output = update->ntimestep + nevery;
-      if (comm->me == 0)
-        utils::logmesg(lmp,"Outputting every {} steps, next is {}\n",nevery, next_output);
+      if (comm->me == 0) {
+        fprintf(screen,"Outputting every %d steps, next is %d\n",
+                        nevery, next_output);
+      }
       argi += 2;
     } else if (error_on_unknown_keyword) {
       error->all(FLERR,"Error parsing arg \"{}\".\n",arg[argi]);
@@ -165,8 +167,8 @@ FixNVEManifoldRattle::~FixNVEManifoldRattle()
   }
 
   if (tvars ) delete [] tvars;
-  delete[] tstyle;
-  delete[] is_var;
+  if (tstyle) delete [] tstyle;
+  if (is_var) delete [] is_var;
 }
 
 
@@ -209,9 +211,11 @@ void FixNVEManifoldRattle::print_stats( const char *header )
     double inv_tdiff = 1.0/( static_cast<double>(ntimestep) - stats.last_out );
     stats.last_out = ntimestep;
 
-    utils::logmesg(lmp, "{} stats for time step {} on {} atoms:\n", header, ntimestep, stats.natoms);
-    utils::logmesg(lmp, "  iters/atom: x = {}, v = {}, dofs removed = {}\n",
-                   x_iters * inv_tdiff, v_iters * inv_tdiff, stats.dofs_removed);
+    fprintf(screen, "%s stats for time step " BIGINT_FORMAT " on %d atoms:\n",
+            header, ntimestep, stats.natoms);
+    fprintf(screen, "  iters/atom: x = %f, v = %f, dofs removed %d",
+            x_iters * inv_tdiff, v_iters * inv_tdiff, stats.dofs_removed);
+    fprintf(screen,"\n");
   }
 
   stats.x_iters_per_atom = 0;
@@ -287,21 +291,21 @@ void FixNVEManifoldRattle::update_var_params()
 
 /* -----------------------------------------------------------------------------
    ---------------------------------------------------------------------------*/
-bigint FixNVEManifoldRattle::dof(int /*igroup*/)
+int FixNVEManifoldRattle::dof(int /*igroup*/)
 {
   int *mask = atom->mask;
   int nlocal = atom->nlocal;
-  bigint natoms = 0;
+  int natoms = 0;
   for (int i = 0; i < nlocal; ++i) {
     if (mask[i] & groupbit) ++natoms;
   }
 
-  bigint dofs;
-  MPI_Allreduce( &natoms, &dofs, 1, MPI_LMP_BIGINT, MPI_SUM, world );
+  int dofs;
+  MPI_Allreduce( &natoms, &dofs, 1, MPI_INT, MPI_SUM, world );
 
   // Make sure that, if there is just no or one atom, no dofs are subtracted,
   // since for the first atom already 3 dofs are subtracted because of the
-  // center of mass corrections:
+  // centre of mass corrections:
   if (dofs <= 1) dofs = 0;
   stats.dofs_removed = dofs;
 
@@ -494,7 +498,7 @@ void FixNVEManifoldRattle::rattle_manifold_x(double *x, double *v,
   const double c_inv = 1.0 / c;
 
 
-  while (true) {
+  while (1) {
     v[0] = vt[0] - l*no_dt[0];
     v[1] = vt[1] - l*no_dt[1];
     v[2] = vt[2] - l*no_dt[2];
@@ -537,9 +541,13 @@ void FixNVEManifoldRattle::rattle_manifold_x(double *x, double *v,
     // gg = ptr_m->g(x);
   }
 
-  if (iters >= max_iter && res > tolerance)
-    error->one(FLERR, "Failed to constrain atom {} (x = ({}, {}, {})! res = {}, iters = {}\n",
-               tagi, x[0], x[1], x[2], res, iters);
+  if (iters >= max_iter && res > tolerance) {
+    char msg[2048];
+    sprintf(msg,"Failed to constrain atom " TAGINT_FORMAT
+            " (x = (%f, %f, %f)! res = %e, iters = %d\n",
+            tagi, x[0], x[1], x[2], res, iters);
+    error->one(FLERR,msg);
+  }
 
   // "sync" x and v:
   v[0] = vt[0] - l*no_dt[0];
@@ -627,9 +635,13 @@ void FixNVEManifoldRattle::rattle_manifold_v(double *v, double *f,
     ++iters;
   } while ((res > tolerance) && (iters < max_iter));
 
-  if (iters >= max_iter && res >= tolerance)
-    error->all(FLERR,"Failed to constrain atom {} (x = ({}, {}, {})! res = {}, iters = {}\n",
-               tagi, x[0], x[1], x[2], res, iters);
+  if (iters >= max_iter && res >= tolerance) {
+          char msg[2048];
+          sprintf(msg,"Failed to constrain atom " TAGINT_FORMAT
+                  " (x = (%f, %f, %f)! res = %e, iters = %d\n",
+                  tagi, x[0], x[1], x[2], res, iters);
+          error->all(FLERR,msg);
+  }
 
   stats.v_iters += iters;
 }

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
-   https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   www.cs.sandia.gov/~sjplimp/lammps.html
+   Steve Plimpton, sjplimp@sandia.gov, Sandia National Laboratories
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,17 +27,41 @@ namespace LAMMPS_NS {
 class FixNVTSllod : public FixNH {
  public:
   FixNVTSllod(class LAMMPS *, int, char **);
-
-  void init() override;
+  ~FixNVTSllod() {}
+  void init();
 
  private:
   int nondeformbias;
-  int psllod_flag;     // 0 for SLLOD, 1 for p-SLLOD
 
-  void nh_v_temp() override;
+  void nh_v_temp();
 };
 
 }    // namespace LAMMPS_NS
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Temperature control must be used with fix nvt/sllod
+
+Self-explanatory.
+
+E: Pressure control can not be used with fix nvt/sllod
+
+Self-explanatory.
+
+E: Temperature for fix nvt/sllod does not have a bias
+
+The specified compute must compute temperature with a bias.
+
+E: Using fix nvt/sllod with inconsistent fix deform remap option
+
+Fix nvt/sllod requires that deforming atoms have a velocity profile
+provided by "remap v" as a fix deform option.
+
+E: Using fix nvt/sllod with no fix deform defined
+
+Self-explanatory.
+
+*/

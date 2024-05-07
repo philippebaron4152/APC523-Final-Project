@@ -6,7 +6,7 @@ echo command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    echo style
 

@@ -1,36 +1,58 @@
+/*
 //@HEADER
 // ************************************************************************
 //
-//                        Kokkos v. 4.0
-//       Copyright (2022) National Technology & Engineering
+//                        Kokkos v. 3.0
+//       Copyright (2020) National Technology & Engineering
 //               Solutions of Sandia, LLC (NTESS).
 //
 // Under the terms of Contract DE-NA0003525 with NTESS,
 // the U.S. Government retains certain rights in this software.
 //
-// Part of Kokkos, under the Apache License v2.0 with LLVM Exceptions.
-// See https://kokkos.org/LICENSE for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
 //
+// 1. Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright
+// notice, this list of conditions and the following disclaimer in the
+// documentation and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the Corporation nor the names of the
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY NTESS "AS IS" AND ANY
+// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NTESS OR THE
+// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+// Questions? Contact Christian R. Trott (crtrott@sandia.gov)
+//
+// ************************************************************************
 //@HEADER
+*/
 
 #ifndef KOKKOS_ARRAY_HPP
 #define KOKKOS_ARRAY_HPP
-#ifndef KOKKOS_IMPL_PUBLIC_INCLUDE
-#define KOKKOS_IMPL_PUBLIC_INCLUDE
-#define KOKKOS_IMPL_PUBLIC_INCLUDE_NOTDEFINED_ARRAY
-#endif
 
 #include <Kokkos_Macros.hpp>
-#include <Kokkos_Swap.hpp>
 #include <impl/Kokkos_Error.hpp>
-#include <impl/Kokkos_StringManipulation.hpp>
 
 #include <type_traits>
 #include <algorithm>
-#include <utility>
 #include <limits>
 #include <cstddef>
+#include <string>
 
 namespace Kokkos {
 
@@ -42,12 +64,16 @@ struct ArrayBoundsCheck;
 template <typename Integral>
 struct ArrayBoundsCheck<Integral, true> {
   KOKKOS_INLINE_FUNCTION
-  constexpr ArrayBoundsCheck(Integral i, size_t N) {
+  ArrayBoundsCheck(Integral i, size_t N) {
     if (i < 0) {
-      char err[128] = "Kokkos::Array: index ";
-      to_chars_i(err + strlen(err), err + 128, i);
-      strcat(err, " < 0");
-      Kokkos::abort(err);
+#ifdef KOKKOS_ACTIVE_EXECUTION_MEMORY_SPACE_HOST
+      std::string s = "Kokkos::Array: index ";
+      s += std::to_string(i);
+      s += " < 0";
+      Kokkos::Impl::throw_runtime_exception(s);
+#else
+      Kokkos::abort("Kokkos::Array: negative index in device code");
+#endif
     }
     ArrayBoundsCheck<Integral, false>(i, N);
   }
@@ -56,13 +82,17 @@ struct ArrayBoundsCheck<Integral, true> {
 template <typename Integral>
 struct ArrayBoundsCheck<Integral, false> {
   KOKKOS_INLINE_FUNCTION
-  constexpr ArrayBoundsCheck(Integral i, size_t N) {
+  ArrayBoundsCheck(Integral i, size_t N) {
     if (size_t(i) >= N) {
-      char err[128] = "Kokkos::Array: index ";
-      to_chars_i(err + strlen(err), err + 128, i);
-      strcat(err, " >= ");
-      to_chars_i(err + strlen(err), err + 128, N);
-      Kokkos::abort(err);
+#ifdef KOKKOS_ACTIVE_EXECUTION_MEMORY_SPACE_HOST
+      std::string s = "Kokkos::Array: index ";
+      s += std::to_string(i);
+      s += " >= ";
+      s += std::to_string(N);
+      Kokkos::Impl::throw_runtime_exception(s);
+#else
+      Kokkos::abort("Kokkos::Array: index >= size");
+#endif
     }
   }
 };
@@ -93,19 +123,19 @@ struct Array {
 
  public:
   using reference       = T&;
-  using const_reference = std::add_const_t<T>&;
+  using const_reference = typename std::add_const<T>::type&;
   using size_type       = size_t;
   using difference_type = ptrdiff_t;
   using value_type      = T;
   using pointer         = T*;
-  using const_pointer   = std::add_const_t<T>*;
+  using const_pointer   = typename std::add_const<T>::type*;
 
   KOKKOS_INLINE_FUNCTION static constexpr size_type size() { return N; }
   KOKKOS_INLINE_FUNCTION static constexpr bool empty() { return false; }
   KOKKOS_INLINE_FUNCTION constexpr size_type max_size() const { return N; }
 
   template <typename iType>
-  KOKKOS_INLINE_FUNCTION constexpr reference operator[](const iType& i) {
+  KOKKOS_INLINE_FUNCTION reference operator[](const iType& i) {
     static_assert(
         (std::is_integral<iType>::value || std::is_enum<iType>::value),
         "Must be integral argument");
@@ -114,8 +144,7 @@ struct Array {
   }
 
   template <typename iType>
-  KOKKOS_INLINE_FUNCTION constexpr const_reference operator[](
-      const iType& i) const {
+  KOKKOS_INLINE_FUNCTION const_reference operator[](const iType& i) const {
     static_assert(
         (std::is_integral<iType>::value || std::is_enum<iType>::value),
         "Must be integral argument");
@@ -123,10 +152,10 @@ struct Array {
     return m_internal_implementation_private_member_data[i];
   }
 
-  KOKKOS_INLINE_FUNCTION constexpr pointer data() {
+  KOKKOS_INLINE_FUNCTION pointer data() {
     return &m_internal_implementation_private_member_data[0];
   }
-  KOKKOS_INLINE_FUNCTION constexpr const_pointer data() const {
+  KOKKOS_INLINE_FUNCTION const_pointer data() const {
     return &m_internal_implementation_private_member_data[0];
   }
 };
@@ -135,12 +164,12 @@ template <class T, class Proxy>
 struct Array<T, 0, Proxy> {
  public:
   using reference       = T&;
-  using const_reference = std::add_const_t<T>&;
+  using const_reference = typename std::add_const<T>::type&;
   using size_type       = size_t;
   using difference_type = ptrdiff_t;
   using value_type      = T;
   using pointer         = T*;
-  using const_pointer   = std::add_const_t<T>*;
+  using const_pointer   = typename std::add_const<T>::type*;
 
   KOKKOS_INLINE_FUNCTION static constexpr size_type size() { return 0; }
   KOKKOS_INLINE_FUNCTION static constexpr bool empty() { return true; }
@@ -164,8 +193,8 @@ struct Array<T, 0, Proxy> {
     return *reinterpret_cast<const_pointer>(-1);
   }
 
-  KOKKOS_INLINE_FUNCTION pointer data() { return nullptr; }
-  KOKKOS_INLINE_FUNCTION const_pointer data() const { return nullptr; }
+  KOKKOS_INLINE_FUNCTION pointer data() { return pointer(0); }
+  KOKKOS_INLINE_FUNCTION const_pointer data() const { return const_pointer(0); }
 
   KOKKOS_DEFAULTED_FUNCTION ~Array()            = default;
   KOKKOS_DEFAULTED_FUNCTION Array()             = default;
@@ -192,15 +221,15 @@ struct Array<T, KOKKOS_INVALID_INDEX, Array<>::contiguous> {
 
  public:
   using reference       = T&;
-  using const_reference = std::add_const_t<T>&;
+  using const_reference = typename std::add_const<T>::type&;
   using size_type       = size_t;
   using difference_type = ptrdiff_t;
   using value_type      = T;
   using pointer         = T*;
-  using const_pointer   = std::add_const_t<T>*;
+  using const_pointer   = typename std::add_const<T>::type*;
 
   KOKKOS_INLINE_FUNCTION constexpr size_type size() const { return m_size; }
-  KOKKOS_INLINE_FUNCTION constexpr bool empty() const { return 0 == m_size; }
+  KOKKOS_INLINE_FUNCTION constexpr bool empty() const { return 0 != m_size; }
   KOKKOS_INLINE_FUNCTION constexpr size_type max_size() const { return m_size; }
 
   template <typename iType>
@@ -235,14 +264,14 @@ struct Array<T, KOKKOS_INVALID_INDEX, Array<>::contiguous> {
 
   KOKKOS_INLINE_FUNCTION
   Array& operator=(const Array& rhs) {
-    const size_t n = size() < rhs.size() ? size() : rhs.size();
+    const size_t n = std::min(m_size, rhs.size());
     for (size_t i = 0; i < n; ++i) m_elem[i] = rhs[i];
     return *this;
   }
 
   template <size_t N, class P>
   KOKKOS_INLINE_FUNCTION Array& operator=(const Array<T, N, P>& rhs) {
-    const size_t n = size() < rhs.size() ? size() : rhs.size();
+    const size_t n = std::min(m_size, rhs.size());
     for (size_t i = 0; i < n; ++i) m_elem[i] = rhs[i];
     return *this;
   }
@@ -261,15 +290,15 @@ struct Array<T, KOKKOS_INVALID_INDEX, Array<>::strided> {
 
  public:
   using reference       = T&;
-  using const_reference = std::add_const_t<T>&;
+  using const_reference = typename std::add_const<T>::type&;
   using size_type       = size_t;
   using difference_type = ptrdiff_t;
   using value_type      = T;
   using pointer         = T*;
-  using const_pointer   = std::add_const_t<T>*;
+  using const_pointer   = typename std::add_const<T>::type*;
 
   KOKKOS_INLINE_FUNCTION constexpr size_type size() const { return m_size; }
-  KOKKOS_INLINE_FUNCTION constexpr bool empty() const { return 0 == m_size; }
+  KOKKOS_INLINE_FUNCTION constexpr bool empty() const { return 0 != m_size; }
   KOKKOS_INLINE_FUNCTION constexpr size_type max_size() const { return m_size; }
 
   template <typename iType>
@@ -304,15 +333,15 @@ struct Array<T, KOKKOS_INVALID_INDEX, Array<>::strided> {
 
   KOKKOS_INLINE_FUNCTION
   Array& operator=(const Array& rhs) {
-    const size_t n = size() < rhs.size() ? size() : rhs.size();
-    for (size_t i = 0; i < n; ++i) m_elem[i * m_stride] = rhs[i];
+    const size_t n = std::min(m_size, rhs.size());
+    for (size_t i = 0; i < n; ++i) m_elem[i] = rhs[i];
     return *this;
   }
 
   template <size_t N, class P>
   KOKKOS_INLINE_FUNCTION Array& operator=(const Array<T, N, P>& rhs) {
-    const size_t n = size() < rhs.size() ? size() : rhs.size();
-    for (size_t i = 0; i < n; ++i) m_elem[i * m_stride] = rhs[i];
+    const size_t n = std::min(m_size, rhs.size());
+    for (size_t i = 0; i < n; ++i) m_elem[i] = rhs[i];
     return *this;
   }
 
@@ -321,48 +350,6 @@ struct Array<T, KOKKOS_INVALID_INDEX, Array<>::strided> {
       : m_elem(arg_ptr), m_size(arg_size), m_stride(arg_stride) {}
 };
 
-template <typename T, typename... Us>
-Array(T, Us...)->Array<T, 1 + sizeof...(Us)>;
-
 }  // namespace Kokkos
 
-//<editor-fold desc="Support for structured binding">
-template <class T, std::size_t N>
-struct std::tuple_size<Kokkos::Array<T, N>>
-    : std::integral_constant<std::size_t, N> {};
-
-template <std::size_t I, class T, std::size_t N>
-struct std::tuple_element<I, Kokkos::Array<T, N>> {
-  using type = T;
-};
-
-namespace Kokkos {
-
-template <std::size_t I, class T, std::size_t N>
-KOKKOS_FUNCTION constexpr T& get(Array<T, N>& a) noexcept {
-  return a[I];
-}
-
-template <std::size_t I, class T, std::size_t N>
-KOKKOS_FUNCTION constexpr T const& get(Array<T, N> const& a) noexcept {
-  return a[I];
-}
-
-template <std::size_t I, class T, std::size_t N>
-KOKKOS_FUNCTION constexpr T&& get(Array<T, N>&& a) noexcept {
-  return std::move(a[I]);
-}
-
-template <std::size_t I, class T, std::size_t N>
-KOKKOS_FUNCTION constexpr T const&& get(Array<T, N> const&& a) noexcept {
-  return std::move(a[I]);
-}
-
-}  // namespace Kokkos
-//</editor-fold>
-
-#ifdef KOKKOS_IMPL_PUBLIC_INCLUDE_NOTDEFINED_ARRAY
-#undef KOKKOS_IMPL_PUBLIC_INCLUDE
-#undef KOKKOS_IMPL_PUBLIC_INCLUDE_NOTDEFINED_ARRAY
-#endif
 #endif /* #ifndef KOKKOS_ARRAY_HPP */

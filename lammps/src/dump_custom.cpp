@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -20,7 +20,7 @@
 #include "domain.h"
 #include "error.h"
 #include "fix.h"
-#include "fix_store_atom.h"
+#include "fix_store.h"
 #include "group.h"
 #include "input.h"
 #include "memory.h"
@@ -28,13 +28,13 @@
 #include "region.h"
 #include "update.h"
 #include "variable.h"
-
-#include <cstring>
+#include "fmt/format.h"
+#include "utils.h"
 
 using namespace LAMMPS_NS;
 
 // customize by adding keyword
-// also customize compute_property_atom.cpp
+// also customize compute_atom_property.cpp
 
 enum{ID,MOL,PROC,PROCP1,TYPE,ELEMENT,MASS,
      X,Y,Z,XS,YS,ZS,XSTRI,YSTRI,ZSTRI,XU,YU,ZU,XUTRI,YUTRI,ZUTRI,
@@ -47,27 +47,30 @@ enum{ID,MOL,PROC,PROCP1,TYPE,ELEMENT,MASS,
      COMPUTE,FIX,VARIABLE,IVEC,DVEC,IARRAY,DARRAY};
 enum{LT,LE,GT,GE,EQ,NEQ,XOR};
 
-static constexpr int ONEFIELD = 32;
-static constexpr int DELTA = 1048576;
+#define ONEFIELD 32
+#define DELTA 1048576
 
 /* ---------------------------------------------------------------------- */
 
 DumpCustom::DumpCustom(LAMMPS *lmp, int narg, char **arg) :
-    Dump(lmp, narg, arg), idregion(nullptr), thresh_array(nullptr), thresh_op(nullptr),
-    thresh_value(nullptr), thresh_last(nullptr), thresh_fix(nullptr), thresh_fixID(nullptr),
-    thresh_first(nullptr), earg(nullptr), vtype(nullptr), vformat(nullptr), columns(nullptr),
-    columns_default(nullptr), choose(nullptr), dchoose(nullptr), clist(nullptr),
-    field2index(nullptr), argindex(nullptr), id_compute(nullptr), compute(nullptr), id_fix(nullptr),
-    fix(nullptr), id_variable(nullptr), variable(nullptr), vbuf(nullptr), id_custom(nullptr),
-    custom(nullptr), custom_flag(nullptr), typenames(nullptr), header_choice(nullptr),
-    pack_choice(nullptr)
+  Dump(lmp, narg, arg),
+  idregion(nullptr), thresh_array(nullptr), thresh_op(nullptr), thresh_value(nullptr),
+  thresh_last(nullptr), thresh_fix(nullptr),
+  thresh_fixID(nullptr), thresh_first(nullptr),
+  earg(nullptr), vtype(nullptr), vformat(nullptr), columns(nullptr), choose(nullptr),
+  dchoose(nullptr), clist(nullptr), field2index(nullptr),
+  argindex(nullptr), id_compute(nullptr),
+  compute(nullptr), id_fix(nullptr), fix(nullptr),
+  id_variable(nullptr), variable(nullptr),
+  vbuf(nullptr), id_custom(nullptr), custom(nullptr), custom_flag(nullptr),
+  typenames(nullptr), pack_choice(nullptr)
 {
-  if (narg == 5) error->all(FLERR,"No dump {} arguments specified", style);
+  if (narg == 5) error->all(FLERR,"No dump custom arguments specified");
 
   clearstep = 1;
 
   nevery = utils::inumeric(FLERR,arg[3],false,lmp);
-  if (nevery <= 0) error->all(FLERR,"Illegal dump {} command: output frequency must be > 0", style);
+  if (nevery <= 0) error->all(FLERR,"Illegal dump custom command");
 
   // expand args if any have wildcard character "*"
   // ok to include trailing optional args,
@@ -87,17 +90,39 @@ DumpCustom::DumpCustom(LAMMPS *lmp, int narg, char **arg) :
 
   buffer_allow = 1;
   buffer_flag = 1;
+  iregion = -1;
+  idregion = nullptr;
 
-  triclinic_general = 0;
   nthresh = 0;
+  thresh_array = nullptr;
+  thresh_op = nullptr;
+  thresh_value = nullptr;
+  thresh_last = nullptr;
+
   nthreshlast = 0;
+  thresh_fix = nullptr;
+  thresh_fixID = nullptr;
+  thresh_first = nullptr;
 
   // computes, fixes, variables which the dump accesses
 
   ncompute = 0;
+  id_compute = nullptr;
+  compute = nullptr;
+
   nfix = 0;
+  id_fix = nullptr;
+  fix = nullptr;
+
   nvariable = 0;
+  id_variable = nullptr;
+  variable = nullptr;
+  vbuf = nullptr;
+
   ncustom = 0;
+  id_custom = nullptr;
+  custom = nullptr;
+  custom_flag = nullptr;
 
   // process attributes
   // ioptional = start of additional optional args in expanded args
@@ -106,7 +131,7 @@ DumpCustom::DumpCustom(LAMMPS *lmp, int narg, char **arg) :
 
   if (ioptional < nfield &&
       strcmp(style,"image") != 0 && strcmp(style,"movie") != 0)
-    error->all(FLERR,"Invalid attribute {} in dump {} command",earg[ioptional],style);
+    error->all(FLERR,"Invalid attribute in dump custom command");
 
   // noptional = # of optional args
   // reset nfield to subtract off optional args
@@ -122,6 +147,9 @@ DumpCustom::DumpCustom(LAMMPS *lmp, int narg, char **arg) :
   // atom selection arrays
 
   maxlocal = 0;
+  choose = nullptr;
+  dchoose = nullptr;
+  clist = nullptr;
 
   // default element name for all types = C
 
@@ -143,7 +171,7 @@ DumpCustom::DumpCustom(LAMMPS *lmp, int narg, char **arg) :
     else if (vtype[i] == Dump::BIGINT) cols += BIGINT_FORMAT " ";
     vformat[i] = nullptr;
   }
-  if (nfield > 0) cols.resize(cols.size()-1);
+  cols.resize(cols.size()-1);
   format_default = utils::strdup(cols);
 
   format_column_user = new char*[nfield];
@@ -152,14 +180,13 @@ DumpCustom::DumpCustom(LAMMPS *lmp, int narg, char **arg) :
   // setup column string
 
   cols.clear();
-  keyword_user.resize(nfield);
   for (int iarg = 0; iarg < nfield; iarg++) {
-    key2col[earg[iarg]] = iarg;
-    keyword_user[iarg].clear();
-    if (cols.size()) cols += " ";
     cols += earg[iarg];
+    cols += " ";
   }
-  columns_default = utils::strdup(cols);
+  // remove trailing blank and copy
+  cols.resize(cols.size()-1);
+  columns = utils::strdup(cols);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -211,8 +238,9 @@ DumpCustom::~DumpCustom()
 
   for (int i = 0; i < ncustom; i++) delete[] id_custom[i];
   memory->sfree(id_custom);
-  memory->sfree(custom);
-  memory->sfree(custom_flag);
+  delete [] custom;
+  delete [] custom_flag;
+
   memory->destroy(choose);
   memory->destroy(dchoose);
   memory->destroy(clist);
@@ -230,7 +258,6 @@ DumpCustom::~DumpCustom()
     delete[] format_column_user;
   }
 
-  delete[] columns_default;
   delete[] columns;
 }
 
@@ -238,19 +265,6 @@ DumpCustom::~DumpCustom()
 
 void DumpCustom::init_style()
 {
-  // assemble ITEMS: column string from defaults and user values
-
-  delete[] columns;
-  std::string combined;
-  int icol = 0;
-  for (const auto &item : utils::split_words(columns_default)) {
-    if (combined.size()) combined += " ";
-    if (keyword_user[icol].size()) combined += keyword_user[icol];
-    else combined += item;
-    ++icol;
-  }
-  columns = utils::strdup(combined);
-
   // format = copy of default or user-specified line format
 
   delete[] format;
@@ -264,11 +278,10 @@ void DumpCustom::init_style()
 
   auto words = utils::split_words(format);
   if ((int) words.size() < nfield)
-    error->all(FLERR,"Dump_modify format line is too short: {}", format);
+    error->all(FLERR,"Dump_modify format line is too short");
 
   int i=0;
-  for (const auto &word : words) {
-    if (i >= nfield) break;
+  for (auto word : words) {
     delete[] vformat[i];
 
     if (format_column_user[i])
@@ -295,14 +308,10 @@ void DumpCustom::init_style()
 
   if (binary && domain->triclinic == 0)
     header_choice = &DumpCustom::header_binary;
-  else if (binary && triclinic_general == 1)
-    header_choice = &DumpCustom::header_binary_triclinic_general;
   else if (binary && domain->triclinic == 1)
     header_choice = &DumpCustom::header_binary_triclinic;
   else if (!binary && domain->triclinic == 0)
     header_choice = &DumpCustom::header_item;
-  else if (!binary && triclinic_general == 1)
-    header_choice = &DumpCustom::header_item_triclinic_general;
   else if (!binary && domain->triclinic == 1)
     header_choice = &DumpCustom::header_item_triclinic;
 
@@ -314,21 +323,23 @@ void DumpCustom::init_style()
   // check that fix frequency is acceptable
 
   for (i = 0; i < ncompute; i++) {
-    compute[i] = modify->get_compute_by_id(id_compute[i]);
-    if (!compute[i]) error->all(FLERR,"Could not find dump {} compute ID {}",style,id_compute[i]);
+    int icompute = modify->find_compute(id_compute[i]);
+    if (icompute < 0) error->all(FLERR,"Could not find dump custom compute ID");
+    compute[i] = modify->compute[icompute];
   }
 
   for (i = 0; i < nfix; i++) {
-    fix[i] = modify->get_fix_by_id(id_fix[i]);
-    if (!fix[i]) error->all(FLERR,"Could not find dump {} fix ID {}", style, id_fix[i]);
-    if (nevery % fix[i]->peratom_freq)
-      error->all(FLERR,"Dump {} and fix not computed at compatible times", style);
+    int ifix = modify->find_fix(id_fix[i]);
+    if (ifix < 0) error->all(FLERR,"Could not find dump custom fix ID");
+    fix[i] = modify->fix[ifix];
+    if (nevery % modify->fix[ifix]->peratom_freq)
+      error->all(FLERR,"Dump custom and fix not computed at compatible times");
   }
 
   for (i = 0; i < nvariable; i++) {
     int ivariable = input->variable->find(id_variable[i]);
     if (ivariable < 0)
-      error->all(FLERR,"Could not find dump {} variable name {}", style, id_variable[i]);
+      error->all(FLERR,"Could not find dump custom variable name");
     variable[i] = ivariable;
   }
 
@@ -336,7 +347,7 @@ void DumpCustom::init_style()
   for (int i = 0; i < ncustom; i++) {
     icustom = atom->find_custom(id_custom[i],flag,cols);
     if (icustom < 0)
-      error->all(FLERR,"Could not find dump {} atom property name", style);
+      error->all(FLERR,"Could not find dump custom atom property name");
     custom[i] = icustom;
     if (!flag && !cols) custom_flag[i] = IVEC;
     else if (flag && !cols) custom_flag[i] = DVEC;
@@ -344,10 +355,13 @@ void DumpCustom::init_style()
     else if (flag && cols) custom_flag[i] = DARRAY;
   }
 
-  // check validity of region
+  // set index and check validity of region
 
-  if (idregion && !domain->get_region_by_id(idregion))
-    error->all(FLERR,"Region {} for dump {} does not exist", idregion, style);
+  if (iregion >= 0) {
+    iregion = domain->find_region(idregion);
+    if (iregion == -1)
+      error->all(FLERR,"Region ID for dump custom does not exist");
+  }
 
   // open single file, one time only
 
@@ -358,8 +372,6 @@ void DumpCustom::init_style()
 
 void DumpCustom::write_header(bigint ndump)
 {
-  if (!header_choice) error->all(FLERR, "Must not use 'run pre no' after creating a new dump");
-
   if (multiproc) (this->*header_choice)(ndump);
   else if (me == 0) (this->*header_choice)(ndump);
 }
@@ -494,50 +506,23 @@ void DumpCustom::header_binary_triclinic(bigint ndump)
 
 /* ---------------------------------------------------------------------- */
 
-void DumpCustom::header_binary_triclinic_general(bigint ndump)
-{
-  header_format_binary();
-
-  fwrite(&update->ntimestep,sizeof(bigint),1,fp);
-  fwrite(&ndump,sizeof(bigint),1,fp);
-  int triclinic_general_flag = 2;
-  fwrite(&triclinic_general_flag,sizeof(int),1,fp);
-  fwrite(&domain->boundary[0][0],6*sizeof(int),1,fp);
-  fwrite(domain->avec,3*sizeof(double),1,fp);
-  fwrite(domain->bvec,3*sizeof(double),1,fp);
-  fwrite(domain->cvec,3*sizeof(double),1,fp);
-  fwrite(domain->boxlo,3*sizeof(double),1,fp);
-  fwrite(&nfield,sizeof(int),1,fp);
-
-  header_unit_style_binary();
-  header_time_binary();
-  header_columns_binary();
-
-  if (multiproc) fwrite(&nclusterprocs,sizeof(int),1,fp);
-  else fwrite(&nprocs,sizeof(int),1,fp);
-}
-
-/* ---------------------------------------------------------------------- */
-
 void DumpCustom::header_item(bigint ndump)
 {
   if (unit_flag && !unit_count) {
     ++unit_count;
-    fmt::print(fp,"ITEM: UNITS\n{}\n",update->unit_style);
+    fprintf(fp,"ITEM: UNITS\n%s\n",update->unit_style);
   }
-  if (time_flag) fmt::print(fp,"ITEM: TIME\n{:.16}\n",compute_time());
+  if (time_flag) fprintf(fp,"ITEM: TIME\n%.16g\n",compute_time());
 
-  fmt::print(fp,"ITEM: TIMESTEP\n{}\n"
-             "ITEM: NUMBER OF ATOMS\n{}\n",
-             update->ntimestep, ndump);
-
-  fmt::print(fp,"ITEM: BOX BOUNDS {}\n"
-             "{:>1.16e} {:>1.16e}\n"
-             "{:>1.16e} {:>1.16e}\n"
-             "{:>1.16e} {:>1.16e}\n",
-             boundstr,boxxlo,boxxhi,boxylo,boxyhi,boxzlo,boxzhi);
-
-  fmt::print(fp,"ITEM: ATOMS {}\n",columns);
+  fprintf(fp,"ITEM: TIMESTEP\n");
+  fprintf(fp,BIGINT_FORMAT "\n",update->ntimestep);
+  fprintf(fp,"ITEM: NUMBER OF ATOMS\n");
+  fprintf(fp,BIGINT_FORMAT "\n",ndump);
+  fprintf(fp,"ITEM: BOX BOUNDS %s\n",boundstr);
+  fprintf(fp,"%-1.16e %-1.16e\n",boxxlo,boxxhi);
+  fprintf(fp,"%-1.16e %-1.16e\n",boxylo,boxyhi);
+  fprintf(fp,"%-1.16e %-1.16e\n",boxzlo,boxzhi);
+  fprintf(fp,"ITEM: ATOMS %s\n",columns);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -546,45 +531,19 @@ void DumpCustom::header_item_triclinic(bigint ndump)
 {
   if (unit_flag && !unit_count) {
     ++unit_count;
-    fmt::print(fp,"ITEM: UNITS\n{}\n",update->unit_style);
+    fprintf(fp,"ITEM: UNITS\n%s\n",update->unit_style);
   }
-  if (time_flag) fmt::print(fp,"ITEM: TIME\n{:.16}\n",compute_time());
+  if (time_flag) fprintf(fp,"ITEM: TIME\n%.16g\n",compute_time());
 
-  fmt::print(fp,"ITEM: TIMESTEP\n{}\n"
-             "ITEM: NUMBER OF ATOMS\n{}\n",
-             update->ntimestep, ndump);
-
-  fmt::print(fp,"ITEM: BOX BOUNDS xy xz yz {}\n"
-             "{:>1.16e} {:>1.16e} {:>1.16e}\n"
-             "{:>1.16e} {:>1.16e} {:>1.16e}\n"
-             "{:>1.16e} {:>1.16e} {:>1.16e}\n",
-             boundstr,boxxlo,boxxhi,boxxy,boxylo,boxyhi,boxxz,boxzlo,boxzhi,boxyz);
-
-  fmt::print(fp,"ITEM: ATOMS {}\n",columns);
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::header_item_triclinic_general(bigint ndump)
-{
-  if (unit_flag && !unit_count) {
-    ++unit_count;
-    fmt::print(fp,"ITEM: UNITS\n{}\n",update->unit_style);
-  }
-  if (time_flag) fmt::print(fp,"ITEM: TIME\n{:.16}\n",compute_time());
-
-  fmt::print(fp,"ITEM: TIMESTEP\n{}\nITEM: NUMBER OF ATOMS\n{}\n", update->ntimestep, ndump);
-
-  fmt::print(fp,"ITEM: BOX BOUNDS abc origin {}\n"
-             "{:>1.16e} {:>1.16e} {:>1.16e} {:>1.16e}\n"
-             "{:>1.16e} {:>1.16e} {:>1.16e} {:>1.16e}\n"
-             "{:>1.16e} {:>1.16e} {:>1.16e} {:>1.16e}\n",
-             boundstr,
-             domain->avec[0],domain->avec[1],domain->avec[2],domain->boxlo[0],
-             domain->bvec[0],domain->bvec[1],domain->bvec[2],domain->boxlo[1],
-             domain->cvec[0],domain->cvec[1],domain->cvec[2],domain->boxlo[2]);
-
-  fmt::print(fp,"ITEM: ATOMS {}\n",columns);
+  fprintf(fp,"ITEM: TIMESTEP\n");
+  fprintf(fp,BIGINT_FORMAT "\n",update->ntimestep);
+  fprintf(fp,"ITEM: NUMBER OF ATOMS\n");
+  fprintf(fp,BIGINT_FORMAT "\n",ndump);
+  fprintf(fp,"ITEM: BOX BOUNDS xy xz yz %s\n",boundstr);
+  fprintf(fp,"%-1.16e %-1.16e %-1.16e\n",boxxlo,boxxhi,boxxy);
+  fprintf(fp,"%-1.16e %-1.16e %-1.16e\n",boxylo,boxyhi,boxxz);
+  fprintf(fp,"%-1.16e %-1.16e %-1.16e\n",boxzlo,boxzhi,boxyz);
+  fprintf(fp,"ITEM: ATOMS %s\n",columns);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -613,16 +572,21 @@ int DumpCustom::count()
   }
 
   // invoke Computes for per-atom quantities
-  // cannot invoke before first run, otherwise invoke if necessary
+  // only if within a run or minimize
+  // else require that computes are current
+  // this prevents a compute from being invoked by the WriteDump class
 
   if (ncompute) {
-    for (i = 0; i < ncompute; i++) {
-      if (!compute[i]->is_initialized())
-        error->all(FLERR,"Dump compute ID {} cannot be invoked before initialization by a run",
-          compute[i]->id);
-      if (!(compute[i]->invoked_flag & Compute::INVOKED_PERATOM)) {
-        compute[i]->compute_peratom();
-        compute[i]->invoked_flag |= Compute::INVOKED_PERATOM;
+    if (update->whichflag == 0) {
+      for (i = 0; i < ncompute; i++)
+        if (compute[i]->invoked_peratom != update->ntimestep)
+          error->all(FLERR,"Compute used in dump between runs is not current");
+    } else {
+      for (i = 0; i < ncompute; i++) {
+        if (!(compute[i]->invoked_flag & Compute::INVOKED_PERATOM)) {
+          compute[i]->compute_peratom();
+          compute[i]->invoked_flag |= Compute::INVOKED_PERATOM;
+        }
       }
     }
   }
@@ -648,8 +612,8 @@ int DumpCustom::count()
 
   // un-choose if not in region
 
-  if (idregion) {
-    auto region = domain->get_region_by_id(idregion);
+  if (iregion >= 0) {
+    Region *region = domain->regions[iregion];
     region->prematch();
     double **x = atom->x;
     for (i = 0; i < nlocal; i++)
@@ -945,27 +909,32 @@ int DumpCustom::count()
 
       } else if (thresh_array[ithresh] == Q) {
         if (!atom->q_flag)
-          error->all(FLERR,"Threshold for an atom property that isn't allocated");
+          error->all(FLERR,
+                     "Threshold for an atom property that isn't allocated");
         ptr = atom->q;
         nstride = 1;
       } else if (thresh_array[ithresh] == MUX) {
         if (!atom->mu_flag)
-          error->all(FLERR,"Threshold for an atom property that isn't allocated");
+          error->all(FLERR,
+                     "Threshold for an atom property that isn't allocated");
         ptr = &atom->mu[0][0];
         nstride = 4;
       } else if (thresh_array[ithresh] == MUY) {
         if (!atom->mu_flag)
-          error->all(FLERR,"Threshold for an atom property that isn't allocated");
+          error->all(FLERR,
+                     "Threshold for an atom property that isn't allocated");
         ptr = &atom->mu[0][1];
         nstride = 4;
       } else if (thresh_array[ithresh] == MUZ) {
         if (!atom->mu_flag)
-          error->all(FLERR,"Threshold for an atom property that isn't allocated");
+          error->all(FLERR,
+                     "Threshold for an atom property that isn't allocated");
         ptr = &atom->mu[0][2];
         nstride = 4;
       } else if (thresh_array[ithresh] == MU) {
         if (!atom->mu_flag)
-          error->all(FLERR,"Threshold for an atom property that isn't allocated");
+          error->all(FLERR,
+                     "Threshold for an atom property that isn't allocated");
         ptr = &atom->mu[0][3];
         nstride = 4;
 
@@ -1202,7 +1171,6 @@ int DumpCustom::count()
 void DumpCustom::pack(tagint *ids)
 {
   for (int n = 0; n < size_one; n++) (this->*pack_choice[n])(n);
-
   if (ids) {
     tagint *tag = atom->tag;
     for (int i = 0; i < nchoose; i++)
@@ -1266,8 +1234,7 @@ void DumpCustom::write_binary(int n, double *mybuf)
 
 void DumpCustom::write_string(int n, double *mybuf)
 {
-  if (mybuf)
-    fwrite(mybuf,sizeof(char),n,fp);
+  fwrite(mybuf,sizeof(char),n,fp);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -1297,14 +1264,11 @@ int DumpCustom::parse_fields(int narg, char **arg)
 {
   // customize by adding to if statement
 
-  has_id = 0;
-
   for (int iarg = 0; iarg < narg; iarg++) {
     if (strcmp(arg[iarg],"id") == 0) {
       pack_choice[iarg] = &DumpCustom::pack_id;
       if (sizeof(tagint) == sizeof(smallint)) vtype[iarg] = Dump::INT;
       else vtype[iarg] = Dump::BIGINT;
-      has_id = 1;
     } else if (strcmp(arg[iarg],"mol") == 0) {
       if (!atom->molecule_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
@@ -1328,16 +1292,13 @@ int DumpCustom::parse_fields(int narg, char **arg)
       vtype[iarg] = Dump::DOUBLE;
 
     } else if (strcmp(arg[iarg],"x") == 0) {
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_x_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_x;
+      pack_choice[iarg] = &DumpCustom::pack_x;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"y") == 0) {
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_y_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_y;
+      pack_choice[iarg] = &DumpCustom::pack_y;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"z") == 0) {
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_z_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_z;
+      pack_choice[iarg] = &DumpCustom::pack_z;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"xs") == 0) {
       if (domain->triclinic) pack_choice[iarg] = &DumpCustom::pack_xs_triclinic;
@@ -1352,18 +1313,15 @@ int DumpCustom::parse_fields(int narg, char **arg)
       else pack_choice[iarg] = &DumpCustom::pack_zs;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"xu") == 0) {
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_xu_triclinic_general;
-      else if (domain->triclinic) pack_choice[iarg] = &DumpCustom::pack_xu_triclinic;
+      if (domain->triclinic) pack_choice[iarg] = &DumpCustom::pack_xu_triclinic;
       else pack_choice[iarg] = &DumpCustom::pack_xu;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"yu") == 0) {
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_yu_triclinic_general;
-      else if (domain->triclinic) pack_choice[iarg] = &DumpCustom::pack_yu_triclinic;
+      if (domain->triclinic) pack_choice[iarg] = &DumpCustom::pack_yu_triclinic;
       else pack_choice[iarg] = &DumpCustom::pack_yu;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"zu") == 0) {
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_zu_triclinic_general;
-      else if (domain->triclinic) pack_choice[iarg] = &DumpCustom::pack_zu_triclinic;
+      if (domain->triclinic) pack_choice[iarg] = &DumpCustom::pack_zu_triclinic;
       else pack_choice[iarg] = &DumpCustom::pack_zu;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"xsu") == 0) {
@@ -1378,7 +1336,6 @@ int DumpCustom::parse_fields(int narg, char **arg)
       if (domain->triclinic) pack_choice[iarg] = &DumpCustom::pack_zsu_triclinic;
       else pack_choice[iarg] = &DumpCustom::pack_zsu;
       vtype[iarg] = Dump::DOUBLE;
-
     } else if (strcmp(arg[iarg],"ix") == 0) {
       pack_choice[iarg] = &DumpCustom::pack_ix;
       vtype[iarg] = Dump::INT;
@@ -1390,28 +1347,22 @@ int DumpCustom::parse_fields(int narg, char **arg)
       vtype[iarg] = Dump::INT;
 
     } else if (strcmp(arg[iarg],"vx") == 0) {
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_vx_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_vx;
+      pack_choice[iarg] = &DumpCustom::pack_vx;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"vy") == 0) {
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_vy_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_vy;
+      pack_choice[iarg] = &DumpCustom::pack_vy;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"vz") == 0) {
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_vz_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_vz;
+      pack_choice[iarg] = &DumpCustom::pack_vz;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"fx") == 0) {
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_fx_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_fx;
+      pack_choice[iarg] = &DumpCustom::pack_fx;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"fy") == 0) {
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_fy_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_fy;
+      pack_choice[iarg] = &DumpCustom::pack_fy;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"fz") == 0) {
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_fz_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_fz;
+      pack_choice[iarg] = &DumpCustom::pack_fz;
       vtype[iarg] = Dump::DOUBLE;
 
     } else if (strcmp(arg[iarg],"q") == 0) {
@@ -1419,24 +1370,20 @@ int DumpCustom::parse_fields(int narg, char **arg)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
       pack_choice[iarg] = &DumpCustom::pack_q;
       vtype[iarg] = Dump::DOUBLE;
-
     } else if (strcmp(arg[iarg],"mux") == 0) {
       if (!atom->mu_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_mux_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_mux;
+      pack_choice[iarg] = &DumpCustom::pack_mux;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"muy") == 0) {
       if (!atom->mu_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_muy_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_muy;
+      pack_choice[iarg] = &DumpCustom::pack_muy;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"muz") == 0) {
       if (!atom->mu_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_muz_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_muz;
+      pack_choice[iarg] = &DumpCustom::pack_muz;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"mu") == 0) {
       if (!atom->mu_flag)
@@ -1457,80 +1404,62 @@ int DumpCustom::parse_fields(int narg, char **arg)
     } else if (strcmp(arg[iarg],"omegax") == 0) {
       if (!atom->omega_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_omegax_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_omegax;
+      pack_choice[iarg] = &DumpCustom::pack_omegax;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"omegay") == 0) {
       if (!atom->omega_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_omegay_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_omegay;
+      pack_choice[iarg] = &DumpCustom::pack_omegay;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"omegaz") == 0) {
       if (!atom->omega_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_omegaz_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_omegaz;
+      pack_choice[iarg] = &DumpCustom::pack_omegaz;
       vtype[iarg] = Dump::DOUBLE;
-
     } else if (strcmp(arg[iarg],"angmomx") == 0) {
       if (!atom->angmom_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_angmomx_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_angmomx;
+      pack_choice[iarg] = &DumpCustom::pack_angmomx;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"angmomy") == 0) {
       if (!atom->angmom_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_angmomy_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_angmomy;
+      pack_choice[iarg] = &DumpCustom::pack_angmomy;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"angmomz") == 0) {
       if (!atom->angmom_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_angmomz_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_angmomz;
+      pack_choice[iarg] = &DumpCustom::pack_angmomz;
       vtype[iarg] = Dump::DOUBLE;
-
     } else if (strcmp(arg[iarg],"tqx") == 0) {
       if (!atom->torque_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_tqx_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_tqx;
+      pack_choice[iarg] = &DumpCustom::pack_tqx;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"tqy") == 0) {
       if (!atom->torque_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_tqy_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_tqy;
+      pack_choice[iarg] = &DumpCustom::pack_tqy;
       vtype[iarg] = Dump::DOUBLE;
     } else if (strcmp(arg[iarg],"tqz") == 0) {
       if (!atom->torque_flag)
         error->all(FLERR,"Dumping an atom property that isn't allocated");
-      if (triclinic_general) pack_choice[iarg] = &DumpCustom::pack_tqz_triclinic_general;
-      else pack_choice[iarg] = &DumpCustom::pack_tqz;
+      pack_choice[iarg] = &DumpCustom::pack_tqz;
       vtype[iarg] = Dump::DOUBLE;
 
     // compute or fix or variable or custom vector/array
 
     } else {
       int n,flag,cols;
-      ArgInfo argi(arg[iarg], ArgInfo::COMPUTE | ArgInfo::FIX | ArgInfo::VARIABLE |
-                   ArgInfo::DNAME | ArgInfo::INAME);
+      ArgInfo argi(arg[iarg],ArgInfo::COMPUTE|ArgInfo::FIX|ArgInfo::VARIABLE
+                   |ArgInfo::DNAME|ArgInfo::INAME);
       argindex[iarg] = argi.get_index1();
       auto name = argi.get_name();
-      Compute *icompute = nullptr;
-      Fix *ifix = nullptr;
 
       switch (argi.get_type()) {
 
       case ArgInfo::UNKNOWN:
-        error->all(FLERR,"Invalid attribute {} in dump {} command",arg[iarg],style);
-        break;
-
-      case ArgInfo::NONE:
-        // ignore because this may be a valid argument for a derived dump style class
-        return iarg;
+        error->all(FLERR,"Invalid attribute in dump custom command");
         break;
 
       // compute value = c_ID
@@ -1540,16 +1469,17 @@ int DumpCustom::parse_fields(int narg, char **arg)
         pack_choice[iarg] = &DumpCustom::pack_compute;
         vtype[iarg] = Dump::DOUBLE;
 
-        icompute = modify->get_compute_by_id(name);
-        if (!icompute) error->all(FLERR,"Could not find dump {} compute ID: {}", style, name);
-        if (icompute->peratom_flag == 0)
-          error->all(FLERR,"Dump {} compute {} does not compute per-atom info", style, name);
-        if (argi.get_dim() == 0 && icompute->size_peratom_cols > 0)
-          error->all(FLERR,"Dump {} compute {} does not calculate per-atom vector", style, name);
-        if (argi.get_dim() > 0 && icompute->size_peratom_cols == 0)
-          error->all(FLERR,"Dump {} compute {} does not calculate per-atom array", style, name);
-        if (argi.get_dim() > 0 && argi.get_index1() > icompute->size_peratom_cols)
-          error->all(FLERR,"Dump {} compute {} vector is accessed out-of-range", style, name);
+        n = modify->find_compute(name);
+        if (n < 0) error->all(FLERR,"Could not find dump custom compute ID: {}",name);
+        if (modify->compute[n]->peratom_flag == 0)
+          error->all(FLERR,"Dump custom compute {} does not compute per-atom info",name);
+        if (argi.get_dim() == 0 && modify->compute[n]->size_peratom_cols > 0)
+          error->all(FLERR,"Dump custom compute {} does not calculate per-atom vector",name);
+        if (argi.get_dim() > 0 && modify->compute[n]->size_peratom_cols == 0)
+          error->all(FLERR,"Dump custom compute {} does not calculate per-atom array",name);
+        if (argi.get_dim() > 0 &&
+            argi.get_index1() > modify->compute[n]->size_peratom_cols)
+          error->all(FLERR,"Dump custom compute {} vector is accessed out-of-range",name);
 
         field2index[iarg] = add_compute(name);
         break;
@@ -1561,16 +1491,17 @@ int DumpCustom::parse_fields(int narg, char **arg)
         pack_choice[iarg] = &DumpCustom::pack_fix;
         vtype[iarg] = Dump::DOUBLE;
 
-        ifix = modify->get_fix_by_id(name);
-        if (!ifix) error->all(FLERR,"Could not find dump {} fix ID: {}", style, name);
-        if (ifix->peratom_flag == 0)
-          error->all(FLERR,"Dump {} fix {} does not compute per-atom info", style, name);
-        if (argi.get_dim() == 0 && ifix->size_peratom_cols > 0)
-          error->all(FLERR,"Dump {} fix {} does not compute per-atom vector", style, name);
-        if (argi.get_dim() > 0 && ifix->size_peratom_cols == 0)
-          error->all(FLERR,"Dump {} fix {} does not compute per-atom array", style, name);
-        if (argi.get_dim() > 0 && argi.get_index1() > ifix->size_peratom_cols)
-          error->all(FLERR,"Dump {} fix {} vector is accessed out-of-range", style, name);
+        n = modify->find_fix(name);
+        if (n < 0) error->all(FLERR,"Could not find dump custom fix ID: {}",name);
+        if (modify->fix[n]->peratom_flag == 0)
+          error->all(FLERR,"Dump custom fix {} does not compute per-atom info",name);
+        if (argi.get_dim() == 0 && modify->fix[n]->size_peratom_cols > 0)
+          error->all(FLERR,"Dump custom fix {} does not compute per-atom vector",name);
+        if (argi.get_dim() > 0 && modify->fix[n]->size_peratom_cols == 0)
+          error->all(FLERR,"Dump custom fix {} does not compute per-atom array",name);
+        if (argi.get_dim() > 0 &&
+            argi.get_index1() > modify->fix[n]->size_peratom_cols)
+          error->all(FLERR,"Dump custom fix {} vector is accessed out-of-range",name);
 
         field2index[iarg] = add_fix(name);
         break;
@@ -1582,14 +1513,14 @@ int DumpCustom::parse_fields(int narg, char **arg)
         vtype[iarg] = Dump::DOUBLE;
 
         n = input->variable->find(name);
-        if (n < 0) error->all(FLERR,"Could not find dump {} variable name {}", style, name);
+        if (n < 0) error->all(FLERR,"Could not find dump custom variable name {}",name);
         if (input->variable->atomstyle(n) == 0)
-          error->all(FLERR,"Dump {} variable {} is not atom-style variable", style, name);
+          error->all(FLERR,"Dump custom variable {} is not atom-style variable",name);
 
         field2index[iarg] = add_variable(name);
         break;
 
-      // custom per-atom floating point vector or array = d_ID d2_ID
+      // custom per-atom floating point vector or array
 
       case ArgInfo::DNAME:
         pack_choice[iarg] = &DumpCustom::pack_custom;
@@ -1601,18 +1532,18 @@ int DumpCustom::parse_fields(int narg, char **arg)
           error->all(FLERR,"Could not find custom per-atom property ID: {}", name);
         if (argindex[iarg] == 0) {
           if (!flag || cols)
-            error->all(FLERR,"Property double vector {} for dump {} does not exist", name, style);
+            error->all(FLERR,"Property double vector for dump custom does not exist");
         } else {
           if (!flag || !cols)
-            error->all(FLERR,"Property double array {} for dump {} does not exist", name, style);
+            error->all(FLERR,"Property double array for dump custom does not exist");
           if (argindex[iarg] > atom->dcols[n])
-            error->all(FLERR,"Dump {} property array {} is accessed out-of-range", style, name);
+            error->all(FLERR,"Dump custom property array is accessed out-of-range");
         }
 
         field2index[iarg] = add_custom(name,1);
         break;
 
-      // custom per-atom integer vector or array = i_ID or i2_ID
+      // custom per-atom integer vector or array
 
       case ArgInfo::INAME:
         pack_choice[iarg] = &DumpCustom::pack_custom;
@@ -1624,12 +1555,15 @@ int DumpCustom::parse_fields(int narg, char **arg)
           error->all(FLERR,"Could not find custom per-atom property ID: {}", name);
         if (argindex[iarg] == 0) {
           if (flag || cols)
-            error->all(FLERR,"Property integer vector {} for dump {} does not exist", name, style);
+            error->all(FLERR,
+                       "Property integer vector for dump custom does not exist");
         } else {
           if (flag || !cols)
-            error->all(FLERR,"Property integer array {} for dump {} does not exist", name, style);
+            error->all(FLERR,
+                       "Property integer array for dump custom does not exist");
           if (argindex[iarg] > atom->icols[n])
-            error->all(FLERR,"Dump {} property array {} is accessed out-of-range", style, name);
+            error->all(FLERR,
+                       "Dump custom property array is accessed out-of-range");
         }
 
         field2index[iarg] = add_custom(name,0);
@@ -1639,7 +1573,6 @@ int DumpCustom::parse_fields(int narg, char **arg)
 
       default:
         return iarg;
-        break;
       }
     }
   }
@@ -1733,9 +1666,13 @@ int DumpCustom::add_custom(const char *id, int flag)
     if (strcmp(id,id_custom[icustom]) == 0) break;
   if (icustom < ncustom) return icustom;
 
-  id_custom = (char **) memory->srealloc(id_custom,(ncustom+1)*sizeof(char *),"dump:id_custom");
-  custom = (int *) memory->srealloc(custom,(ncustom+1)*sizeof(int),"dump:custom");
-  custom_flag = (int *) memory->srealloc(custom_flag,(ncustom+1)*sizeof(int),"dump:custom_flag");
+  id_custom = (char **)
+    memory->srealloc(id_custom,(ncustom+1)*sizeof(char *),"dump:id_custom");
+
+  delete [] custom;
+  custom = new int[ncustom+1];
+  delete [] custom_flag;
+  custom_flag = new int[ncustom+1];
 
   id_custom[ncustom] = utils::strdup(id);
   custom_flag[ncustom] = flag;
@@ -1750,28 +1687,19 @@ int DumpCustom::modify_param(int narg, char **arg)
 {
   if (strcmp(arg[0],"region") == 0) {
     if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
-    if (strcmp(arg[1],"none") == 0) {
+    if (strcmp(arg[1],"none") == 0) iregion = -1;
+    else {
+      iregion = domain->find_region(arg[1]);
+      if (iregion == -1)
+        error->all(FLERR,"Dump_modify region ID {} does not exist",arg[1]);
       delete[] idregion;
-      idregion = nullptr;
-    } else {
-      delete[] idregion;
-      if (!domain->get_region_by_id(arg[1]))
-        error->all(FLERR,"Dump_modify region {} does not exist", arg[1]);
       idregion = utils::strdup(arg[1]);
     }
     return 2;
   }
 
-  if (strcmp(arg[0],"triclinic/general") == 0) {
-    if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
-    triclinic_general = utils::logical(FLERR,arg[1],false,lmp);
-    if (triclinic_general && !domain->triclinic_general)
-      error->all(FLERR,"Dump_modify triclinic/general invalid b/c simulation box is not");
-    return 2;
-  }
-
   if (strcmp(arg[0],"format") == 0) {
-    if (narg < 2) utils::missing_cmd_args(FLERR, "dump_modify format", error);
+    if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
 
     if (strcmp(arg[1],"none") == 0) {
       // just clear format_column_user allocated by this dump child class
@@ -1782,7 +1710,7 @@ int DumpCustom::modify_param(int narg, char **arg)
       return 2;
     }
 
-    if (narg < 3) utils::missing_cmd_args(FLERR, "dump_modify format", error);
+    if (narg < 3) error->all(FLERR,"Illegal dump_modify command");
 
     if (strcmp(arg[1],"int") == 0) {
       delete[] format_int_user;
@@ -1808,8 +1736,8 @@ int DumpCustom::modify_param(int narg, char **arg)
     } else {
       int i = utils::inumeric(FLERR,arg[1],false,lmp) - 1;
       if (i < 0 || i >= nfield)
-        error->all(FLERR,"Unknown dump_modify format ID keyword: {}", arg[1]);
-      delete[] format_column_user[i];
+        error->all(FLERR,"Illegal dump_modify command");
+      if (format_column_user[i]) delete[] format_column_user[i];
       format_column_user[i] = utils::strdup(arg[2]);
     }
     return 3;
@@ -1829,19 +1757,19 @@ int DumpCustom::modify_param(int narg, char **arg)
   }
 
   if (strcmp(arg[0],"refresh") == 0) {
-    if (narg < 2) utils::missing_cmd_args(FLERR, "dump_modify refresh", error);
+    if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
     ArgInfo argi(arg[1],ArgInfo::COMPUTE);
     if ((argi.get_type() != ArgInfo::COMPUTE) || (argi.get_dim() != 0))
       error->all(FLERR,"Illegal dump_modify command");
     if (refreshflag) error->all(FLERR,"Dump_modify can only have one refresh");
 
     refreshflag = 1;
-    idrefresh = argi.copy_name();
+    refresh = argi.copy_name();
     return 2;
   }
 
   if (strcmp(arg[0],"thresh") == 0) {
-    if (narg < 2) utils::missing_cmd_args(FLERR, "dump_modify thresh", error);
+    if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
     if (strcmp(arg[1],"none") == 0) {
       if (nthresh) {
         memory->destroy(thresh_array);
@@ -1863,7 +1791,7 @@ int DumpCustom::modify_param(int narg, char **arg)
       return 2;
     }
 
-    if (narg < 4) utils::missing_cmd_args(FLERR, "dump_modify thresh", error);
+    if (narg < 4) error->all(FLERR,"Illegal dump_modify command");
 
     // grow threshold arrays
 
@@ -1961,12 +1889,10 @@ int DumpCustom::modify_param(int narg, char **arg)
       memory->grow(argindex,nfield+nthresh+1,"dump:argindex");
 
       int n,flag,cols;
-      ArgInfo argi(arg[1], ArgInfo::COMPUTE | ArgInfo::FIX | ArgInfo::VARIABLE |
-                   ArgInfo::DNAME | ArgInfo::INAME);
+      ArgInfo argi(arg[1],ArgInfo::COMPUTE|ArgInfo::FIX|ArgInfo::VARIABLE
+                   |ArgInfo::DNAME|ArgInfo::INAME);
       argindex[nfield+nthresh] = argi.get_index1();
       auto name = argi.get_name();
-      Compute *icompute = nullptr;
-      Fix *ifix = nullptr;
 
       switch (argi.get_type()) {
 
@@ -1979,16 +1905,17 @@ int DumpCustom::modify_param(int narg, char **arg)
 
       case ArgInfo::COMPUTE:
         thresh_array[nthresh] = COMPUTE;
+        n = modify->find_compute(name);
+        if (n < 0) error->all(FLERR,"Could not find dump modify compute ID: {}",name);
 
-        icompute = modify->get_compute_by_id(name);
-        if (!icompute) error->all(FLERR,"Could not find dump modify compute ID {}",name);
-        if (icompute->peratom_flag == 0)
+        if (modify->compute[n]->peratom_flag == 0)
           error->all(FLERR,"Dump modify compute ID {} does not compute per-atom info",name);
-        if (argi.get_dim() == 0 && icompute->size_peratom_cols > 0)
+        if (argi.get_dim() == 0 && modify->compute[n]->size_peratom_cols > 0)
           error->all(FLERR,"Dump modify compute ID {} does not compute per-atom vector",name);
-        if (argi.get_index1() > 0 && icompute->size_peratom_cols == 0)
+        if (argi.get_index1() > 0 && modify->compute[n]->size_peratom_cols == 0)
           error->all(FLERR,"Dump modify compute ID {} does not compute per-atom array",name);
-        if (argi.get_index1() > 0 && argi.get_index1() > icompute->size_peratom_cols)
+        if (argi.get_index1() > 0 &&
+            argi.get_index1() > modify->compute[n]->size_peratom_cols)
           error->all(FLERR,"Dump modify compute ID {} vector is not large enough",name);
 
         field2index[nfield+nthresh] = add_compute(name);
@@ -1999,17 +1926,16 @@ int DumpCustom::modify_param(int narg, char **arg)
 
       case ArgInfo::FIX:
         thresh_array[nthresh] = FIX;
+        n = modify->find_fix(name);
+        if (n < 0) error->all(FLERR,"Could not find dump modify fix ID: {}",name);
 
-        ifix = modify->get_fix_by_id(name);
-        if (!ifix) error->all(FLERR,"Could not find dump modify fix ID: {}",name);
-
-        if (ifix->peratom_flag == 0)
+        if (modify->fix[n]->peratom_flag == 0)
           error->all(FLERR,"Dump modify fix ID {} does not compute per-atom info",name);
-        if (argi.get_dim() == 0 && ifix->size_peratom_cols > 0)
+        if (argi.get_dim() == 0 && modify->fix[n]->size_peratom_cols > 0)
           error->all(FLERR,"Dump modify fix ID {} does not compute per-atom vector",name);
-        if (argi.get_index1() > 0 && ifix->size_peratom_cols == 0)
+        if (argi.get_index1() > 0 && modify->fix[n]->size_peratom_cols == 0)
           error->all(FLERR,"Dump modify fix ID {} does not compute per-atom array",name);
-        if (argi.get_index1() > 0 && argi.get_index1() > ifix->size_peratom_cols)
+        if (argi.get_index1() > 0 && argi.get_index1() > modify->fix[n]->size_peratom_cols)
           error->all(FLERR,"Dump modify fix ID {} vector is not large enough",name);
 
         field2index[nfield+nthresh] = add_fix(name);
@@ -2020,9 +1946,9 @@ int DumpCustom::modify_param(int narg, char **arg)
       case ArgInfo::VARIABLE:
         thresh_array[nthresh] = VARIABLE;
         n = input->variable->find(name);
-        if (n < 0) error->all(FLERR,"Could not find dump modify variable name: {}", name);
+        if (n < 0) error->all(FLERR,"Could not find dump modify variable name: {}",name);
         if (input->variable->atomstyle(n) == 0)
-          error->all(FLERR,"Dump modify variable {} is not atom-style variable", name);
+          error->all(FLERR,"Dump modify variable {} is not atom-style variable",name);
 
         field2index[nfield+nthresh] = add_variable(name);
         break;
@@ -2035,18 +1961,21 @@ int DumpCustom::modify_param(int narg, char **arg)
         if (n < 0)
           error->all(FLERR,"Could not find custom per-atom property ID: {}", name);
         if (argindex[nfield+nthresh] == 0) {
-          if (!flag || cols)
-            error->all(FLERR,"Property double vector {} for dump {} does not exist", name, style);
+          if (flag || cols)
+            error->all(FLERR,
+                       "Property double vector for dump custom does not exist");
           thresh_array[nthresh] = DVEC;
         } else {
-          if (!flag || !cols)
-            error->all(FLERR,"Property double array {} for dump {} does not exist", name, style);
+          if (flag || !cols)
+            error->all(FLERR,
+                       "Property double array for dump custom does not exist");
           if (argindex[nfield+nthresh] > atom->dcols[n])
-            error->all(FLERR,"Dump {} property array {} is accessed out-of-range", style, name);
+            error->all(FLERR,
+                       "Dump custom property array is accessed out-of-range");
           thresh_array[nthresh] = DARRAY;
         }
 
-        field2index[nfield+nthresh] = add_custom(name,thresh_array[nthresh]);
+        field2index[nfield+nthresh] = add_custom(name,0);
         break;
 
       // custom per atom integer vector or array
@@ -2058,23 +1987,26 @@ int DumpCustom::modify_param(int narg, char **arg)
           error->all(FLERR,"Could not find custom per-atom property ID: {}", name);
         if (argindex[nfield+nthresh] == 0) {
           if (flag || cols)
-            error->all(FLERR,"Property integer vector {} for dump {} does not exist", name, style);
+            error->all(FLERR,
+                       "Property integer vector for dump custom does not exist");
           thresh_array[nthresh] = IVEC;
         } else {
           if (flag || !cols)
-            error->all(FLERR,"Property integer array {} for dump {} does not exist", name, style);
+            error->all(FLERR,
+                       "Property integer array for dump custom does not exist");
           if (argindex[nfield+nthresh] > atom->icols[n])
-            error->all(FLERR,"Dump {} property array {} is accessed out-of-range", style, name);
+            error->all(FLERR,
+                       "Dump custom property array is accessed out-of-range");
           thresh_array[nthresh] = IARRAY;
         }
 
-        field2index[nfield+nthresh] = add_custom(name,thresh_array[nthresh]);
+        field2index[nfield+nthresh] = add_custom(name,0);
         break;
 
       // no match
 
       default:
-        error->all(FLERR,"Invalid dump_modify thresh attribute: {}", name);
+        error->all(FLERR,"Invalid dump_modify thresh attribute: {}",name);
         break;
       }
     }
@@ -2098,16 +2030,16 @@ int DumpCustom::modify_param(int narg, char **arg)
       thresh_value[nthresh] = utils::numeric(FLERR,arg[3],false,lmp);
       thresh_last[nthresh] = -1;
     } else {
-      thresh_fix = (FixStoreAtom **)
-        memory->srealloc(thresh_fix,(nthreshlast+1)*sizeof(FixStoreAtom *),"dump:thresh_fix");
+      thresh_fix = (FixStore **)
+        memory->srealloc(thresh_fix,(nthreshlast+1)*sizeof(FixStore *),"dump:thresh_fix");
       thresh_fixID = (char **)
         memory->srealloc(thresh_fixID,(nthreshlast+1)*sizeof(char *),"dump:thresh_fixID");
       memory->grow(thresh_first,(nthreshlast+1),"dump:thresh_first");
 
       std::string threshid = fmt::format("{}{}_DUMP_STORE",id,nthreshlast);
       thresh_fixID[nthreshlast] = utils::strdup(threshid);
-      threshid += fmt::format(" {} STORE/ATOM 1 0 0 1", group->names[igroup]);
-      thresh_fix[nthreshlast] = dynamic_cast<FixStoreAtom *>(modify->add_fix(threshid));
+      threshid += fmt::format(" {} STORE peratom 1 1", group->names[igroup]);
+      thresh_fix[nthreshlast] = (FixStore *) modify->add_fix(threshid);
 
       thresh_last[nthreshlast] = nthreshlast;
       thresh_first[nthreshlast] = 1;
@@ -2349,48 +2281,6 @@ void DumpCustom::pack_z(int n)
 
 /* ---------------------------------------------------------------------- */
 
-void DumpCustom::pack_x_triclinic_general(int n)
-{
-  double **x = atom->x;
-  double xtri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_coords(x[clist[i]],xtri);
-    buf[n] = xtri[0];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_y_triclinic_general(int n)
-{
-  double **x = atom->x;
-  double xtri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_coords(x[clist[i]],xtri);
-    buf[n] = xtri[1];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_z_triclinic_general(int n)
-{
-  double **x = atom->x;
-  double xtri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_coords(x[clist[i]],xtri);
-    buf[n] = xtri[2];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
 void DumpCustom::pack_xs(int n)
 {
   double **x = atom->x;
@@ -2597,84 +2487,6 @@ void DumpCustom::pack_zu_triclinic(int n)
 
 /* ---------------------------------------------------------------------- */
 
-void DumpCustom::pack_xu_triclinic_general(int n)
-{
-  int j;
-  double **x = atom->x;
-  imageint *image = atom->image;
-
-  double *h = domain->h;
-  double xu[3];
-  int xbox,ybox,zbox;
-
-  for (int i = 0; i < nchoose; i++) {
-    j = clist[i];
-    xbox = (image[j] & IMGMASK) - IMGMAX;
-    ybox = (image[j] >> IMGBITS & IMGMASK) - IMGMAX;
-    zbox = (image[j] >> IMG2BITS) - IMGMAX;
-    xu[0] = x[j][0] + h[0]*xbox + h[5]*ybox + h[4]*zbox;
-    xu[1] = x[j][1] + h[1]*ybox + h[3]*zbox;
-    xu[2] = x[j][2] + h[2]*zbox;
-    domain->restricted_to_general_coords(xu);
-    buf[n] = xu[0];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_yu_triclinic_general(int n)
-{
-  int j;
-  double **x = atom->x;
-  imageint *image = atom->image;
-
-  double *h = domain->h;
-  double xu[3];
-  int xbox,ybox,zbox;
-
-  for (int i = 0; i < nchoose; i++) {
-    j = clist[i];
-    xbox = (image[j] & IMGMASK) - IMGMAX;
-    ybox = (image[j] >> IMGBITS & IMGMASK) - IMGMAX;
-    zbox = (image[j] >> IMG2BITS) - IMGMAX;
-    xu[0] = x[j][0] + h[0]*xbox + h[5]*ybox + h[4]*zbox;
-    xu[1] = x[j][1] + h[1]*ybox + h[3]*zbox;
-    xu[2] = x[j][2] + h[2]*zbox;
-    domain->restricted_to_general_coords(xu);
-    buf[n] = xu[1];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_zu_triclinic_general(int n)
-{
-  int j;
-  double **x = atom->x;
-  imageint *image = atom->image;
-
-  double *h = domain->h;
-  double xu[3];
-  int xbox,ybox,zbox;
-
-  for (int i = 0; i < nchoose; i++) {
-    j = clist[i];
-    xbox = (image[j] & IMGMASK) - IMGMAX;
-    ybox = (image[j] >> IMGBITS & IMGMASK) - IMGMAX;
-    zbox = (image[j] >> IMG2BITS) - IMGMAX;
-    xu[0] = x[j][0] + h[0]*xbox + h[5]*ybox + h[4]*zbox;
-    xu[1] = x[j][1] + h[1]*ybox + h[3]*zbox;
-    xu[2] = x[j][2] + h[2]*zbox;
-    domain->restricted_to_general_coords(xu);
-    buf[n] = xu[2];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
 void DumpCustom::pack_xsu(int n)
 {
   int j;
@@ -2857,48 +2669,6 @@ void DumpCustom::pack_vz(int n)
 
 /* ---------------------------------------------------------------------- */
 
-void DumpCustom::pack_vx_triclinic_general(int n)
-{
-  double **v = atom->v;
-  double vtri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(v[clist[i]],vtri);
-    buf[n] = vtri[0];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_vy_triclinic_general(int n)
-{
-  double **v = atom->v;
-  double vtri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(v[clist[i]],vtri);
-    buf[n] = vtri[1];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_vz_triclinic_general(int n)
-{
-  double **v = atom->v;
-  double vtri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(v[clist[i]],vtri);
-    buf[n] = vtri[2];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
 void DumpCustom::pack_fx(int n)
 {
   double **f = atom->f;
@@ -2929,48 +2699,6 @@ void DumpCustom::pack_fz(int n)
 
   for (int i = 0; i < nchoose; i++) {
     buf[n] = f[clist[i]][2];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_fx_triclinic_general(int n)
-{
-  double **f = atom->f;
-  double ftri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(f[clist[i]],ftri);
-    buf[n] = ftri[0];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_fy_triclinic_general(int n)
-{
-  double **f = atom->f;
-  double ftri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(f[clist[i]],ftri);
-    buf[n] = ftri[1];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_fz_triclinic_general(int n)
-{
-  double **f = atom->f;
-  double ftri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(f[clist[i]],ftri);
-    buf[n] = ftri[2];
     n += size_one;
   }
 }
@@ -3037,48 +2765,6 @@ void DumpCustom::pack_mu(int n)
 
 /* ---------------------------------------------------------------------- */
 
-void DumpCustom::pack_mux_triclinic_general(int n)
-{
-  double **mu = atom->mu;
-  double mutri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(mu[clist[i]],mutri);
-    buf[n] = mutri[0];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_muy_triclinic_general(int n)
-{
-  double **mu = atom->mu;
-  double mutri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(mu[clist[i]],mutri);
-    buf[n] = mutri[1];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_muz_triclinic_general(int n)
-{
-  double **mu = atom->mu;
-  double mutri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(mu[clist[i]],mutri);
-    buf[n] = mutri[2];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
 void DumpCustom::pack_radius(int n)
 {
   double *radius = atom->radius;
@@ -3139,48 +2825,6 @@ void DumpCustom::pack_omegaz(int n)
 
 /* ---------------------------------------------------------------------- */
 
-void DumpCustom::pack_omegax_triclinic_general(int n)
-{
-  double **omega = atom->omega;
-  double omegatri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(omega[clist[i]],omegatri);
-    buf[n] = omegatri[0];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_omegay_triclinic_general(int n)
-{
-  double **omega = atom->omega;
-  double omegatri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(omega[clist[i]],omegatri);
-    buf[n] = omegatri[1];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_omegaz_triclinic_general(int n)
-{
-  double **omega = atom->omega;
-  double omegatri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(omega[clist[i]],omegatri);
-    buf[n] = omegatri[2];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
 void DumpCustom::pack_angmomx(int n)
 {
   double **angmom = atom->angmom;
@@ -3217,48 +2861,6 @@ void DumpCustom::pack_angmomz(int n)
 
 /* ---------------------------------------------------------------------- */
 
-void DumpCustom::pack_angmomx_triclinic_general(int n)
-{
-  double **angmom = atom->angmom;
-  double angmomtri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(angmom[clist[i]],angmomtri);
-    buf[n] = angmomtri[0];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_angmomy_triclinic_general(int n)
-{
-  double **angmom = atom->angmom;
-  double angmomtri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(angmom[clist[i]],angmomtri);
-    buf[n] = angmomtri[1];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_angmomz_triclinic_general(int n)
-{
-  double **angmom = atom->angmom;
-  double angmomtri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(angmom[clist[i]],angmomtri);
-    buf[n] = angmomtri[2];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
 void DumpCustom::pack_tqx(int n)
 {
   double **torque = atom->torque;
@@ -3289,48 +2891,6 @@ void DumpCustom::pack_tqz(int n)
 
   for (int i = 0; i < nchoose; i++) {
     buf[n] = torque[clist[i]][2];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_tqx_triclinic_general(int n)
-{
-  double **torque = atom->torque;
-  double tqtri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(torque[clist[i]],tqtri);
-    buf[n] = tqtri[0];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_tqy_triclinic_general(int n)
-{
-  double **torque = atom->torque;
-  double tqtri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(torque[clist[i]],tqtri);
-    buf[n] = tqtri[1];
-    n += size_one;
-  }
-}
-
-/* ---------------------------------------------------------------------- */
-
-void DumpCustom::pack_tqz_triclinic_general(int n)
-{
-  double **torque = atom->torque;
-  double tqtri[3];
-
-  for (int i = 0; i < nchoose; i++) {
-    domain->restricted_to_general_vector(torque[clist[i]],tqtri);
-    buf[n] = tqtri[2];
     n += size_one;
   }
 }

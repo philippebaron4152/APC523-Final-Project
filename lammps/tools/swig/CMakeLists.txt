@@ -1,7 +1,7 @@
-# -*- CMake -*- configuration for generating LAMMPS script language wrappers with SWIG
+# CMake configuration for generating script language interfaces with SWIG
 
 # set minimum CMake version required and switch to new policies for SWIG
-cmake_minimum_required(VERSION 3.16)
+cmake_minimum_required(VERSION 3.14)
 if(POLICY CMP0078)
   cmake_policy(SET CMP0078 NEW)
 endif()
@@ -90,15 +90,7 @@ if(BUILD_SWIG_TCL)
   # build loadable Tcl module
   set_property(SOURCE lammps.i PROPERTY SWIG_MODULE_NAME tcllammps)
   swig_add_library(tcllammps TYPE MODULE LANGUAGE tcl SOURCES lammps.i)
-  find_package(TCL)
-  if(NOT TCL_FOUND)
-    message(FATAL_ERROR "Tcl development headers and libraries are required")
-  endif()
-  find_package(TclStub)
-  if(TCL_STUB_LIBRARY)
-    target_compile_definitions(tcllammps PRIVATE USE_TCL_STUBS)
-    target_link_libraries(tcllammps PRIVATE ${TCL_STUB_LIBRARY})
-  endif()
+  find_package(TCL REQUIRED)
   target_include_directories(tcllammps PRIVATE ${TCL_INCLUDE_PATH})
   swig_link_libraries(tcllammps PRIVATE lammps ${TCL_LIBRARY})
   # build extended Tcl shell binary

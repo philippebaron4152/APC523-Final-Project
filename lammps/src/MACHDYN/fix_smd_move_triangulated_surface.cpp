@@ -13,7 +13,7 @@
 /* ----------------------------------------------------------------------
  LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
  https://www.lammps.org/, Sandia National Laboratories
- LAMMPS development team: developers@lammps.org
+ Steve Plimpton, sjplimp@sandia.gov
 
  Copyright (2003) Sandia Corporation.  Under the terms of Contract
  DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -211,6 +211,15 @@ FixSMDMoveTriSurf::FixSMDMoveTriSurf(LAMMPS *lmp, int narg, char **arg) :
         //atom->add_callback(Atom::RESTART);
 
         time_integrate = 1;
+}
+
+/* ---------------------------------------------------------------------- */
+
+FixSMDMoveTriSurf::~FixSMDMoveTriSurf()
+{
+  // unregister callbacks to this fix from Atom class
+  //atom->delete_callback(id,Atom::GROW);
+  //atom->delete_callback(id,Atom::RESTART);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -432,7 +441,7 @@ void FixSMDMoveTriSurf::initial_integrate(int /*vflag*/) {
         }
 
         // we changed smd_data_9, x0. perform communication to ghosts
-        comm->forward_comm(this);
+        comm->forward_comm_fix(this);
 
 }
 

@@ -6,7 +6,7 @@ compute sph/t/atom command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    compute ID group-ID sph/t/atom
 

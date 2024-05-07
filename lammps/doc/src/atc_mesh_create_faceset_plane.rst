@@ -6,7 +6,7 @@ fix_modify AtC mesh create_faceset plane command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> mesh create_faceset <id> plane <x|y|z> <val1> <x|y|z> <lval2> <uval2> [units]
 

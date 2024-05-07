@@ -6,7 +6,7 @@ fix python/move command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix python/move pymodule.CLASS
 

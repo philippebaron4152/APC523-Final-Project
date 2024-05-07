@@ -2,8 +2,8 @@
 #include <cstdlib>
 #include <cstdio>
 #include "send2one.h"
-#include "memorylib.h"
-#include "errorlib.h"
+#include "memory.h"
+#include "error.h"
 
 /* ---------------------------------------------------------------------- */
 
@@ -13,8 +13,8 @@ Send2One::Send2One(MPI_Comm caller_comm)
   MPI_Comm_rank(comm,&me);
   MPI_Comm_size(comm,&nprocs);
 
-  memory = new MemoryLib(comm);
-  error = new ErrorLib(comm);
+  memory = new Memory(comm);
+  error = new Error(comm);
 
   buf = NULL;
   maxbuf = 0;

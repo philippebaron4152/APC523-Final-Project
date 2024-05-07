@@ -6,7 +6,7 @@ fix saed/vtk command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID saed/vtk Nevery Nrepeat Nfreak c_ID attribute args ... keyword args ...
 
@@ -28,6 +28,7 @@ Syntax
          Nstart = start averaging on this timestep
        *file* arg = filename
          filename = name of file to output time averages to
+       *overwrite* arg = none = overwrite output file with only latest output
 
 Examples
 """"""""
@@ -160,20 +161,18 @@ the *file* keyword and this string is appended with _N.vtk where N is
 an index (0,1,2...) to account for situations with multiple diffraction
 intensity outputs.
 
+The *overwrite* keyword will continuously overwrite the output file
+with the latest output, so that it only contains one timestep worth of
+output.  This option can only be used with the *ave running* setting.
+
 Restart, fix_modify, output, run start/stop, minimize info
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
-This fix is part of the DIFFRACTION package.  It is only enabled if
-LAMMPS was built with that package.  See the :doc:`Build package
-<Build_package>` page for more info.
-
-No information about this fix is written to :doc:`binary restart files
-<restart>`.  None of the :doc:`fix_modify <fix_modify>` options are
-relevant to this fix.
+No information about this fix is written to :doc:`binary restart files <restart>`.  None of the :doc:`fix_modify <fix_modify>` options
+are relevant to this fix.
 
 No parameter of this fix can be used with the *start/stop* keywords of
-the :doc:`run <run>` command.  This fix is not invoked during
-:doc:`energy minimization <minimize>`.
+the :doc:`run <run>` command.  This fix is not invoked during :doc:`energy minimization <minimize>`.
 
 Restrictions
 """"""""""""

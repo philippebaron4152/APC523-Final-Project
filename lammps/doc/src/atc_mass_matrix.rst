@@ -6,7 +6,7 @@ fix_modify AtC mass_matrix command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> mass_matrix <fe|md_fe>
 

@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -18,25 +18,32 @@
 
 #include "pair_lj_expand_coul_long.h"
 
-#include "atom.h"
-#include "comm.h"
-#include "error.h"
-#include "ewald_const.h"
-#include "force.h"
-#include "kspace.h"
-#include "math_const.h"
-#include "memory.h"
-#include "neigh_list.h"
-#include "neighbor.h"
-#include "respa.h"
-#include "update.h"
-
 #include <cmath>
 #include <cstring>
+#include "atom.h"
+#include "comm.h"
+#include "force.h"
+#include "kspace.h"
+#include "update.h"
+#include "respa.h"
+#include "neighbor.h"
+#include "neigh_list.h"
+#include "neigh_request.h"
+#include "math_const.h"
+#include "memory.h"
+#include "error.h"
+
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
-using namespace EwaldConst;
+
+#define EWALD_F   1.12837917
+#define EWALD_P   0.3275911
+#define A1        0.254829592
+#define A2       -0.284496736
+#define A3        1.421413741
+#define A4       -1.453152027
+#define A5        1.061405429
 
 /* ---------------------------------------------------------------------- */
 
@@ -54,8 +61,6 @@ PairLJExpandCoulLong::PairLJExpandCoulLong(LAMMPS *lmp) : Pair(lmp)
 
 PairLJExpandCoulLong::~PairLJExpandCoulLong()
 {
-  if (copymode) return;
-
   if (allocated) {
     memory->destroy(setflag);
     memory->destroy(cutsq);
@@ -190,12 +195,14 @@ void PairLJExpandCoulLong::compute(int eflag, int vflag)
           } else ecoul = 0.0;
 
           if (rsq < cut_ljsq[itype][jtype]) {
-            evdwl = r6inv*(lj3[itype][jtype]*r6inv-lj4[itype][jtype]) - offset[itype][jtype];
+            evdwl = r6inv*(lj3[itype][jtype]*r6inv-lj4[itype][jtype]) -
+              offset[itype][jtype];
             evdwl *= factor_lj;
           } else evdwl = 0.0;
         }
 
-        if (evflag) ev_tally(i,j,nlocal,newton_pair,evdwl,ecoul,fpair,delx,dely,delz);
+        if (evflag) ev_tally(i,j,nlocal,newton_pair,
+                             evdwl,ecoul,fpair,delx,dely,delz);
       }
     }
   }
@@ -681,25 +688,32 @@ void PairLJExpandCoulLong::init_style()
 
   // request regular or rRESPA neighbor list
 
-  int list_style = NeighConst::REQ_DEFAULT;
+  int irequest;
+  int respa = 0;
 
-  if (update->whichflag == 1 && utils::strmatch(update->integrate_style, "^respa")) {
-    auto respa = dynamic_cast<Respa *>(update->integrate);
-    if (respa->level_inner >= 0) list_style = NeighConst::REQ_RESPA_INOUT;
-    if (respa->level_middle >= 0) list_style = NeighConst::REQ_RESPA_ALL;
+  if (update->whichflag == 1 && utils::strmatch(update->integrate_style,"^respa")) {
+    if (((Respa *) update->integrate)->level_inner >= 0) respa = 1;
+    if (((Respa *) update->integrate)->level_middle >= 0) respa = 2;
   }
-  neighbor->add_request(this, list_style);
+
+  irequest = neighbor->request(this,instance_me);
+
+  if (respa >= 1) {
+    neighbor->requests[irequest]->respaouter = 1;
+    neighbor->requests[irequest]->respainner = 1;
+  }
+  if (respa == 2) neighbor->requests[irequest]->respamiddle = 1;
 
   cut_coulsq = cut_coul * cut_coul;
 
   // set rRESPA cutoffs
 
   if (utils::strmatch(update->integrate_style,"^respa") &&
-      (dynamic_cast<Respa *>(update->integrate))->level_inner >= 0)
-    cut_respa = (dynamic_cast<Respa *>(update->integrate))->cutoff;
+      ((Respa *) update->integrate)->level_inner >= 0)
+    cut_respa = ((Respa *) update->integrate)->cutoff;
   else cut_respa = nullptr;
 
-  // ensure use of KSpace long-range solver, set g_ewald
+  // insure use of KSpace long-range solver, set g_ewald
 
   if (force->kspace == nullptr)
     error->all(FLERR,"Pair style requires a KSpace style");
@@ -966,7 +980,8 @@ double PairLJExpandCoulLong::single(int i, int j, int itype, int jtype,
   }
 
   if (rsq < cut_ljsq[itype][jtype]) {
-    philj = r6inv*(lj3[itype][jtype]*r6inv-lj4[itype][jtype]) - offset[itype][jtype];
+    philj = r6inv*(lj3[itype][jtype]*r6inv-lj4[itype][jtype]) -
+      offset[itype][jtype];
     eng += factor_lj*philj;
   }
 

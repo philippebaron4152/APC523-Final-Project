@@ -6,7 +6,7 @@ fix_modify AtC control lumped_lambda_solve command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> control lumped_lambda_solve <on|off>
 

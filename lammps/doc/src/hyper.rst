@@ -6,7 +6,7 @@ hyper command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    hyper N Nevent fix-ID compute-ID keyword values ...
 

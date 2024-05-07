@@ -28,6 +28,7 @@
 
 #include "reaxff_omp.h"
 
+#include "fix_omp.h"
 #include "pair_reaxff_omp.h"
 #include "reaxff_api.h"
 
@@ -44,7 +45,7 @@ namespace ReaxFF {
     dbond_coefficients coef;
     int pk, k, j;
 
-    auto pair_reax_ptr = static_cast<class PairReaxFFOMP*>(system->pair_ptr);
+    PairReaxFFOMP *pair_reax_ptr = static_cast<class PairReaxFFOMP*>(system->pair_ptr);
 
     int tid = get_tid();
     ThrData *thr = pair_reax_ptr->getFixOMP()->get_thr(tid);

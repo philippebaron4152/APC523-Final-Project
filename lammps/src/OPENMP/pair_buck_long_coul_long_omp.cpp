@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -16,7 +16,6 @@
 
 #include "atom.h"
 #include "comm.h"
-#include "ewald_const.h"
 #include "force.h"
 #include "math_extra.h"
 #include "neigh_list.h"
@@ -28,7 +27,14 @@
 #include "omp_compat.h"
 using namespace LAMMPS_NS;
 using namespace MathExtra;
-using namespace EwaldConst;
+
+#define EWALD_F   1.12837917
+#define EWALD_P   0.3275911
+#define A1        0.254829592
+#define A2       -0.284496736
+#define A3        1.421413741
+#define A4       -1.453152027
+#define A5        1.061405429
 
 /* ---------------------------------------------------------------------- */
 
@@ -326,7 +332,7 @@ void PairBuckLongCoulLongOMP::compute_inner()
     loop_setup_thr(ifrom, ito, tid, inum, nthreads);
     ThrData *thr = fix->get_thr(tid);
     thr->timer(Timer::START);
-    ev_setup_thr(0, 0, nall, nullptr, nullptr, nullptr, thr);
+    ev_setup_thr(0, 0, nall, 0, 0, nullptr, thr);
     eval_inner(ifrom, ito, thr);
     thr->timer(Timer::PAIR);
 
@@ -351,7 +357,7 @@ void PairBuckLongCoulLongOMP::compute_middle()
     loop_setup_thr(ifrom, ito, tid, inum, nthreads);
     ThrData *thr = fix->get_thr(tid);
     thr->timer(Timer::START);
-    ev_setup_thr(0, 0, nall, nullptr, nullptr, nullptr, thr);
+    ev_setup_thr(0, 0, nall, 0, 0, nullptr, thr);
     eval_middle(ifrom, ito, thr);
     thr->timer(Timer::PAIR);
 
@@ -804,7 +810,7 @@ void PairBuckLongCoulLongOMP::eval_inner(int iifrom, int iito, ThrData * const t
   const double qqrd2e = force->qqrd2e;
 
   const double *x0 = x[0];
-  double *f0 = f[0], *fi = nullptr;
+  double *f0 = f[0], *fi = 0;
 
   int *ilist = list->ilist_inner;
 
@@ -897,7 +903,7 @@ void PairBuckLongCoulLongOMP::eval_middle(int iifrom, int iito, ThrData * const 
   const double qqrd2e = force->qqrd2e;
 
   const double *x0 = x[0];
-  double *f0 = f[0], *fi = nullptr;
+  double *f0 = f[0], *fi = 0;
 
   int *ilist = list->ilist_middle;
 

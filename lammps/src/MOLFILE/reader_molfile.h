@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -29,18 +29,18 @@ namespace LAMMPS_NS {
 class ReaderMolfile : public Reader {
  public:
   ReaderMolfile(class LAMMPS *);
-  ~ReaderMolfile() override;
+  virtual ~ReaderMolfile();
 
-  void settings(int, char **) override;
+  virtual void settings(int, char **);
 
-  int read_time(bigint &) override;
-  void skip() override;
-  bigint read_header(double[3][3], int &, int &, int, int, int *, char **, int, int, int &, int &,
-                     int &, int &) override;
-  void read_atoms(int, int, double **) override;
+  virtual int read_time(bigint &);
+  virtual void skip();
+  virtual bigint read_header(double[3][3], int &, int &, int, int, int *, char **, int, int, int &,
+                             int &, int &, int &);
+  virtual void read_atoms(int, int, double **);
 
-  void open_file(const std::string &) override;
-  void close_file() override;
+  virtual void open_file(const char *);
+  virtual void close_file();
 
  private:
   int *fieldindex;    // mapping of input fields to dump

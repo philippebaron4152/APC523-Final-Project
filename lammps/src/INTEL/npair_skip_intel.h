@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -25,18 +25,6 @@ NPairStyle(skip/ghost/intel,
            NP_SKIP | NP_HALF | NP_FULL |
            NP_NSQ | NP_BIN | NP_MULTI |
            NP_NEWTON | NP_NEWTOFF | NP_ORTHO | NP_TRI | NP_GHOST | NP_INTEL);
-
-NPairStyle(skip/trim/intel,
-           NPairSkipTrimIntel,
-           NP_SKIP | NP_HALF | NP_FULL |
-           NP_NSQ | NP_BIN | NP_MULTI |
-           NP_NEWTON | NP_NEWTOFF | NP_ORTHO | NP_TRI | NP_TRIM | NP_INTEL);
-
-NPairStyle(skip/trim/ghost/intel,
-           NPairSkipTrimIntel,
-           NP_SKIP | NP_HALF | NP_FULL |
-           NP_NSQ | NP_BIN | NP_MULTI |
-           NP_NEWTON | NP_NEWTOFF | NP_ORTHO | NP_TRI | NP_TRIM | NP_GHOST | NP_INTEL);
 // clang-format on
 #else
 
@@ -55,9 +43,9 @@ namespace LAMMPS_NS {
 class NPairSkipIntel : public NPair {
  public:
   NPairSkipIntel(class LAMMPS *);
-  ~NPairSkipIntel() override;
-  void copy_neighbor_info() override;
-  void build(class NeighList *) override;
+  ~NPairSkipIntel();
+  virtual void copy_neighbor_info();
+  void build(class NeighList *);
 
  protected:
   FixIntel *_fix;
@@ -67,23 +55,15 @@ class NPairSkipIntel : public NPair {
   void build_t(NeighList *, int *numhalf, int *cnumneigh, int *numhalf_skip);
 };
 
-class NPairSkipTrimIntel : public NPair {
- public:
-  NPairSkipTrimIntel(class LAMMPS *);
-  ~NPairSkipTrimIntel() override;
-  void copy_neighbor_info() override;
-  void build(class NeighList *) override;
-
- protected:
-  FixIntel *_fix;
-  int *_inum_starts, *_inum_counts, *_full_props;
-
-  template <class flt_t, class acc_t, int THREE>
-  void build_t(NeighList *, int *numhalf, int *cnumneigh, int *numhalf_skip,
-               IntelBuffers<flt_t, acc_t> *);
-};
-
 }    // namespace LAMMPS_NS
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: The 'package intel' command is required for /intel styles
+
+Self explanatory.
+
+*/

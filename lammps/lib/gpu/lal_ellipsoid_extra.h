@@ -152,7 +152,7 @@ _texture_2d( quat_tex,int4);
         engv+=inum;                                                         \
       }                                                                     \
     }                                                                       \
-    acctyp3 old=ans[ii];                                                    \
+    acctyp4 old=ans[ii];                                                    \
     old.x+=f.x;                                                             \
     old.y+=f.y;                                                             \
     old.z+=f.z;                                                             \
@@ -224,7 +224,7 @@ _texture_2d( quat_tex,int4);
         engv+=inum;                                                         \
       }                                                                     \
     }                                                                       \
-    acctyp3 old=ans[ii];                                                    \
+    acctyp4 old=ans[ii];                                                    \
     old.x+=f.x;                                                             \
     old.y+=f.y;                                                             \
     old.z+=f.z;                                                             \

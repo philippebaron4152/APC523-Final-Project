@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -19,13 +19,13 @@
 
 #include "mliap_model_python.h"
 
-#include "comm.h"
 #include "error.h"
 #include "lmppython.h"
 #include "mliap_data.h"
 #include "mliap_model_python_couple.h"
 #include "pair_mliap.h"
 #include "python_compat.h"
+#include "utils.h"
 
 #include <Python.h>
 
@@ -33,14 +33,10 @@ using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
 
-MLIAPModelPython::MLIAPModelPython(LAMMPS *lmp, char *coefffilename, bool is_child) :
+MLIAPModelPython::MLIAPModelPython(LAMMPS *lmp, char *coefffilename) :
     MLIAPModel(lmp, coefffilename)
 {
   model_loaded = 0;
-  nonlinearflag = 1;
-
-  if (is_child)
-    return;
   python->init();
   PyGILState_STATE gstate = PyGILState_Ensure();
 
@@ -66,22 +62,19 @@ MLIAPModelPython::MLIAPModelPython(LAMMPS *lmp, char *coefffilename, bool is_chi
 
   // if LAMMPS_POTENTIALS environment variable is set, add it to PYTHONPATH as well
   const char *potentials_path = getenv("LAMMPS_POTENTIALS");
-  if (potentials_path != nullptr) {
-    PyList_Append(py_path, PY_STRING_FROM_STRING(potentials_path));
-  }
+  if (potentials_path != NULL) { PyList_Append(py_path, PY_STRING_FROM_STRING(potentials_path)); }
   PyGILState_Release(gstate);
+
   if (coefffilename) read_coeffs(coefffilename);
 
-
+  nonlinearflag = 1;
 }
 
 /* ---------------------------------------------------------------------- */
 
 MLIAPModelPython::~MLIAPModelPython()
 {
-  if (model_loaded!=0)
-    MLIAPPY_unload_model(this);
-  model_loaded=0;
+  MLIAPPY_unload_model(this);
 }
 
 /* ----------------------------------------------------------------------
@@ -97,7 +90,7 @@ void MLIAPModelPython::read_coeffs(char *fname)
 {
   PyGILState_STATE gstate = PyGILState_Ensure();
 
-  model_loaded = MLIAPPY_load_model(this, fname);
+  int loaded = MLIAPPY_load_model(this, fname);
   if (PyErr_Occurred()) {
     PyErr_Print();
     PyErr_Clear();
@@ -106,10 +99,10 @@ void MLIAPModelPython::read_coeffs(char *fname)
   }
   PyGILState_Release(gstate);
 
-  if (model_loaded) {
+  if (loaded) {
     this->connect_param_counts();
   } else {
-    if (comm->me == 0) utils::logmesg(lmp, "Loading python model deferred.\n");
+    utils::logmesg(lmp, "Loading python model deferred.\n");
   }
 }
 
@@ -129,7 +122,7 @@ void MLIAPModelPython::connect_param_counts()
   }
   PyGILState_Release(gstate);
   model_loaded = 1;
-  if (comm->me == 0) utils::logmesg(lmp, "Loading python model complete.\n");
+  utils::logmesg(lmp, "Loading python model complete.\n");
 }
 
 /* ----------------------------------------------------------------------
@@ -139,7 +132,7 @@ void MLIAPModelPython::connect_param_counts()
 
 void MLIAPModelPython::compute_gradients(MLIAPData *data)
 {
-  if (!model_loaded) { error->all(FLERR, "Model not loaded."); }
+  if (not model_loaded) { error->all(FLERR, "Model not loaded."); }
 
   PyGILState_STATE gstate = PyGILState_Ensure();
   MLIAPPY_compute_gradients(this, data);

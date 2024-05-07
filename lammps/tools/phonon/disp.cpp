@@ -1,18 +1,10 @@
-
-#include "phonon.h"
-
-#include "dynmat.h"
-#include "global.h"
-#include "input.h"
-#include "kpath.h"
+#include "string.h"
 #include "qnodes.h"
-
-#include <cmath>
-#include <cstdio>
-#include <cstdlib>
-#include <cstring>
-#include <string>
-#include <vector>
+#include "global.h"
+#include "phonon.h"
+#include "green.h"
+#include "timer.h"
+#include "kpath.h"
 
 /*------------------------------------------------------------------------------
  * Private method to evaluate the phonon dispersion curves
@@ -21,22 +13,19 @@ void Phonon::pdisp()
 {
   // ask the output file name and write the header.
    char str[MAXLINE];
-   puts("================================================================================");
-
+   for (int ii = 0; ii < 80; ++ii) printf("="); printf("\n");
 #ifdef UseSPG
   // ask method to generate q-lines
    int method = 2;
    printf("Please select your method to generate the phonon dispersion:\n");
    printf("  1. Manual, should always work;\n");
    printf("  2. Automatic, works only for 3D crystals (CMS49-299).\nYour choice [2]: ");
-   input->read_stdin(str);
-   if (count_words(str) > 0) method = atoi(strtok(str," \t\n\r\f"));
+   if (count_words(fgets(str,MAXLINE,stdin)) > 0) method = atoi(strtok(str," \t\n\r\f"));
    method = 2 - method%2;
    printf("Your  selection: %d\n", method);
 #endif
    printf("\nPlease input the filename to output the dispersion data [pdisp.dat]:");
-   input->read_stdin(str);
-   if (count_words(str) < 1) strcpy(str, "pdisp.dat");
+   if (count_words(fgets(str,MAXLINE,stdin)) < 1) strcpy(str, "pdisp.dat");
    char *ptr = strtok(str," \t\n\r\f");
    char *fname = new char[strlen(ptr)+1];
    strcpy(fname,ptr);
@@ -53,12 +42,12 @@ void Phonon::pdisp()
 #ifdef UseSPG
    if (method == 1){
 #endif
-      while (true){
+      while (1){
          for (int i = 0; i < 3; ++i) qstr[i] = qend[i];
    
+         int quit = 0;
          printf("\nPlease input the start q-point in unit of B1->B3, q to exit [%g %g %g]: ", qstr[0], qstr[1], qstr[2]);
-         input->read_stdin(str);
-         int n = count_words(str);
+         int n = count_words(fgets(str, MAXLINE, stdin));
          ptr = strtok(str, " \t\n\r\f");
          if ((n == 1) && (strcmp(ptr,"q") == 0)) break;
          else if (n >= 3){
@@ -67,18 +56,14 @@ void Phonon::pdisp()
            qstr[2] = atof(strtok(NULL, " \t\n\r\f"));
          }
      
-         while ( true ){
-            printf("Please input the end q-point in unit of B1->B3: ");
-            input->read_stdin(str);
-            if (count_words(str) >= 3) break;
-         }
+         do printf("Please input the end q-point in unit of B1->B3: ");
+         while (count_words(fgets(str, MAXLINE, stdin)) < 3);
          qend[0] = atof(strtok(str,  " \t\n\r\f"));
          qend[1] = atof(strtok(NULL, " \t\n\r\f"));
          qend[2] = atof(strtok(NULL, " \t\n\r\f"));
      
          printf("Please input the # of points along the line [%d]: ", nq);
-         input->read_stdin(str);
-         if (count_words(str) > 0) nq = atoi(strtok(str," \t\n\r\f"));
+         if (count_words(fgets(str, MAXLINE, stdin)) > 0) nq = atoi(strtok(str," \t\n\r\f"));
          nq = MAX(nq,2);
      
          double *qtmp = new double [3];
@@ -162,10 +147,12 @@ void Phonon::pdisp()
      printf("\nPhonon dispersion data are written to: %s, you can visualize the results\n", fname);
      printf("by invoking: `gnuplot pdisp.gnuplot; gv pdisp.eps`\n");
    }
-   puts("================================================================================");
+   for (int ii = 0; ii < 80; ++ii) printf("="); printf("\n");
  
    delete []fname;
    delete qnodes;
+ 
+return;
 }
 
 /*----------------------------------------------------------------------------*/

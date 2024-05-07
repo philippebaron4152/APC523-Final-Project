@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -18,14 +18,19 @@
 
 #include "pair_lj_long_coul_long_intel.h"
 
-#include "fix_intel.h"
-#include "modify.h"
+#include "atom.h"
+#include "comm.h"
+#include "memory.h"
+#include "neigh_list.h"
 #include "neigh_request.h"
+#include "neighbor.h"
 #include "suffix.h"
 
 using namespace LAMMPS_NS;
 
-/* ---------------------------------------------------------------------- */
+#define C_FORCE_T typename ForceConst<flt_t>::c_force_t
+#define C_ENERGY_T typename ForceConst<flt_t>::c_energy_t
+#define TABLE_T typename ForceConst<flt_t>::table_t
 
 PairLJLongCoulLongIntel::PairLJLongCoulLongIntel(LAMMPS *lmp) :
   PairLJLongCoulLong(lmp)
@@ -35,14 +40,7 @@ PairLJLongCoulLongIntel::PairLJLongCoulLongIntel(LAMMPS *lmp) :
   cut_respa = nullptr;
 }
 
-/* ---------------------------------------------------------------------- */
 
-void PairLJLongCoulLongIntel::init_style()
+PairLJLongCoulLongIntel::~PairLJLongCoulLongIntel()
 {
-  PairLJLongCoulLong::init_style();
-
-  auto fix = static_cast<FixIntel *>(modify->get_fix_by_id("package_intel"));
-  if (!fix) error->all(FLERR, "The 'package intel' command is required for /intel styles");
-
-  fix->pair_init_check();
 }

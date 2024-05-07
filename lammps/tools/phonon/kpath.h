@@ -4,9 +4,14 @@
 #ifndef KPATH_H
 #define KPATH_H
 
+#include "qnodes.h"
+#include "dynmat.h"
+#include "memory.h"
+
 class kPath{
 public:
-  kPath(class DynMat *, class QNodes *);
+
+  kPath(DynMat *, QNodes *);
   ~kPath();
 
   void kpath();
@@ -14,11 +19,13 @@ public:
   void show_info();
 
 private:
-  class Memory *memory;
-  class DynMat *dynmat;
-  class QNodes *q;
+
+  Memory *memory;
+
+  DynMat *dynmat;
+  QNodes *q;
   char symbol[11];
-  int spgnum, sysdim, num_atom, *attyp;
+  int spgnum, sysdim, fftdim, num_atom, *attyp;
   double latvec[3][3], **atpos;
 
 };

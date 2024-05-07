@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -54,19 +54,20 @@ ComputeTempDrude::ComputeTempDrude(LAMMPS *lmp, int narg, char **arg) :
 
 ComputeTempDrude::~ComputeTempDrude()
 {
-  delete[] vector;
-  delete[] extlist;
-  delete[] id_temp;
+  delete [] vector;
+  delete [] extlist;
+  delete [] id_temp;
 }
 
 /* ---------------------------------------------------------------------- */
 
 void ComputeTempDrude::init()
 {
-  // Fix drude already checks that there is only one fix drude instance
-  auto &fixes = modify->get_fix_by_style("^drude$");
-  if (fixes.size() == 0) error->all(FLERR, "compute temp/drude requires fix drude");
-  fix_drude = dynamic_cast<FixDrude *>(fixes[0]);
+  int ifix;
+  for (ifix = 0; ifix < modify->nfix; ifix++)
+    if (strcmp(modify->fix[ifix]->style,"drude") == 0) break;
+  if (ifix == modify->nfix) error->all(FLERR, "compute temp/drude requires fix drude");
+  fix_drude = (FixDrude *) modify->fix[ifix];
 
   if (!comm->ghost_velocity)
     error->all(FLERR,"compute temp/drude requires ghost velocities. Use comm_modify vel yes");
@@ -88,7 +89,9 @@ void ComputeTempDrude::dof_compute()
   int dim = domain->dimension;
   int *drudetype = fix_drude->drudetype;
 
-  adjust_dof_fix();
+  fix_dof = 0;
+  for (int i = 0; i < modify->nfix; i++)
+    fix_dof += modify->fix[i]->dof(igroup);
 
   bigint dof_core_loc = 0, dof_drude_loc = 0;
   for (int i = 0; i < nlocal; i++) {
@@ -117,12 +120,14 @@ int ComputeTempDrude::modify_param(int narg, char **arg)
     delete [] id_temp;
     id_temp = utils::strdup(arg[1]);
 
-    temperature = modify->get_compute_by_id(id_temp);
-    if (!temperature)
-      error->all(FLERR,"Could not find fix_modify temperature compute {}", id_temp);
+    int icompute = modify->find_compute(id_temp);
+    if (icompute < 0)
+      error->all(FLERR,"Could not find fix_modify temperature ID");
+    temperature = modify->compute[icompute];
 
     if (temperature->tempflag == 0)
-      error->all(FLERR, "Fix_modify temperature compute {} does not compute temperature", id_temp);
+      error->all(FLERR,
+                 "Fix_modify temperature ID does not compute temperature");
     if (temperature->igroup != igroup && comm->me == 0)
       error->warning(FLERR,"Group for fix_modify temp != fix group");
     return 2;

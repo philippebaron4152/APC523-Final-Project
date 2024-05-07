@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,9 +27,9 @@ namespace LAMMPS_NS {
 class FixNVEBody : public FixNVE {
  public:
   FixNVEBody(class LAMMPS *, int, char **);
-  void init() override;
-  void initial_integrate(int) override;
-  void final_integrate() override;
+  void init();
+  void initial_integrate(int);
+  void final_integrate();
 
  private:
   double dtq;
@@ -39,3 +39,15 @@ class FixNVEBody : public FixNVE {
 }    // namespace LAMMPS_NS
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Fix nve/body requires atom style body
+
+Self-explanatory.
+
+E: Fix nve/body requires bodies
+
+This fix can only be used for particles that are bodies.
+
+*/

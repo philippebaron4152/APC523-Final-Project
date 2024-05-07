@@ -36,7 +36,7 @@ VirtualMatrix* NewMatrix(int type){
     case MAT4X4 : return new Mat4x4;
       case VECT3 : return new Vect3;
     case VECT4 : return new Vect4;
-      default  : return nullptr; // error!
+      default  : return 0; // error!
     }
 }
 

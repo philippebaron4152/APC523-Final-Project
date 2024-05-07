@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -34,9 +34,10 @@ class FixEventHyper : public FixEvent {
   int ncoincident;          // # of simultaneous events on different replicas
 
   FixEventHyper(class LAMMPS *, int, char **);
+  ~FixEventHyper() {}
 
-  void write_restart(FILE *) override;
-  void restart(char *) override;
+  void write_restart(FILE *);
+  void restart(char *);
 
   // methods specific to FixEventHyper, invoked by hyper
 
@@ -47,3 +48,13 @@ class FixEventHyper : public FixEvent {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal ... command
+
+Self-explanatory.  Check the input script syntax and compare to the
+documentation for the command.  You can use -echo screen as a
+command-line option when running LAMMPS to see the offending line.
+
+*/

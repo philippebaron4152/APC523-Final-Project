@@ -8,10 +8,7 @@ Syntax
 
 .. code-block:: LAMMPS
 
-   angle_style zero keyword
-
-* zero or more keywords may be appended
-* keyword = *nocoeff*
+   angle_style zero *nocoeff*
 
 Examples
 """"""""

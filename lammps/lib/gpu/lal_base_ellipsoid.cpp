@@ -29,7 +29,8 @@ const char *ellipsoid_nbor=0;
 extern Device<PRECISION,ACC_PRECISION> global_device;
 
 template <class numtyp, class acctyp>
-BaseEllipsoidT::BaseEllipsoid() : host_olist_size(0), _compiled(false), _max_bytes(0) {
+BaseEllipsoidT::BaseEllipsoid() : _compiled(false), _max_bytes(0),
+                                  host_olist_size(0) {
   device=&global_device;
   ans=new Answer<numtyp,acctyp>();
   nbor=new Neighbor();
@@ -68,7 +69,7 @@ BaseEllipsoidT::~BaseEllipsoid() {
 }
 
 template <class numtyp, class acctyp>
-int BaseEllipsoidT::bytes_per_atom_ellipsoid(const int max_nbors) const {
+int BaseEllipsoidT::bytes_per_atom(const int max_nbors) const {
   return device->atom.bytes_per_atom()+ans->bytes_per_atom()+
          nbor->bytes_per_atom(max_nbors);
 }
@@ -375,8 +376,7 @@ int* BaseEllipsoidT::compute(const int f_ago, const int inum_full,
                              const bool eflag_in, const bool vflag_in,
                              const bool eatom, const bool vatom,
                              int &host_start, const double cpu_time,
-                             bool &success, const int *ellipsoid,
-                             const EllipsoidBonus *bonus) {
+                             bool &success, double **host_quat) {
   acc_timers();
   int eflag, vflag;
   if (eflag_in) eflag=2;
@@ -410,7 +410,7 @@ int* BaseEllipsoidT::compute(const int f_ago, const int inum_full,
     list=ilist;
 
   atom->cast_x_data(host_x,host_type);
-  atom->cast_quat_data(ellipsoid,bonus);
+  atom->cast_quat_data(host_quat[0]);
   hd_balancer.start_timer();
   atom->add_x_data(host_x,host_type);
   atom->add_quat_data();
@@ -434,8 +434,7 @@ int** BaseEllipsoidT::compute(const int ago, const int inum_full,
                               const bool eatom, const bool vatom,
                               int &host_start, int **ilist, int **jnum,
                               const double cpu_time, bool &success,
-                              const int *ellipsoid,
-                              const EllipsoidBonus *bonus) {
+                              double **host_quat) {
   acc_timers();
   int eflag, vflag;
   if (eflag_in) eflag=2;
@@ -462,11 +461,11 @@ int** BaseEllipsoidT::compute(const int ago, const int inum_full,
                     sublo, subhi, tag, nspecial, special, success);
     if (!success)
       return nullptr;
-    atom->cast_quat_data(ellipsoid,bonus);
+    atom->cast_quat_data(host_quat[0]);
     hd_balancer.start_timer();
   } else {
     atom->cast_x_data(host_x,host_type);
-    atom->cast_quat_data(ellipsoid,bonus);
+    atom->cast_quat_data(host_quat[0]);
     hd_balancer.start_timer();
     atom->add_x_data(host_x,host_type);
   }
@@ -571,7 +570,8 @@ void BaseEllipsoidT::compile_kernels(UCL_Device &dev,
     if (e_s)
       mx_subgroup_sz = std::min(mx_subgroup_sz, k_ellipsoid_sphere_noev.max_subgroup_size(_block_size));
     #endif
-    if (_threads_per_atom > (int)mx_subgroup_sz) _threads_per_atom = mx_subgroup_sz;
+    if (_threads_per_atom > mx_subgroup_sz)
+      _threads_per_atom = mx_subgroup_sz;
     device->set_simd_size(mx_subgroup_sz);
   }
   #endif

@@ -6,7 +6,7 @@ fix_modify AtC poisson_solver command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> poisson_solver mesh create <nx> <ny> <nz> <region-ID> <f|p> <f|p> <f|p>
 

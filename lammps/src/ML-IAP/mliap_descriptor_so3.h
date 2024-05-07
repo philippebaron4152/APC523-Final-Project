@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -18,18 +18,18 @@
 
 namespace LAMMPS_NS {
 
-class MLIAPDescriptorSO3 : public MLIAPDescriptor, virtual protected Pointers {
+class MLIAPDescriptorSO3 : public MLIAPDescriptor {
 
  public:
   MLIAPDescriptorSO3(LAMMPS *, char *);
-  ~MLIAPDescriptorSO3() override;
+  virtual ~MLIAPDescriptorSO3();
 
-  void compute_descriptors(class MLIAPData *) override;
-  void compute_forces(class MLIAPData *) override;
-  void compute_force_gradients(class MLIAPData *) override;
-  void compute_descriptor_gradients(class MLIAPData *) override;
-  void init() override;
-  double memory_usage() override;
+  virtual void compute_descriptors(class MLIAPData *);
+  virtual void compute_forces(class MLIAPData *);
+  virtual void compute_force_gradients(class MLIAPData *){};
+  virtual void compute_descriptor_gradients(class MLIAPData *){};
+  virtual void init();
+  virtual double memory_usage();
 
   double rcutfac;
 

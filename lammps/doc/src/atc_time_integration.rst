@@ -6,7 +6,7 @@ fix_modify AtC time_integration command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> time_integration <descriptor>
 

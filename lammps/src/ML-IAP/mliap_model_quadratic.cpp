@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -17,7 +17,7 @@
 ------------------------------------------------------------------------- */
 
 #include "mliap_model_quadratic.h"
-
+#include "pair_mliap.h"
 #include "mliap_data.h"
 #include "error.h"
 #include <cmath>
@@ -30,9 +30,13 @@ MLIAPModelQuadratic::MLIAPModelQuadratic(LAMMPS* lmp, char* coefffilename) :
   MLIAPModelSimple(lmp, coefffilename)
 {
   if (coefffilename) read_coeffs(coefffilename);
-  if (nparams > 0) ndescriptors = sqrt(2.0*nparams)-1;
+  if (nparams > 0) ndescriptors = sqrt(2*nparams)-1;
   nonlinearflag = 1;
 }
+
+/* ---------------------------------------------------------------------- */
+
+MLIAPModelQuadratic::~MLIAPModelQuadratic() {}
 
 /* ----------------------------------------------------------------------
    get number of parameters

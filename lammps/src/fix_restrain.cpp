@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -19,28 +19,27 @@
 
 #include "fix_restrain.h"
 
-#include "atom.h"
-#include "comm.h"
-#include "domain.h"
-#include "error.h"
-#include "force.h"
-#include "math_const.h"
-#include "memory.h"
-#include "respa.h"
-#include "update.h"
-
 #include <cmath>
 #include <cstring>
+#include "atom.h"
+#include "force.h"
+#include "update.h"
+#include "domain.h"
+#include "comm.h"
+#include "respa.h"
+#include "math_const.h"
+#include "memory.h"
+#include "error.h"
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
-using MathConst::DEG2RAD;
+using namespace MathConst;
 
 enum{BOND,LBOUND,ANGLE,DIHEDRAL};
 
-static constexpr double TOLERANCE = 0.05;
-static constexpr double SMALL = 0.001;
-static constexpr int DELTA = 1;
+#define TOLERANCE 0.05
+#define SMALL 0.001
+#define DELTA 1
 
 /* ---------------------------------------------------------------------- */
 
@@ -120,7 +119,8 @@ FixRestrain::FixRestrain(LAMMPS *lmp, int narg, char **arg) :
       ids[nrestrain][2] = utils::tnumeric(FLERR,arg[iarg+3],false,lmp);
       kstart[nrestrain] = utils::numeric(FLERR,arg[iarg+4],false,lmp);
       kstop[nrestrain] = utils::numeric(FLERR,arg[iarg+5],false,lmp);
-      target[nrestrain] = DEG2RAD * utils::numeric(FLERR,arg[iarg+6],false,lmp);
+      target[nrestrain] = utils::numeric(FLERR,arg[iarg+6],false,lmp);
+      target[nrestrain] *= MY_PI / 180.0;
       iarg += 7;
     } else if (strcmp(arg[iarg],"dihedral") == 0) {
       if (iarg+8 > narg) error->all(FLERR,"Illegal fix restrain command");
@@ -132,7 +132,8 @@ FixRestrain::FixRestrain(LAMMPS *lmp, int narg, char **arg) :
       ids[nrestrain][3] = utils::tnumeric(FLERR,arg[iarg+4],false,lmp);
       kstart[nrestrain] = utils::numeric(FLERR,arg[iarg+5],false,lmp);
       kstop[nrestrain] = utils::numeric(FLERR,arg[iarg+6],false,lmp);
-      target[nrestrain] = DEG2RAD * utils::numeric(FLERR,arg[iarg+7],false,lmp);
+      target[nrestrain] = utils::numeric(FLERR,arg[iarg+7],false,lmp);
+      target[nrestrain] *= MY_PI / 180.0;
       cos_target[nrestrain] = cos(target[nrestrain]);
       sin_target[nrestrain] = sin(target[nrestrain]);
       iarg += 8;
@@ -186,7 +187,7 @@ int FixRestrain::setmask()
 void FixRestrain::init()
 {
   if (utils::strmatch(update->integrate_style,"^respa")) {
-    ilevel_respa = (dynamic_cast<Respa *>(update->integrate))->nlevels-1;
+    ilevel_respa = ((Respa *) update->integrate)->nlevels-1;
     if (respa_level >= 0) ilevel_respa = MIN(respa_level,ilevel_respa);
   }
 }
@@ -198,9 +199,9 @@ void FixRestrain::setup(int vflag)
   if (utils::strmatch(update->integrate_style,"^verlet"))
     post_force(vflag);
   else {
-    (dynamic_cast<Respa *>(update->integrate))->copy_flevel_f(ilevel_respa);
+    ((Respa *) update->integrate)->copy_flevel_f(ilevel_respa);
     post_force_respa(vflag,ilevel_respa,0);
-    (dynamic_cast<Respa *>(update->integrate))->copy_f_flevel(ilevel_respa);
+    ((Respa *) update->integrate)->copy_f_flevel(ilevel_respa);
   }
 }
 
@@ -272,12 +273,14 @@ void FixRestrain::restrain_bond(int m)
   if (newton_bond) {
     if (i2 == -1 || i2 >= nlocal) return;
     if (i1 == -1)
-      error->one(FLERR,"Restrain atoms {} {} missing on proc {} at step {}", ids[m][0],ids[m][1],
+      error->one(FLERR,"Restrain atoms {} {} missing on "
+                                   "proc {} at step {}", ids[m][0],ids[m][1],
                                    comm->me,update->ntimestep);
   } else {
     if ((i1 == -1 || i1 >= nlocal) && (i2 == -1 || i2 >= nlocal)) return;
     if (i1 == -1 || i2 == -1)
-      error->one(FLERR,"Restrain atoms {} {} missing on proc {} at step {}", ids[m][0],ids[m][1],
+      error->one(FLERR,"Restrain atoms {} {} missing on "
+                                   "proc {} at step {}", ids[m][0],ids[m][1],
                                    comm->me,update->ntimestep);
   }
 

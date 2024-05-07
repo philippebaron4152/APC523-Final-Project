@@ -90,7 +90,7 @@ int eam_fs_gpu_init(const int ntypes, double host_cutforcesq,
                          nz2r, nfrho, nr, nlocal, nall, max_nbors, maxspecial,
                          cell_size, gpu_split, screen);
 
-    EAMFSMF.device->serialize_init();
+    EAMFSMF.device->gpu_barrier();
     if (message)
       fprintf(screen,"Done.\n");
   }

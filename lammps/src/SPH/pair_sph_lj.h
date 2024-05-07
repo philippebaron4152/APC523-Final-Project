@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,12 +27,12 @@ namespace LAMMPS_NS {
 class PairSPHLJ : public Pair {
  public:
   PairSPHLJ(class LAMMPS *);
-  ~PairSPHLJ() override;
-  void compute(int, int) override;
-  void settings(int, char **) override;
-  void coeff(int, char **) override;
-  double init_one(int, int) override;
-  double single(int, int, int, int, double, double, double, double &) override;
+  virtual ~PairSPHLJ();
+  virtual void compute(int, int);
+  void settings(int, char **);
+  void coeff(int, char **);
+  virtual double init_one(int, int);
+  virtual double single(int, int, int, int, double, double, double, double &);
   //double LJEOS(int);
   void LJEOS2(double, double, double, double *, double *);
 

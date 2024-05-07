@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -29,9 +29,7 @@ do not necessarily reflect the views of the United States Army.​”
 DISTRIBUTION A. Approved for public release; distribution unlimited. OPSEC#4918
  */
 #include "rann_fingerprint_bondscreenedspin.h"
-#include "pair_rann.h"
 
-#include <cmath>
 
 using namespace LAMMPS_NS::RANN;
 
@@ -79,26 +77,26 @@ bool Fingerprint_bondscreenedspin::parse_values(std::string constant,std::vector
   int nwords,l;
   nwords=line1.size();
   if (constant.compare("re")==0) {
-    re = strtod(line1[0].c_str(),nullptr);
+    re = strtod(line1[0].c_str(),NULL);
   }
   else if (constant.compare("rc")==0) {
-    rc = strtod(line1[0].c_str(),nullptr);
+    rc = strtod(line1[0].c_str(),NULL);
   }
   else if (constant.compare("alphak")==0) {
     delete[] alpha_k;
     alpha_k = new double[nwords];
     for (l=0;l<nwords;l++) {
-      alpha_k[l]=strtod(line1[l].c_str(),nullptr);
+      alpha_k[l]=strtod(line1[l].c_str(),NULL);
     }
   }
   else if (constant.compare("dr")==0) {
-    dr = strtod(line1[0].c_str(),nullptr);
+    dr = strtod(line1[0].c_str(),NULL);
   }
   else if (constant.compare("k")==0) {
-    kmax = strtol(line1[0].c_str(),nullptr,10);
+    kmax = strtol(line1[0].c_str(),NULL,10);
   }
   else if (constant.compare("m")==0) {
-    mlength = strtol(line1[0].c_str(),nullptr,10);
+    mlength = strtol(line1[0].c_str(),NULL,10);
   }
   else pair->errorf(FLERR,"Undefined value for bond power");
   if (re!=0.0 && rc!=0.0 && alpha_k[0]!=-1 && dr!=0.0 && mlength!=0 && kmax!=0)return true;

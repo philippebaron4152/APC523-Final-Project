@@ -6,7 +6,7 @@ compute ackland/atom command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    compute ID group-ID ackland/atom keyword/value
 
@@ -17,7 +17,7 @@ Syntax
 
   .. parsed-literal::
 
-       *legacy* args = *yes* or *no* = use (\ *yes*\ ) or do not use (\ *no*\ ) legacy Ackland algorithm implementation
+       *legacy* yes/no = use (\ *yes*\ ) or do not use (\ *no*\ ) legacy ackland algorithm implementation
 
 Examples
 """"""""

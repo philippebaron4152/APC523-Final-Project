@@ -88,7 +88,7 @@ struct OCLProperties {
   cl_uint clock;
   size_t work_group_size;
   size_t work_item_size[3];
-  bool has_double_precision;
+  bool double_precision;
   int preferred_vector_width32, preferred_vector_width64;
   int alignment;
   size_t timer_resolution;
@@ -99,7 +99,6 @@ struct OCLProperties {
   int cl_device_version;
   bool has_subgroup_support;
   bool has_shuffle_support;
-  bool shared_main_memory;
 };
 
 /// Class for looking at data parallel device properties
@@ -125,14 +124,6 @@ class UCL_Device {
 
   /// Return the number of devices that support OpenCL
   inline int num_devices() { return _num_devices; }
-
-  /// Specify whether profiling (device timers) will be used (yes=true)
-  /** No-op for CUDA and HIP **/
-  inline void configure_profiling(const bool profiling_on) {
-    #ifndef GERYON_NO_OCL_MARKERS
-    _cq_profiling = profiling_on;
-    #endif
-  }
 
   /// Set the OpenCL device to the specified device number
   /** A context and default command queue will be created for the device *
@@ -178,22 +169,10 @@ class UCL_Device {
     _cq.push_back(cl_command_queue());
 
 #ifdef CL_VERSION_2_0
-    if (_cq_profiling) {
-      cl_queue_properties props[] = {CL_QUEUE_PROPERTIES,
-                                     CL_QUEUE_PROFILING_ENABLE, 0};
-      _cq.back()=clCreateCommandQueueWithProperties(_context, _cl_device, props,
-                                                    &errorv);
-    } else {
-      cl_queue_properties props[] = {0};
-      _cq.back()=clCreateCommandQueueWithProperties(_context, _cl_device, props,
-                                                    &errorv);
-    }
+    cl_queue_properties props[] = {CL_QUEUE_PROPERTIES, CL_QUEUE_PROFILING_ENABLE, 0};
+    _cq.back()=clCreateCommandQueueWithProperties(_context, _cl_device, props, &errorv);
 #else
-    if (_cq_profiling)
-      _cq.back()=clCreateCommandQueue(_context, _cl_device,
-                                      CL_QUEUE_PROFILING_ENABLE, &errorv);
-    else
-      _cq.back()=clCreateCommandQueue(_context, _cl_device, 0, &errorv);
+    _cq.back()=clCreateCommandQueue(_context, _cl_device, CL_QUEUE_PROFILING_ENABLE, &errorv);
 #endif
     if (errorv!=CL_SUCCESS) {
       std::cerr << "Could not create command queue on device: " << name()
@@ -230,7 +209,7 @@ class UCL_Device {
   inline bool shared_memory() { return shared_memory(_device); }
   /// Returns true if host memory is efficiently addressable from device
   inline bool shared_memory(const int i)
-    { return _properties[i].shared_main_memory; }
+    { return _shared_mem_device(_cl_devices[i]); }
 
   /// Returns preferred vector width
   inline int preferred_fp32_width() { return preferred_fp32_width(_device); }
@@ -247,7 +226,7 @@ class UCL_Device {
   inline bool double_precision() { return double_precision(_device); }
   /// Returns true if double precision is support for the device
   inline bool double_precision(const int i)
-    {return _properties[i].has_double_precision;}
+    {return _properties[i].double_precision;}
 
   /// Get the number of compute units on the current device
   inline unsigned cus() { return cus(_device); }
@@ -309,14 +288,15 @@ class UCL_Device {
   /// Return the maximum memory pitch in bytes for current device
   inline size_t max_pitch() { return max_pitch(_device); }
   /// Return the maximum memory pitch in bytes
-  inline size_t max_pitch(const int) { return 0; }
+  inline size_t max_pitch(const int i) { return 0; }
 
   /// Returns false if accelerator cannot be shared by multiple processes
   /** If it cannot be determined, true is returned **/
   inline bool sharing_supported() { return sharing_supported(_device); }
   /// Returns false if accelerator cannot be shared by multiple processes
   /** If it cannot be determined, true is returned **/
-  inline bool sharing_supported(const int) { return true; }
+  inline bool sharing_supported(const int i)
+    { return true; }
 
   /// True if the device is a sub-device
   inline bool is_subdevice()
@@ -390,7 +370,6 @@ class UCL_Device {
   cl_platform_id _cl_platforms[20]; // OpenCL IDs for all platforms
   cl_context _context;              // Context used for accessing the device
   std::vector<cl_command_queue> _cq;// The default command queue for this device
-  bool _cq_profiling;               // True=create command queues w/ profiling support
   int _device;                            // UCL_Device ID for current device
   cl_device_id _cl_device;                // OpenCL ID for current device
   std::vector<cl_device_id> _cl_devices;  // OpenCL IDs for all devices
@@ -405,11 +384,6 @@ class UCL_Device {
 // Grabs the properties for all devices
 UCL_Device::UCL_Device() {
   _device=-1;
-  #ifndef GERYON_NO_OCL_MARKERS
-  _cq_profiling=true;
-  #else
-  _cq_profiling=false;
-  #endif
 
   // --- Get Number of Platforms
   cl_uint nplatforms;
@@ -432,7 +406,7 @@ void UCL_Device::clear() {
 
   #ifdef GERYON_NUMA_FISSION
   #ifdef CL_VERSION_1_2
-  for (size_t i=0; i< _cl_devices.size(); i++)
+  for (int i=0; i<_cl_devices.size(); i++)
     CL_DESTRUCT_CALL(clReleaseDevice(_cl_devices[i]));
   #endif
   #endif
@@ -501,28 +475,22 @@ int UCL_Device::set_platform(int pid) {
     props[0]=CL_DEVICE_PARTITION_BY_AFFINITY_DOMAIN;
     props[1]=CL_DEVICE_AFFINITY_DOMAIN_NUMA;
     props[2]=0;
-
-    cl_int err = CL_SUCCESS;
     if (adomain & CL_DEVICE_AFFINITY_DOMAIN_NUMA)
-      err = clCreateSubDevices(device_list[i], props, 0, NULL,
-                               &num_subdevices);
-    if (err == CL_SUCCESS && num_subdevices > 1) {
+      CL_SAFE_CALL(clCreateSubDevices(device_list[i], props, 0, NULL,
+                                      &num_subdevices));
+    if (num_subdevices > 1) {
       subdevice_list = new cl_device_id[num_subdevices];
-      err = clCreateSubDevices(device_list[i], props, num_subdevices,
-                               subdevice_list, &num_subdevices);
-      if (err != CL_SUCCESS) {
-        delete[] subdevice_list;
-        num_subdevices = 1;
-        subdevice_list = device_list + i;
-      }
+      CL_SAFE_CALL(clCreateSubDevices(device_list[i], props, num_subdevices,
+                                      subdevice_list, &num_subdevices));
     }
     #endif
 
-    for (cl_uint j=0; j<num_subdevices; j++) {
+    for (int j=0; j<num_subdevices; j++) {
       _num_devices++;
       _cl_devices.push_back(subdevice_list[j]);
       add_properties(subdevice_list[j]);
     }
+
     if (num_subdevices > 1) delete[] subdevice_list;
   } // for i
   #endif
@@ -535,9 +503,9 @@ int UCL_Device::create_context() {
   cl_int errorv;
   cl_context_properties props[3];
   props[0]=CL_CONTEXT_PLATFORM;
-  props[1]=(cl_context_properties)_cl_platform;
+  props[1]=_platform;
   props[2]=0;
-  _context=clCreateContext(props,1,&_cl_device,nullptr,nullptr,&errorv);
+  _context=clCreateContext(0,1,&_cl_device,nullptr,nullptr,&errorv);
   if (errorv!=CL_SUCCESS) {
     #ifndef UCL_NO_EXIT
     std::cerr << "UCL Error: Could not access accelerator number " << _device
@@ -587,23 +555,16 @@ void UCL_Device::add_properties(cl_device_id device_list) {
                                sizeof(float_width),&float_width,nullptr));
   op.preferred_vector_width32=float_width;
 
+  // Determine if double precision is supported
   cl_uint double_width;
   CL_SAFE_CALL(clGetDeviceInfo(device_list,
                                CL_DEVICE_PREFERRED_VECTOR_WIDTH_DOUBLE,
                                sizeof(double_width),&double_width,nullptr));
   op.preferred_vector_width64=double_width;
-
-  // Determine if double precision is supported: All bits in the mask must be set.
-  cl_device_fp_config double_mask = (CL_FP_FMA|CL_FP_ROUND_TO_NEAREST|
-                                     CL_FP_ROUND_TO_ZERO|CL_FP_ROUND_TO_INF|
-                                     CL_FP_INF_NAN|CL_FP_DENORM);
-  cl_device_fp_config double_avail;
-  CL_SAFE_CALL(clGetDeviceInfo(device_list,CL_DEVICE_DOUBLE_FP_CONFIG,
-                               sizeof(double_avail),&double_avail,nullptr));
-  if ((double_avail & double_mask) == double_mask)
-    op.has_double_precision=true;
+  if (double_width==0)
+    op.double_precision=false;
   else
-    op.has_double_precision=false;
+    op.double_precision=true;
 
   CL_SAFE_CALL(clGetDeviceInfo(device_list,
                                CL_DEVICE_PROFILING_TIMER_RESOLUTION,
@@ -667,7 +628,7 @@ void UCL_Device::add_properties(cl_device_id device_list) {
   size_t ext_str_size_ret;
   CL_SAFE_CALL(clGetDeviceInfo(device_list, CL_DEVICE_EXTENSIONS, 0, nullptr,
                                &ext_str_size_ret));
-  char *buffer2 = new char[ext_str_size_ret];
+  char buffer2[ext_str_size_ret];
   CL_SAFE_CALL(clGetDeviceInfo(device_list, CL_DEVICE_EXTENSIONS,
                                ext_str_size_ret, buffer2, nullptr));
   #if defined(CL_VERSION_2_1) || defined(CL_VERSION_3_0)
@@ -698,9 +659,7 @@ void UCL_Device::add_properties(cl_device_id device_list) {
     if (arch >= 3.0)
       op.has_shuffle_support=true;
   }
-  delete[] buffer2;
   #endif
-  op.shared_main_memory=_shared_mem_device(device_list);
 
   _properties.push_back(op);
 }
@@ -870,11 +829,11 @@ int UCL_Device::auto_set_platform(const enum UCL_DEVICE_TYPE type,
 
   bool vendor_match=false;
   bool type_match=false;
-  unsigned int max_cus=0;
+  int max_cus=0;
   int best_platform=0;
 
   std::string vendor_upper=vendor;
-  for (size_t i=0; i<vendor.length(); i++)
+  for (int i=0; i<vendor.length(); i++)
     if (vendor_upper[i]<='z' && vendor_upper[i]>='a')
       vendor_upper[i]=toupper(vendor_upper[i]);
 
@@ -892,7 +851,7 @@ int UCL_Device::auto_set_platform(const enum UCL_DEVICE_TYPE type,
 
     if (vendor_upper!="") {
       std::string pname = platform_name();
-      for (size_t i=0; i<pname.length(); i++)
+      for (int i=0; i<pname.length(); i++)
         if (pname[i]<='z' && pname[i]>='a')
           pname[i]=toupper(pname[i]);
 

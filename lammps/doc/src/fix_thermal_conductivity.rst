@@ -6,7 +6,7 @@ fix thermal/conductivity command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID thermal/conductivity N edim Nbin keyword value ...
 

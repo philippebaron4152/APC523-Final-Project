@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -36,13 +36,13 @@ namespace LAMMPS_NS {
 class PairDRIP : public Pair {
  public:
   PairDRIP(class LAMMPS *);
-  ~PairDRIP() override;
+  virtual ~PairDRIP();
 
-  void compute(int, int) override;
-  void settings(int, char **) override;
-  void coeff(int, char **) override;
-  double init_one(int, int) override;
-  void init_style() override;
+  virtual void compute(int, int);
+  void settings(int, char **);
+  void coeff(int, char **);
+  double init_one(int, int);
+  void init_style();
 
   static constexpr int NPARAMS_PER_LINE = 15;
   typedef double V3[3];
@@ -95,3 +95,27 @@ class PairDRIP : public Pair {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal ... command
+
+Self-explanatory.  Check the input script syntax and compare to the
+documentation for the command.  You can use -echo screen as a
+command-line option when running LAMMPS to see the offending line.
+
+E: Incorrect args for pair coefficients
+
+Self-explanatory.  Check the input script or data file.
+
+E: All pair coeffs are not set
+
+All pair coefficients must be set in the data file or by the
+pair_coeff command before running a simulation.
+
+E: No enough neighbors to construct normal
+
+Cannot find three neighbors within cutoff of the target atom.
+Check the configuration.
+
+*/

@@ -34,7 +34,7 @@ BornCoulWolfT::BornCoulWolf() : BaseCharge<numtyp,acctyp>(),
 }
 
 template <class numtyp, class acctyp>
-BornCoulWolfT::~BornCoulWolf() {
+BornCoulWolfT::~BornCoulWolfT() {
   clear();
 }
 

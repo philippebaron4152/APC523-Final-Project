@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -17,18 +17,16 @@
    modified velocity-Verlet (MVV) algorithm.
    Setting verlet = 0.5 recovers the standard velocity-Verlet algorithm.
 
-   Contributing author: Zhen Li (Clemson University)
-   Email: zli7@clemson.edu
+   Contributing author: Zhen Li (Brown University)
+   Email: zhen_li@brown.edu
 ------------------------------------------------------------------------- */
 
 #include "fix_mvv_dpd.h"
-
+#include <cstring>
 #include "atom.h"
-#include "error.h"
 #include "force.h"
 #include "update.h"
-
-#include <cstring>
+#include "error.h"
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -63,17 +61,7 @@ int FixMvvDPD::setmask()
 void FixMvvDPD::init()
 {
   if (!atom->vest_flag)
-    error->all(FLERR,"Fix mvv/dpd requires atom attribute vest e.g. from atom style mdpd");
-
-  if (!force->pair_match("^mdpd",0) && !force->pair_match("^dpd",0)) {
-    if (force->pair_match("^hybrid",0)) {
-      if (!(force->pair_match("^mdpd",0,1) || force->pair_match("^dpd",0),1)) {
-        error->all(FLERR, "Must use a dpd or mdpd pair style with fix mvv/dpd");
-      }
-    } else {
-      error->all(FLERR, "Must use a dpd or mdpd pair style with fix mvv/dpd");
-    }
-  }
+    error->all(FLERR,"Fix mvv/dpd requires atom attribute vest");
 
   dtv = update->dt;
   dtf = 0.5 * update->dt * force->ftm2v;

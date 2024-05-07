@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -32,21 +32,21 @@
 
 ------------------------------------------------------------------------- */
 
-#include "fix_nvt_manifold_rattle.h"
 
+#include "fix_nvt_manifold_rattle.h"
+#include <cstring>
+#include <cmath>
 #include "atom.h"
-#include "citeme.h"
-#include "compute.h"
-#include "error.h"
 #include "force.h"
-#include "group.h"
-#include "modify.h"
 #include "update.h"
+#include "error.h"
+#include "group.h"
+#include "citeme.h"
+#include "modify.h"
+#include "compute.h"
 
 #include "manifold.h"
 
-#include <cmath>
-#include <cstring>
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -59,7 +59,7 @@ enum {NOBIAS,BIAS};
 
 
 static const char* cite_fix_nvt_manifold_rattle =
-  "fix nvt/manifold/rattle command: doi:10.1016/j.bpj.2016.02.017\n\n"
+  "fix nvt/manifold/rattle command:\n\n"
   "@article{paquay-2016,\n"
   "   author        = {Paquay, Stefan and Kusters, Remy},\n"
   "   doi           = {10.1016/j.bpj.2016.02.017},\n"
@@ -115,7 +115,9 @@ FixNVTManifoldRattle::FixNVTManifoldRattle(LAMMPS *lmp, int narg, char **arg,
       mtchain = utils::inumeric(FLERR, arg[argi+1],false,lmp);
       argi += 2;
     } else if (error_on_unknown_keyword) {
-      error->all(FLERR, "Error parsing arg \"{}\".\n", arg[argi]);
+      char msg[2048];
+      sprintf(msg,"Error parsing arg \"%s\".\n", arg[argi]);
+      error->all(FLERR, msg);
     } else {
       argi += 1;
     }
@@ -159,13 +161,13 @@ FixNVTManifoldRattle::FixNVTManifoldRattle(LAMMPS *lmp, int narg, char **arg,
 FixNVTManifoldRattle::~FixNVTManifoldRattle()
 {
   // Deallocate heap-allocated objects.
-  delete[] eta;
-  delete[] eta_dot;
-  delete[] eta_dotdot;
-  delete[] eta_mass;
+  if (eta)        delete[] eta;
+  if (eta_dot)    delete[] eta_dot;
+  if (eta_dotdot) delete[] eta_dotdot;
+  if (eta_mass)   delete[] eta_mass;
 
   modify->delete_compute(id_temp);
-  delete[] id_temp;
+  if (id_temp)    delete[] id_temp;
 }
 
 int FixNVTManifoldRattle::setmask()
@@ -269,8 +271,12 @@ void FixNVTManifoldRattle::nhc_temp_integrate()
 
   factor_eta = exp(-dthalf*eta_dot[0]);
 
-  if (factor_eta == 0)
-    error->all(FLERR, "factor_eta is 0! dthalf = {}, eta_dot[0] = {}", dthalf, eta_dot[0]);
+  if (factor_eta == 0) {
+    char msg[2048];
+    sprintf(msg, "WTF, factor_eta is 0! dthalf = %f, eta_dot[0] = %f",
+            dthalf, eta_dot[0]);
+    error->all(FLERR,msg);
+  }
 
   nh_v_temp();
 

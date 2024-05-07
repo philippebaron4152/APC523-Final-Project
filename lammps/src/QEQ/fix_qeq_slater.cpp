@@ -1,7 +1,8 @@
+// clang-format off
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,11 +22,14 @@
 #include "comm.h"
 #include "error.h"
 #include "force.h"
+#include "group.h"
 #include "kspace.h"
 #include "math_const.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "neighbor.h"
 #include "pair.h"
+#include "respa.h"
 #include "update.h"
 
 #include <cmath>
@@ -37,23 +41,25 @@ using namespace FixConst;
 
 /* ---------------------------------------------------------------------- */
 
-FixQEqSlater::FixQEqSlater(LAMMPS *lmp, int narg, char **arg) : FixQEq(lmp, narg, arg)
+FixQEqSlater::FixQEqSlater(LAMMPS *lmp, int narg, char **arg) :
+  FixQEq(lmp, narg, arg)
 {
   alpha = 0.20;
 
   // optional arg
   int iarg = 8;
   while (iarg < narg) {
-    if (strcmp(arg[iarg], "alpha") == 0) {
-      if (iarg + 2 > narg) utils::missing_cmd_args(FLERR, "fix qeq/slater alpha", error);
-      alpha = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
+    if (strcmp(arg[iarg],"alpha") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal fix qeq/slater command");
+      alpha = atof(arg[iarg+1]);
       iarg += 2;
-    } else if (strcmp(arg[iarg], "warn") == 0) {
-      if (iarg + 2 > narg) utils::missing_cmd_args(FLERR, "fix qeq/slater warn", error);
-      maxwarn = utils::logical(FLERR, arg[iarg + 1], false, lmp);
+    } else if (strcmp(arg[iarg],"warn") == 0) {
+      if (iarg+2 > narg) error->all(FLERR,"Illegal fix qeq/slater command");
+      if (strcmp(arg[iarg+1],"no") == 0) maxwarn = 0;
+      else if (strcmp(arg[iarg+1],"yes") == 0) maxwarn = 1;
+      else error->all(FLERR,"Illegal fix qeq/slater command");
       iarg += 2;
-    } else
-      error->all(FLERR, "Unknown fix qeq/slater keyword: {}", arg[iarg]);
+    } else error->all(FLERR,"Illegal fix qeq/slater command");
   }
 
   if (streitz_flag) extract_streitz();
@@ -63,33 +69,47 @@ FixQEqSlater::FixQEqSlater(LAMMPS *lmp, int narg, char **arg) : FixQEq(lmp, narg
 
 void FixQEqSlater::init()
 {
-  FixQEq::init();
+  if (!atom->q_flag)
+    error->all(FLERR,"Fix qeq/slater requires atom attribute q");
 
-  neighbor->add_request(this, NeighConst::REQ_FULL);
+  ngroup = group->count(igroup);
+  if (ngroup == 0) error->all(FLERR,"Fix qeq/slater group has no atoms");
+
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->pair = 0;
+  neighbor->requests[irequest]->fix  = 1;
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
 
   int ntypes = atom->ntypes;
   for (int i = 1; i <= ntypes; i++) {
-    if (zeta[i] == 0.0) error->all(FLERR, "Invalid parameter file values for fix qeq/slater");
+    if (zeta[i] == 0.0)
+      error->all(FLERR,"Invalid param file for fix qeq/slater");
   }
+
+  if (utils::strmatch(update->integrate_style,"^respa"))
+    nlevels_respa = ((Respa *) update->integrate)->nlevels;
 }
 
 /* ---------------------------------------------------------------------- */
 
 void FixQEqSlater::extract_streitz()
 {
-  Pair *pair = force->pair_match("coul/streitz", 1);
-  if (pair == nullptr) error->all(FLERR, "No pair style coul/streitz for fix qeq/slater");
+  Pair *pair = force->pair_match("coul/streitz",1);
+  if (pair == nullptr) error->all(FLERR,"No pair coul/streitz for fix qeq/slater");
   int tmp;
-  chi = (double *) pair->extract("chi", tmp);
-  eta = (double *) pair->extract("eta", tmp);
-  gamma = (double *) pair->extract("gamma", tmp);
-  zeta = (double *) pair->extract("zeta", tmp);
-  zcore = (double *) pair->extract("zcore", tmp);
-  if (chi == nullptr || eta == nullptr || gamma == nullptr || zeta == nullptr || zcore == nullptr)
-    error->all(FLERR, "Fix qeq/slater could not extract parameters from pair coul/streitz");
+  chi = (double *) pair->extract("chi",tmp);
+  eta = (double *) pair->extract("eta",tmp);
+  gamma = (double *) pair->extract("gamma",tmp);
+  zeta = (double *) pair->extract("zeta",tmp);
+  zcore = (double *) pair->extract("zcore",tmp);
+  if (chi == nullptr || eta == nullptr || gamma == nullptr
+                  || zeta == nullptr || zcore == nullptr)
+    error->all(FLERR,
+        "Fix qeq/slater could not extract params from pair coul/streitz");
+
 }
 
-// clang-format off
 /* ---------------------------------------------------------------------- */
 
 void FixQEqSlater::pre_force(int /*vflag*/)
@@ -137,9 +157,9 @@ void FixQEqSlater::init_matvec()
   }
 
   pack_flag = 2;
-  comm->forward_comm(this); //Dist_vector(s);
+  comm->forward_comm_fix(this); //Dist_vector(s);
   pack_flag = 3;
-  comm->forward_comm(this); //Dist_vector(t);
+  comm->forward_comm_fix(this); //Dist_vector(t);
 }
 
 /* ---------------------------------------------------------------------- */

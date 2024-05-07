@@ -6,7 +6,7 @@ neb/spin command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    neb/spin etol ttol N1 N2 Nevery file-style arg keyword
 

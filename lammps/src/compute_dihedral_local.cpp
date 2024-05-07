@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -30,9 +30,10 @@
 using namespace LAMMPS_NS;
 using namespace MathConst;
 
-static constexpr int DELTA = 10000;
+#define DELTA 10000
+#define SMALL 0.001
 
-enum { PHI, VARIABLE };
+enum{PHI,VARIABLE};
 
 /* ---------------------------------------------------------------------- */
 
@@ -191,7 +192,7 @@ void ComputeDihedralLocal::compute_local()
 
 int ComputeDihedralLocal::compute_dihedrals(int flag)
 {
-  int i,m,nd,atom1,atom2,atom3,atom4,imol,iatom,ivar;
+  int i,m,n,nd,atom1,atom2,atom3,atom4,imol,iatom,ivar;
   tagint tagprev;
   double vb1x,vb1y,vb1z,vb2x,vb2y,vb2z,vb3x,vb3y,vb3z,vb2xm,vb2ym,vb2zm;
   double ax,ay,az,bx,by,bz,rasq,rbsq,rgsq,rg,ra2inv,rb2inv,rabinv;
@@ -216,7 +217,7 @@ int ComputeDihedralLocal::compute_dihedrals(int flag)
 
   // loop over all atoms and their dihedrals
 
-  m = 0;
+  m = n = 0;
   for (atom2 = 0; atom2 < nlocal; atom2++) {
     if (!(mask[atom2] & groupbit)) continue;
 
@@ -305,7 +306,7 @@ int ComputeDihedralLocal::compute_dihedrals(int flag)
         if (pstr) input->variable->internal_set(pvar,phi);
       }
 
-      for (int n = 0; n < nvalues; n++) {
+      for (n = 0; n < nvalues; n++) {
         switch (bstyle[n]) {
         case PHI:
           ptr[n] = 180.0*phi/MY_PI;

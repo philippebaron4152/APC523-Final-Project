@@ -6,7 +6,7 @@ fix_modify AtC boundary_dynamics command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> boundary_dynamics <on|damped_harmonic|prescribed|coupled|none>
 

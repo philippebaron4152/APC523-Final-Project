@@ -6,7 +6,7 @@ fix_modify AtC decomposition command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> decomposition <type>
 

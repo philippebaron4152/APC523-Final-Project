@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,12 +21,12 @@ namespace LAMMPS_NS {
 class MLIAPModelLinear : public MLIAPModelSimple {
  public:
   MLIAPModelLinear(LAMMPS *, char * = nullptr);
-
-  int get_nparams() override;
-  int get_gamma_nnz(class MLIAPData *) override;
-  void compute_gradients(class MLIAPData *) override;
-  void compute_gradgrads(class MLIAPData *) override;
-  void compute_force_gradients(class MLIAPData *) override;
+  ~MLIAPModelLinear();
+  virtual int get_nparams();
+  virtual int get_gamma_nnz(class MLIAPData *);
+  virtual void compute_gradients(class MLIAPData *);
+  virtual void compute_gradgrads(class MLIAPData *);
+  virtual void compute_force_gradients(class MLIAPData *);
 
  protected:
 };

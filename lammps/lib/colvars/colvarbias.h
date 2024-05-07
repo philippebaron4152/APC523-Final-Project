@@ -14,7 +14,6 @@
 #include "colvarparse.h"
 #include "colvardeps.h"
 
-class colvar_grid_scalar;
 
 /// \brief Collective variable bias, base class
 class colvarbias
@@ -30,7 +29,7 @@ public:
   /// Keyword used in state files (== bias_type most of the time)
   std::string state_keyword;
 
-  /// Track how many times a bias of this type was defined
+  /// If there is more than one bias of this type, record its rank
   int rank;
 
   /// Add a new collective variable to this bias
@@ -73,7 +72,7 @@ public:
   virtual int calc_forces(std::vector<colvarvalue> const *values);
 
   /// Send forces to the collective variables
-  int communicate_forces();
+  void communicate_forces();
 
   /// Carry out operations needed before next step is run
   virtual int end_of_step();
@@ -257,10 +256,6 @@ protected:
   /// Flag used to tell if the state string being read is for this bias
   bool matching_state;
 
-  /// \brief The biasing forces will be scaled by the factor in this grid
-  /// if b_bias_force_scaled is true
-  colvar_grid_scalar*      biasing_force_scaling_factors;
-  std::vector<int>         biasing_force_scaling_factors_bin;
 };
 
 

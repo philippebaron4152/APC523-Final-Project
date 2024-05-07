@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -20,11 +20,12 @@
 #include "memory.h"
 #include "neighbor.h"
 
+#include <cctype>
 #include <cstring>
 
 using namespace LAMMPS_NS;
 
-static constexpr int EXTRA = 1000;
+#define EXTRA 1000
 
 /* ---------------------------------------------------------------------- */
 
@@ -159,11 +160,11 @@ void DihedralHybrid::compute(int eflag, int vflag)
 void DihedralHybrid::allocate()
 {
   allocated = 1;
-  int np1 = atom->ndihedraltypes + 1;
+  int n = atom->ndihedraltypes;
 
-  memory->create(map, np1, "dihedral:map");
-  memory->create(setflag, np1, "dihedral:setflag");
-  for (int i = 1; i < np1; i++) setflag[i] = 0;
+  memory->create(map, n + 1, "dihedral:map");
+  memory->create(setflag, n + 1, "dihedral:setflag");
+  for (int i = 1; i <= n; i++) setflag[i] = 0;
 
   ndihedrallist = new int[nstyles];
   maxdihedral = new int[nstyles];
@@ -178,9 +179,9 @@ void DihedralHybrid::allocate()
 
 void DihedralHybrid::settings(int narg, char **arg)
 {
-  int i, m;
+  int i, m, istyle;
 
-  if (narg < 1) utils::missing_cmd_args(FLERR, "dihedral_style hybrid", error);
+  if (narg < 1) error->all(FLERR, "Illegal dihedral_style command");
 
   // delete old lists, since cannot just change settings
 
@@ -201,42 +202,52 @@ void DihedralHybrid::settings(int narg, char **arg)
   }
   allocated = 0;
 
+  // count sub-styles by skipping numeric args
+  // one exception is 1st arg of style "table", which is non-numeric word
+  // need a better way to skip these exceptions
+
+  nstyles = 0;
+  i = 0;
+  while (i < narg) {
+    if (strcmp(arg[i], "table") == 0) i++;
+    i++;
+    while (i < narg && !isalpha(arg[i][0])) i++;
+    nstyles++;
+  }
+
   // allocate list of sub-styles
 
-  styles = new Dihedral *[narg];
-  keywords = new char *[narg];
+  styles = new Dihedral *[nstyles];
+  keywords = new char *[nstyles];
 
   // allocate each sub-style and call its settings() with subset of args
   // allocate uses suffix, but don't store suffix version in keywords,
   //   else syntax in coeff() will not match
+  // define subset of args for a sub-style by skipping numeric args
+  // one exception is 1st arg of style "table", which is non-numeric
+  // need a better way to skip these exceptions
 
   int dummy;
   nstyles = 0;
   i = 0;
+
   while (i < narg) {
-    if (strcmp(arg[i], "hybrid") == 0)
-      error->all(FLERR, "Dihedral style hybrid cannot have hybrid as an argument");
-
-    if (strcmp(arg[i], "none") == 0)
-      error->all(FLERR, "Dihedral style hybrid cannot have none as an argument");
-
     for (m = 0; m < nstyles; m++)
       if (strcmp(arg[i], keywords[m]) == 0)
         error->all(FLERR, "Dihedral style hybrid cannot use same dihedral style twice");
+    if (strcmp(arg[i], "hybrid") == 0)
+      error->all(FLERR, "Dihedral style hybrid cannot have hybrid as an argument");
+    if (strcmp(arg[i], "none") == 0)
+      error->all(FLERR, "Dihedral style hybrid cannot have none as an argument");
 
     styles[nstyles] = force->new_dihedral(arg[i], 1, dummy);
-    keywords[nstyles] = force->store_style(arg[i], 0);
+    force->store_style(keywords[nstyles], arg[i], 0);
 
-    // determine list of arguments for dihedral style settings
-    // by looking for the next known dihedral style name.
-
-    int jarg = i + 1;
-    while ((jarg < narg) && !force->dihedral_map->count(arg[jarg]) &&
-           !lmp->match_style("dihedral", arg[jarg]))
-      jarg++;
-
-    styles[nstyles]->settings(jarg - i - 1, &arg[i + 1]);
-    i = jarg;
+    istyle = i;
+    if (strcmp(arg[i], "table") == 0) i++;
+    i++;
+    while (i < narg && !isalpha(arg[i][0])) i++;
+    styles[nstyles]->settings(i - istyle - 1, &arg[istyle + 1]);
     nstyles++;
   }
 }
@@ -277,8 +288,7 @@ void DihedralHybrid::coeff(int narg, char **arg)
     else if (strcmp(arg[1], "bb13") == 0)
       error->all(FLERR, "BondBond13 coeff for hybrid dihedral has invalid format");
     else
-      error->all(FLERR, "Expected hybrid sub-style instead of {} in dihedral_coeff command",
-                 arg[1]);
+      error->all(FLERR, "Dihedral coeff for hybrid has invalid style");
   }
 
   // move 1st arg to 2nd arg
@@ -313,16 +323,6 @@ void DihedralHybrid::coeff(int narg, char **arg)
 
 void DihedralHybrid::init_style()
 {
-  // error if sub-style is not used
-
-  int used;
-  for (int istyle = 0; istyle < nstyles; ++istyle) {
-    used = 0;
-    for (int itype = 1; itype <= atom->ndihedraltypes; ++itype)
-      if (map[itype] == istyle) used = 1;
-    if (used == 0) error->all(FLERR, "Dihedral hybrid sub-style {} is not used", keywords[istyle]);
-  }
-
   for (int m = 0; m < nstyles; m++)
     if (styles[m]) styles[m]->init_style();
 }

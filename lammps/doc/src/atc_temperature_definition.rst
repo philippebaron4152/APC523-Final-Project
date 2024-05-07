@@ -6,7 +6,7 @@ fix_modify AtC temperature_definition command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> temperature_definition <kinetic|total>
 

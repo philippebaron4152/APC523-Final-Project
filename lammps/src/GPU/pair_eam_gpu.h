@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,15 +27,15 @@ namespace LAMMPS_NS {
 class PairEAMGPU : public PairEAM {
  public:
   PairEAMGPU(class LAMMPS *);
-  ~PairEAMGPU() override;
-  void compute(int, int) override;
-  void init_style() override;
-  double single(int, int, int, int, double, double, double, double &) override;
-  double memory_usage() override;
-  void *extract(const char *, int &) override { return nullptr; }
+  virtual ~PairEAMGPU();
+  void compute(int, int);
+  void init_style();
+  double single(int, int, int, int, double, double, double, double &);
+  double memory_usage();
+  void *extract(const char *, int &) { return nullptr; }
 
-  int pack_forward_comm(int, int *, double *, int, int *) override;
-  void unpack_forward_comm(int, int, double *) override;
+  int pack_forward_comm(int, int *, double *, int, int *);
+  void unpack_forward_comm(int, int, double *);
 
   enum { GPU_FORCE, GPU_NEIGH, GPU_HYB_NEIGH };
 
@@ -50,3 +50,16 @@ class PairEAMGPU : public PairEAM {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Insufficient memory on accelerator
+
+There is insufficient memory on one of the devices specified for the gpu
+package
+
+E: Cannot use newton pair with eam/gpu pair style
+
+Self-explanatory.
+
+*/

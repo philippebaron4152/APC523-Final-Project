@@ -19,7 +19,7 @@ WeakEquationPhononTemperature::WeakEquationPhononTemperature()
 //--------------------------------------------------------------
 //  Destructor
 //--------------------------------------------------------------
-WeakEquationPhononTemperature::~WeakEquationPhononTemperature()
+WeakEquationPhononTemperature::~WeakEquationPhononTemperature(void)
 {}
 //---------------------------------------------------------------------
 //   compute total energy
@@ -67,7 +67,7 @@ WeakEquationPhononTemperatureExchange::WeakEquationPhononTemperatureExchange()
 //--------------------------------------------------------------
 //  Destructor
 //---------------------------------------------------------------------
-WeakEquationPhononTemperatureExchange::~WeakEquationPhononTemperatureExchange()
+WeakEquationPhononTemperatureExchange::~WeakEquationPhononTemperatureExchange(void)
 {}
 
 //---------------------------------------------------------------------

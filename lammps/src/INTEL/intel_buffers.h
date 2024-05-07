@@ -2,7 +2,7 @@
 /* -*- c++ -*- -------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -26,6 +26,7 @@
 #include "neighbor.h"
 #include "neigh_list.h"
 #include "intel_preprocess.h"
+#include <cstring>
 
 namespace LAMMPS_NS {
 
@@ -34,7 +35,7 @@ namespace LAMMPS_NS {
 #define FORCE_T typename IntelBuffers<flt_t,acc_t>::vec3_acc_t
 
 struct IntelNeighListPtrs {
-  void *list_ptr;
+  void * list_ptr;
   int *cnumneigh;
   int *numneighhalf;
   int size;
@@ -57,7 +58,7 @@ class IntelBuffers {
   inline int get_stride(int nall) {
     int stride;
     IP_PRE_get_stride(stride, nall, sizeof(vec3_acc_t),
-                      _torque_flag);
+                         lmp->atom->torque);
     return stride;
   }
 
@@ -75,8 +76,6 @@ class IntelBuffers {
     _binpacked = binpacked;
     _neigh_list_ptrs[0].numneighhalf = atombin;
   }
-
-  inline void set_torque_flag(const int in) { _torque_flag = in; }
 
   inline void grow(const int nall, const int nlocal, const int nthreads,
                    const int offload_end) {
@@ -233,16 +232,6 @@ class IntelBuffers {
     }
   }
 
-  inline void thr_pack_q(const int ifrom, const int ito) {
-    if (lmp->atom->q != nullptr)
-      #if defined(LMP_SIMD_COMPILER)
-      #pragma vector aligned
-      #pragma ivdep
-      #endif
-      for (int i = ifrom; i < ito; i++)
-        _q[i] = lmp->atom->q[i];
-  }
-
   #ifndef _LMP_INTEL_OFFLOAD
   void fdotr_reduce_l5(const int lf, const int lt, const int nthreads,
                        const int f_stride, acc_t &ov0, acc_t &ov1,
@@ -331,7 +320,7 @@ class IntelBuffers {
   flt_t *_q;
   quat_t *_quat;
   vec3_acc_t * _f;
-  int _torque_flag, _off_threads, _off_map_listlocal;
+  int _off_threads, _off_map_listlocal;
 
   int _list_alloc_atoms;
   int *_list_alloc, *_cnumneigh, *_atombin, *_binpacked;

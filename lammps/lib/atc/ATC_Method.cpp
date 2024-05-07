@@ -1674,7 +1674,7 @@ pecified
   }
 
 //-------------------------------------------------------------------
-  void ATC_Method::set_reference_potential_energy()
+  void ATC_Method::set_reference_potential_energy(void)
   {
     if (setRefPE_) {
       if (setRefPEvalue_) {
@@ -2170,7 +2170,7 @@ pecified
 //  }
   }
   //--------------------------------------------------------
-  void ATC_Method::compute_nodeset_output()
+  void ATC_Method::compute_nodeset_output(void)
   {
     map< pair <string, FieldName>, NodesetOperationType >::const_iterator iter;
     for (iter = nsetData_.begin(); iter != nsetData_.end();iter++){
@@ -2194,7 +2194,7 @@ pecified
     }
   }
   //--------------------------------------------------------
-  void ATC_Method::compute_faceset_output()
+  void ATC_Method::compute_faceset_output(void)
   {
     map < pair<string,string>, FacesetIntegralType >::const_iterator iter;
     DENS_MAT values;
@@ -2223,7 +2223,7 @@ pecified
     }
   }
   //--------------------------------------------------------
-  void ATC_Method::compute_elementset_output()
+  void ATC_Method::compute_elementset_output(void)
   {
     map< pair <string, FieldName>, ElementsetOperationType >::const_iterator iter;
     for (iter = esetData_.begin(); iter != esetData_.end();iter++){
@@ -2379,7 +2379,7 @@ pecified
   }
 
 //--------------------------------------------------------
-  void ATC_Method::remap_ghost_ref_positions()
+  void ATC_Method::remap_ghost_ref_positions(void)
   {
 
     int nlocal = lammpsInterface_->nlocal();

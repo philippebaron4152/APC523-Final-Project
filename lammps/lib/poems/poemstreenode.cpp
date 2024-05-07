@@ -27,23 +27,23 @@ TreeNode::TreeNode (const int & item, TreeNode *lptr,TreeNode *rptr,
 
 
 // return left
-TreeNode* TreeNode::Left()
+TreeNode* TreeNode::Left(void)
 {
   return left;
 }
 
 // return right
-TreeNode* TreeNode::Right()
+TreeNode* TreeNode::Right(void)
 {
   return right;
 }
 
-int TreeNode::GetBalanceFactor()
+int TreeNode::GetBalanceFactor(void)
 {
   return balanceFactor;
 }
 
-int TreeNode::GetData()
+int TreeNode::GetData(void)
 {
   return data;
 }

@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -18,6 +18,9 @@
 #include "pack_kokkos.h"
 
 using namespace LAMMPS_NS;
+
+#define MIN(A,B) ((A) < (B) ? (A) : (B))
+#define MAX(A,B) ((A) > (B) ? (A) : (B))
 
 /* ---------------------------------------------------------------------- */
 
@@ -35,13 +38,13 @@ RemapKokkos<DeviceType>::RemapKokkos(LAMMPS *lmp, MPI_Comm comm,
              int out_klo, int out_khi,
              int nqty, int permute, int memory,
              int precision, int usecollective,
-             int usegpu_aware) : Pointers(lmp)
+             int usecuda_aware) : Pointers(lmp)
 {
   plan = remap_3d_create_plan_kokkos(comm,
                               in_ilo,in_ihi,in_jlo,in_jhi,in_klo,in_khi,
                               out_ilo,out_ihi,out_jlo,out_jhi,out_klo,out_khi,
                               nqty,permute,memory,precision,usecollective,
-                              usegpu_aware);
+                              usecuda_aware);
   if (plan == nullptr) error->one(FLERR,"Could not create 3d remap plan");
 }
 
@@ -118,7 +121,7 @@ void RemapKokkos<DeviceType>::remap_3d_kokkos(typename FFT_AT::t_FFT_SCALAR_1d d
   // post all recvs into scratch space
 
   FFT_SCALAR* v_scratch = d_scratch.data();
-  if (!plan->usegpu_aware) {
+  if (!plan->usecuda_aware) {
     plan->h_scratch = Kokkos::create_mirror_view(d_scratch);
     v_scratch = plan->h_scratch.data();
   }
@@ -131,7 +134,7 @@ void RemapKokkos<DeviceType>::remap_3d_kokkos(typename FFT_AT::t_FFT_SCALAR_1d d
   }
 
   FFT_SCALAR* v_sendbuf = plan->d_sendbuf.data();
-  if (!plan->usegpu_aware) {
+  if (!plan->usecuda_aware) {
     plan->h_sendbuf = Kokkos::create_mirror_view(plan->d_sendbuf);
     v_sendbuf = plan->h_sendbuf.data();
   }
@@ -143,7 +146,7 @@ void RemapKokkos<DeviceType>::remap_3d_kokkos(typename FFT_AT::t_FFT_SCALAR_1d d
     plan->pack(d_in,in_offset,
                plan->d_sendbuf,0,&plan->packplan[isend]);
 
-    if (!plan->usegpu_aware)
+    if (!plan->usecuda_aware)
       Kokkos::deep_copy(plan->h_sendbuf,plan->d_sendbuf);
 
     MPI_Send(v_sendbuf,plan->send_size[isend],MPI_FFT_SCALAR,
@@ -175,7 +178,7 @@ void RemapKokkos<DeviceType>::remap_3d_kokkos(typename FFT_AT::t_FFT_SCALAR_1d d
     int scratch_offset = plan->recv_bufloc[irecv];
     int out_offset = plan->recv_offset[irecv];
 
-    if (!plan->usegpu_aware)
+    if (!plan->usecuda_aware)
       Kokkos::deep_copy(d_scratch,plan->h_scratch);
 
     plan->unpack(d_scratch,scratch_offset,
@@ -206,7 +209,7 @@ void RemapKokkos<DeviceType>::remap_3d_kokkos(typename FFT_AT::t_FFT_SCALAR_1d d
                           1 = single precision (4 bytes per datum)
                           2 = double precision (8 bytes per datum)
    usecollective        whether to use collective MPI or point-to-point
-   usegpu_aware         whether to use GPU-Aware MPI or not
+   usecuda_aware        whether to use CUDA-Aware MPI or not
 ------------------------------------------------------------------------- */
 
 template<class DeviceType>
@@ -217,7 +220,7 @@ struct remap_plan_3d_kokkos<DeviceType>* RemapKokkos<DeviceType>::remap_3d_creat
   int out_ilo, int out_ihi, int out_jlo, int out_jhi,
   int out_klo, int out_khi,
   int nqty, int permute, int memory, int /*precision*/,
-  int usecollective, int usegpu_aware)
+  int usecollective, int usecuda_aware)
 {
 
   struct remap_plan_3d_kokkos<DeviceType> *plan;
@@ -235,7 +238,7 @@ struct remap_plan_3d_kokkos<DeviceType>* RemapKokkos<DeviceType>::remap_3d_creat
   plan = new struct remap_plan_3d_kokkos<DeviceType>;
   if (plan == nullptr) return nullptr;
   plan->usecollective = usecollective;
-  plan->usegpu_aware = usegpu_aware;
+  plan->usecuda_aware = usecuda_aware;
 
   // store parameters in local data structs
 

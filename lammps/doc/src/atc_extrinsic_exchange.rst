@@ -6,7 +6,7 @@ fix_modify AtC extrinsic exchange command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> extrinsic exchange <on|off>
 

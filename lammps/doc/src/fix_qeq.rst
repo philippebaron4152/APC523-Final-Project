@@ -22,7 +22,7 @@ fix qeq/fire command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID style Nevery cutoff tolerance maxiter qfile keyword ...
 
@@ -201,11 +201,9 @@ larger sizes, and *qeq/fire* is faster than *qeq/dynamic*\ .
 
 .. note::
 
-   In order to solve the self-consistent equations for electronegativity
-   equalization, LAMMPS imposes the additional constraint that all the
-   charges in the fix group must add up to zero.  The initial charge
-   assignments should also satisfy this constraint.  LAMMPS will print a
-   warning if that is not the case.
+   To avoid the evaluation of the derivative of charge with respect
+   to position, which is typically ill-defined, the system should have a
+   zero net charge.
 
 .. note::
 
@@ -232,8 +230,7 @@ These fixes are part of the QEQ package.  They are only enabled if
 LAMMPS was built with that package.  See the :doc:`Build package
 <Build_package>` page for more info.
 
-These qeq fixes will ignore electric field contributions from
-:doc:`fix efield <fix_efield>`.
+The qeq fixes are not compatible with the GPU and USER-INTEL packages.
 
 Related commands
 """"""""""""""""

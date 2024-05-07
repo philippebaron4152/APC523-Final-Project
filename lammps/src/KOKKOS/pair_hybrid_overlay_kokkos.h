@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -28,10 +28,8 @@ namespace LAMMPS_NS {
 class PairHybridOverlayKokkos : public PairHybridKokkos {
  public:
   PairHybridOverlayKokkos(class LAMMPS *);
-  void coeff(int, char **) override;
-
-  void init_svector() override;
-  void copy_svector(int, int) override;
+  virtual ~PairHybridOverlayKokkos() {}
+  void coeff(int, char **);
 };
 
 }
@@ -39,3 +37,14 @@ class PairHybridOverlayKokkos : public PairHybridKokkos {
 #endif
 #endif
 
+/* ERROR/WARNING messages:
+
+E: Incorrect args for pair coefficients
+
+Self-explanatory.  Check the input script or data file.
+
+E: Pair coeff for hybrid has invalid style
+
+Style in pair coeff must have been listed in pair_style command.
+
+*/

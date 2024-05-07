@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -35,6 +35,7 @@
 #include "update.h"
 
 #include <cmath>
+#include <cstring>
 
 using namespace LAMMPS_NS;
 
@@ -51,10 +52,10 @@ TemperNPT::~TemperNPT()
   MPI_Comm_free(&roots);
   if (ranswap) delete ranswap;
   delete ranboltz;
-  delete[] set_temp;
-  delete[] temp2world;
-  delete[] world2temp;
-  delete[] world2root;
+  delete [] set_temp;
+  delete [] temp2world;
+  delete [] world2temp;
+  delete [] world2root;
 }
 
 /* ----------------------------------------------------------------------
@@ -64,10 +65,11 @@ TemperNPT::~TemperNPT()
 void TemperNPT::command(int narg, char **arg)
 {
   if (universe->nworlds == 1)
-    error->universe_all(FLERR,"More than one processor partition required for temper/npt command");
+    error->all(FLERR,"Must have more than one processor partition to temper");
   if (domain->box_exist == 0)
-    error->universe_all(FLERR,"Temper/npt command before simulation box is defined");
-  if (narg != 7 && narg != 8) error->universe_all(FLERR,"Illegal temper/npt command");
+    error->all(FLERR,"temper/npt command before simulation box is defined");
+  if (narg != 7 && narg != 8)
+    error->universe_all(FLERR,"Illegal temper/npt command");
 
   int nsteps = utils::inumeric(FLERR,arg[0],false,lmp);
   nevery = utils::inumeric(FLERR,arg[1],false,lmp);
@@ -78,17 +80,16 @@ void TemperNPT::command(int narg, char **arg)
 
   if (timer->is_timeout()) return;
 
-  whichfix = modify->get_fix_by_id(arg[3]);
-  if (!whichfix)
-    error->universe_all(FLERR,fmt::format("Tempering fix ID {} is not defined", arg[3]));
+  for (whichfix = 0; whichfix < modify->nfix; whichfix++)
+    if (strcmp(arg[3],modify->fix[whichfix]->id) == 0) break;
+  if (whichfix == modify->nfix)
+    error->universe_all(FLERR,"Tempering fix ID is not defined");
 
   seed_swap = utils::inumeric(FLERR,arg[4],false,lmp);
   seed_boltz = utils::inumeric(FLERR,arg[5],false,lmp);
 
   my_set_temp = universe->iworld;
-  if (narg == 8) my_set_temp = utils::inumeric(FLERR,arg[7],false,lmp);
-  if ((my_set_temp < 0) || (my_set_temp >= universe->nworlds))
-    error->universe_one(FLERR,"Invalid temperature index value");
+  if (narg == 8) my_set_temp = utils::inumeric(FLERR,arg[6],false,lmp);
 
   // swap frequency must evenly divide total # of timesteps
 
@@ -103,8 +104,8 @@ void TemperNPT::command(int narg, char **arg)
   // change the volume. This currently only applies to fix npt and
   // fix rigid/npt variants
 
-  if ( (!utils::strmatch(whichfix->style,"^npt")) &&
-       (!utils::strmatch(whichfix->style,"^rigid/npt")) )
+  if ( (!utils::strmatch(modify->fix[whichfix]->style,"^npt")) &&
+       (!utils::strmatch(modify->fix[whichfix]->style,"^rigid/npt")) )
     error->universe_all(FLERR,"Tempering temperature and pressure fix is not supported");
 
   // setup for long tempering run
@@ -115,7 +116,8 @@ void TemperNPT::command(int narg, char **arg)
   update->nsteps = nsteps;
   update->beginstep = update->firststep = update->ntimestep;
   update->endstep = update->laststep = update->firststep + nsteps;
-  if (update->laststep < 0) error->all(FLERR,"Too many timesteps");
+  if (update->laststep < 0)
+    error->all(FLERR,"Too many timesteps");
 
   lmp->init();
 
@@ -131,9 +133,9 @@ void TemperNPT::command(int narg, char **arg)
   // pe_compute = ptr to thermo_pe compute
   // notify compute it will be called at first swap
 
-  Compute *pe_compute = modify->get_compute_by_id("thermo_pe");
-  if (!pe_compute) error->all(FLERR,"Tempering could not find thermo_pe compute");
-
+  int id = modify->find_compute("thermo_pe");
+  if (id < 0) error->all(FLERR,"Tempering could not find thermo_pe compute");
+  Compute *pe_compute = modify->compute[id];
   pe_compute->addstep(update->ntimestep + nevery);
 
   // create MPI communicator for root proc from each world
@@ -182,7 +184,7 @@ void TemperNPT::command(int narg, char **arg)
 
   if (narg == 8) {
     double new_temp = set_temp[my_set_temp];
-    whichfix->reset_target(new_temp);
+    modify->fix[whichfix]->reset_target(new_temp);
   }
 
   // setup tempering runs
@@ -277,23 +279,22 @@ void TemperNPT::command(int narg, char **arg)
 
     swap = 0;
     if (partner != -1) {
-      if (me_universe > partner)
+      if (me_universe > partner) {
         MPI_Send(&pe,1,MPI_DOUBLE,partner,0,universe->uworld);
-      else
+        }
+      else {
         MPI_Recv(&pe_partner,1,MPI_DOUBLE,partner,0,universe->uworld,MPI_STATUS_IGNORE);
-
-      if (me_universe > partner)
+        }
+      if (me_universe > partner) {
         MPI_Send(&vol,1, MPI_DOUBLE,partner,0,universe->uworld);
-      else
+        }
+      else {
         MPI_Recv(&vol_partner,1,MPI_DOUBLE,partner,0,universe->uworld,MPI_STATUS_IGNORE);
-
-    // Acceptance criteria changed versus temper command for NPT ensemble
+        }
+    // Acceptance criteria changed for NPT ensemble
       if (me_universe < partner) {
         press_units = press_set/nktv2p;
-        delr = (pe_partner - pe)*(1.0/(boltz*set_temp[my_set_temp])
-                                  - 1.0/(boltz*set_temp[partner_set_temp]))
-          + press_units*(1.0/(boltz*set_temp[my_set_temp])
-                         - 1.0/(boltz*set_temp[partner_set_temp]))*(vol_partner - vol);
+        delr = (pe_partner - pe)*(1.0/(boltz*set_temp[my_set_temp]) - 1.0/(boltz*set_temp[partner_set_temp])) + press_units*(1.0/(boltz*set_temp[my_set_temp]) - 1.0/(boltz*set_temp[partner_set_temp]))*(vol_partner - vol);
         boltz_factor = -delr;
         if (boltz_factor >= 0.0) swap = 1;
         else if (ranboltz->uniform() < exp(boltz_factor)) swap = 1;
@@ -303,13 +304,13 @@ void TemperNPT::command(int narg, char **arg)
         MPI_Send(&swap,1,MPI_INT,partner,0,universe->uworld);
       else
         MPI_Recv(&swap,1,MPI_INT,partner,0,universe->uworld,MPI_STATUS_IGNORE);
-
-#if TEMPER_DEBUG
+#ifdef TEMPER_DEBUG
       if (me_universe < partner)
         fprintf(universe->uscreen,"SWAP %d & %d: yes = %d,Ts = %d %d, PEs = %g %g, Bz = %g %g, vol = %g %g\n",
                me_universe,partner,swap,my_set_temp,partner_set_temp,
                pe,pe_partner,boltz_factor,exp(boltz_factor), vol, vol_partner);
 #endif
+
     }
 
     // bcast swap result to other procs in my world
@@ -324,7 +325,7 @@ void TemperNPT::command(int narg, char **arg)
 
     if (swap) {
       new_temp = set_temp[partner_set_temp];
-      whichfix->reset_target(new_temp);
+      modify->fix[whichfix]->reset_target(new_temp);
     }
 
     // update my_set_temp and temp2world on every proc
@@ -380,15 +381,17 @@ void TemperNPT::scale_velocities(int t_partner, int t_me)
 
 void TemperNPT::print_status()
 {
-  std::string status = std::to_string(update->ntimestep);
-  for (int i = 0; i < nworlds; i++)
-    status += " " + std::to_string(world2temp[i]);
-
-  status += "\n";
-
-  if (universe->uscreen) fputs(status.c_str(), universe->uscreen);
+  if (universe->uscreen) {
+    fprintf(universe->uscreen,BIGINT_FORMAT,update->ntimestep);
+    for (int i = 0; i < nworlds; i++)
+      fprintf(universe->uscreen," %d",world2temp[i]);
+    fprintf(universe->uscreen,"\n");
+  }
   if (universe->ulogfile) {
-    fputs(status.c_str(), universe->ulogfile);
+    fprintf(universe->ulogfile,BIGINT_FORMAT,update->ntimestep);
+    for (int i = 0; i < nworlds; i++)
+      fprintf(universe->ulogfile," %d",world2temp[i]);
+    fprintf(universe->ulogfile,"\n");
     fflush(universe->ulogfile);
   }
 }

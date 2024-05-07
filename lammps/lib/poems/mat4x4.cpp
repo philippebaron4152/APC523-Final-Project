@@ -23,6 +23,8 @@ using namespace std;
 Mat4x4::Mat4x4(){
   numrows = numcols = 4;
 }
+Mat4x4::~Mat4x4(){
+}
 
 Mat4x4::Mat4x4(const Mat4x4& A){
   numrows = numcols = 4;

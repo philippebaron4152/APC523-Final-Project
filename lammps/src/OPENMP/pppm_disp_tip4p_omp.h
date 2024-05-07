@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -28,33 +28,33 @@ namespace LAMMPS_NS {
 class PPPMDispTIP4POMP : public PPPMDispTIP4P, public ThrOMP {
  public:
   PPPMDispTIP4POMP(class LAMMPS *);
-  ~PPPMDispTIP4POMP() override;
+  virtual ~PPPMDispTIP4POMP();
 
  protected:
-  void allocate() override;
+  virtual void allocate();
 
   virtual void compute_gf();
   virtual void compute_gf_6();
 
-  void compute(int, int) override;
+  virtual void compute(int, int);
 
-  void particle_map(double, double, double, double, int **, int, int, int, int, int, int, int,
-                    int) override;
-  void particle_map_c(double, double, double, double, int **, int, int, int, int, int, int, int,
-                      int) override;
-  void make_rho_c() override;    // XXX: not (yet) multi-threaded
-  void make_rho_g() override;
-  void make_rho_a() override;
+  virtual void particle_map(double, double, double, double, int **, int, int, int, int, int, int,
+                            int, int);
+  virtual void particle_map_c(double, double, double, double, int **, int, int, int, int, int, int,
+                              int, int);
+  virtual void make_rho_c();    // XXX: not (yet) multi-threaded
+  virtual void make_rho_g();
+  virtual void make_rho_a();
 
-  void fieldforce_c_ik() override;
-  void fieldforce_c_ad() override;
+  virtual void fieldforce_c_ik();
+  virtual void fieldforce_c_ad();
   // virtual void fieldforce_peratom();  XXX: need to benchmark first.
-  void fieldforce_g_ik() override;
-  void fieldforce_g_ad() override;
-  void fieldforce_g_peratom() override;
-  void fieldforce_a_ik() override;
-  void fieldforce_a_ad() override;
-  void fieldforce_a_peratom() override;
+  virtual void fieldforce_g_ik();
+  virtual void fieldforce_g_ad();
+  virtual void fieldforce_g_peratom();
+  virtual void fieldforce_a_ik();
+  virtual void fieldforce_a_ad();
+  virtual void fieldforce_a_peratom();
 
  private:
   void compute_rho1d_thr(FFT_SCALAR *const *const, const FFT_SCALAR &, const FFT_SCALAR &,
@@ -68,3 +68,11 @@ class PPPMDispTIP4POMP : public PPPMDispTIP4P, public ThrOMP {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Kspace style pppm/tip4p/omp requires newton on
+
+Self-explanatory.
+
+*/

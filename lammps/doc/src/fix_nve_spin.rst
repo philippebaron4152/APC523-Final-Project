@@ -6,7 +6,7 @@ fix nve/spin command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID nve/spin keyword values
 

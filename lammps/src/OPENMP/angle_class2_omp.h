@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -33,7 +33,7 @@ class AngleClass2OMP : public AngleClass2, public ThrOMP {
 
  public:
   AngleClass2OMP(class LAMMPS *lmp);
-  void compute(int, int) override;
+  virtual void compute(int, int);
 
  private:
   template <int EVFLAG, int EFLAG, int NEWTON_BOND>

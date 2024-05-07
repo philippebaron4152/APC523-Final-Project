@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -34,8 +34,8 @@ class DihedralHarmonicIntel : public DihedralHarmonic {
 
  public:
   DihedralHarmonicIntel(class LAMMPS *lmp);
-  void compute(int, int) override;
-  void init_style() override;
+  virtual void compute(int, int);
+  void init_style();
 
  private:
   FixIntel *fix;
@@ -60,15 +60,15 @@ class DihedralHarmonicIntel : public DihedralHarmonic {
       int multiplicity;
     } fc_packed1;
 
-    fc_packed1 *fc;
+    fc_packed1 *bp;
 
-    ForceConst() : fc(nullptr), _ndihderaltypes(0) {}
-    ~ForceConst() noexcept(false) { set_ntypes(0, nullptr); }
+    ForceConst() : _nbondtypes(0) {}
+    ~ForceConst() { set_ntypes(0, nullptr); }
 
-    void set_ntypes(const int ndihderaltypes, Memory *memory);
+    void set_ntypes(const int nbondtypes, Memory *memory);
 
    private:
-    int _ndihderaltypes;
+    int _nbondtypes;
     Memory *_memory;
   };
   ForceConst<float> force_const_single;

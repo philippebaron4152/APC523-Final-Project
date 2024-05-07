@@ -6,7 +6,7 @@ fix tfmc command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID tfmc Delta Temp seed keyword value
 

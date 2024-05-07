@@ -6,7 +6,7 @@ fix_modify AtC sample_frequency command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> sample_frequency <freq>
 

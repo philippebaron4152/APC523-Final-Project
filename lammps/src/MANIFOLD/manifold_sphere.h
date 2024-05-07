@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -26,14 +26,15 @@ namespace user_manifold {
     enum { NPARAMS = 1 };
     manifold_sphere(LAMMPS *lmp, int, char **) : manifold(lmp) {}
 
-    double g(const double *x) override
+    virtual ~manifold_sphere() {}
+    virtual double g(const double *x)
     {
       double R = params[0];
       double r2 = x[0] * x[0] + x[1] * x[1] + x[2] * x[2];
       return r2 - R * R;
     }
 
-    double g_and_n(const double *x, double *nn) override
+    virtual double g_and_n(const double *x, double *nn)
     {
       double R = params[0];
       double r2 = x[0] * x[0] + x[1] * x[1] + x[2] * x[2];
@@ -44,7 +45,7 @@ namespace user_manifold {
       return r2 - R * R;
     }
 
-    void n(const double *x, double *nn) override
+    virtual void n(const double *x, double *nn)
     {
       nn[0] = 2 * x[0];
       nn[1] = 2 * x[1];
@@ -58,9 +59,9 @@ namespace user_manifold {
     }
 
     static const char *type() { return "sphere"; }
-    const char *id() override { return type(); }
+    virtual const char *id() { return type(); }
     static int expected_argc() { return NPARAMS; }
-    int nparams() override { return NPARAMS; }
+    virtual int nparams() { return NPARAMS; }
   };
 }    // namespace user_manifold
 

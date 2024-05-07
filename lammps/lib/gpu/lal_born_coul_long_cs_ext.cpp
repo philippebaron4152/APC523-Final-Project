@@ -84,7 +84,7 @@ int bornclcs_gpu_init(const int ntypes, double **cutsq, double **host_rhoinv,
                             gpu_split, screen, host_cut_ljsq, host_cut_coulsq,
                             host_special_coul, qqrd2e, g_ewald);
 
-    BCLCSMF.device->serialize_init();
+    BCLCSMF.device->gpu_barrier();
     if (message)
       fprintf(screen,"Done.\n");
   }

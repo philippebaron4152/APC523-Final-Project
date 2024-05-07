@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,18 +21,31 @@ namespace LAMMPS_NS {
 class FixNHAsphereOMP : public FixNHOMP {
  public:
   FixNHAsphereOMP(class LAMMPS *, int, char **);
-
-  void init() override;
+  virtual ~FixNHAsphereOMP() {}
+  virtual void init();
 
  protected:
   double dtq;
   class AtomVecEllipsoid *avec;
 
-  void nve_v() override;
-  void nve_x() override;
-  void nh_v_temp() override;
+  virtual void nve_v();
+  virtual void nve_x();
+  virtual void nh_v_temp();
 };
 
 }    // namespace LAMMPS_NS
 
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Compute nvt/nph/npt asphere requires atom style ellipsoid
+
+Self-explanatory.
+
+E: Fix nvt/nph/npt asphere requires extended particles
+
+The shape setting for a particle in the fix group has shape = 0.0,
+which means it is a point particle.
+
+*/

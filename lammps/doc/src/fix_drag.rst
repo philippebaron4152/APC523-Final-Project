@@ -6,7 +6,7 @@ fix drag command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID drag x y z fmag delta
 

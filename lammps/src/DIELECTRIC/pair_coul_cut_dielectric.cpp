@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -19,26 +19,29 @@
 
 #include "atom.h"
 #include "atom_vec_dielectric.h"
+#include "comm.h"
 #include "error.h"
 #include "force.h"
 #include "math_const.h"
 #include "memory.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "neighbor.h"
 
 #include <cmath>
+#include <cstring>
 
 using namespace LAMMPS_NS;
-using MathConst::MY_PIS;
+using namespace MathConst;
 
-static constexpr double EPSILON = 1.0e-6;
+#define EPSILON 1e-6
 
 /* ---------------------------------------------------------------------- */
 
-PairCoulCutDielectric::PairCoulCutDielectric(LAMMPS *_lmp) : PairCoulCut(_lmp), efield(nullptr)
+PairCoulCutDielectric::PairCoulCutDielectric(LAMMPS *lmp) : PairCoulCut(lmp)
 {
+  efield = nullptr;
   nmax = 0;
-  no_virial_fdotr_compute = 1;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -54,7 +57,7 @@ void PairCoulCutDielectric::compute(int eflag, int vflag)
 {
   int i, j, ii, jj, inum, jnum, itype, jtype;
   double qtmp, etmp, xtmp, ytmp, ztmp, delx, dely, delz, ecoul;
-  double fpair_i;
+  double fpair_i, fpair_j;
   double rsq, r2inv, rinv, forcecoul, factor_coul, efield_i;
   int *ilist, *jlist, *numneigh, **firstneigh;
 
@@ -69,13 +72,15 @@ void PairCoulCutDielectric::compute(int eflag, int vflag)
 
   double **x = atom->x;
   double **f = atom->f;
-  double *q = atom->q_scaled;
+  double *q = atom->q;
   double *eps = atom->epsilon;
   double **norm = atom->mu;
   double *curvature = atom->curvature;
   double *area = atom->area;
   int *type = atom->type;
+  int nlocal = atom->nlocal;
   double *special_coul = force->special_coul;
+  int newton_pair = force->newton_pair;
   double qqrd2e = force->qqrd2e;
 
   inum = list->inum;
@@ -122,7 +127,7 @@ void PairCoulCutDielectric::compute(int eflag, int vflag)
       if (rsq < cutsq[itype][jtype] && rsq > EPSILON) {
         r2inv = 1.0 / rsq;
         rinv = sqrt(r2inv);
-        efield_i = qqrd2e * scale[itype][jtype] * q[j] * rinv;
+        efield_i = scale[itype][jtype] * q[j] * rinv;
         forcecoul = qtmp * efield_i;
 
         fpair_i = factor_coul * etmp * forcecoul * r2inv;
@@ -135,9 +140,16 @@ void PairCoulCutDielectric::compute(int eflag, int vflag)
         efield[i][1] += dely * efield_i;
         efield[i][2] += delz * efield_i;
 
+        if (newton_pair && j >= nlocal) {
+          fpair_j = factor_coul * eps[j] * forcecoul * r2inv;
+          f[j][0] -= delx * fpair_j;
+          f[j][1] -= dely * fpair_j;
+          f[j][2] -= delz * fpair_j;
+        }
+
         if (eflag) {
-          ecoul = factor_coul * qqrd2e * scale[itype][jtype] * qtmp * q[j] * 0.5 * (etmp + eps[j]) *
-              rinv;
+          ecoul = factor_coul * qqrd2e * scale[itype][jtype] * qtmp * q[j] * (etmp + eps[j]) * rinv;
+          ecoul *= 0.5;
         }
         if (evflag) ev_tally_full(i, 0.0, ecoul, fpair_i, delx, dely, delz);
       }
@@ -153,10 +165,12 @@ void PairCoulCutDielectric::compute(int eflag, int vflag)
 
 void PairCoulCutDielectric::init_style()
 {
-  avec = dynamic_cast<AtomVecDielectric *>(atom->style_match("dielectric"));
+  avec = (AtomVecDielectric *) atom->style_match("dielectric");
   if (!avec) error->all(FLERR, "Pair coul/cut/dielectric requires atom style dielectric");
 
-  neighbor->add_request(this, NeighConst::REQ_FULL);
+  int irequest = neighbor->request(this, instance_me);
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -165,11 +179,10 @@ double PairCoulCutDielectric::single(int i, int j, int /*itype*/, int /*jtype*/,
                                      double factor_coul, double /*factor_lj*/, double &fforce)
 {
   double r2inv, phicoul, ei, ej;
-  double *q = atom->q_scaled;
   double *eps = atom->epsilon;
 
   r2inv = 1.0 / rsq;
-  fforce = force->qqrd2e * q[i] * q[j] * sqrt(r2inv) * eps[i];
+  fforce = force->qqrd2e * atom->q[i] * atom->q[j] * sqrt(r2inv) * eps[i];
 
   double eng = 0.0;
   if (eps[i] == 1)
@@ -180,7 +193,7 @@ double PairCoulCutDielectric::single(int i, int j, int /*itype*/, int /*jtype*/,
     ej = 0;
   else
     ej = eps[j];
-  phicoul = force->qqrd2e * q[i] * q[j] * sqrt(r2inv);
+  phicoul = force->qqrd2e * atom->q[i] * atom->q[j] * sqrt(r2inv);
   phicoul *= 0.5 * (ei + ej);
   eng += factor_coul * phicoul;
 

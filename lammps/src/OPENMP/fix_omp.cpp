@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -25,6 +25,7 @@
 #include "error.h"
 #include "force.h"
 #include "neighbor.h"
+#include "neigh_request.h"
 #include "universe.h"
 #include "update.h"
 
@@ -98,7 +99,9 @@ FixOMP::FixOMP(LAMMPS *lmp, int narg, char **arg)
   while (iarg < narg) {
     if (strcmp(arg[iarg],"neigh") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal package omp command");
-      _neighbor = utils::logical(FLERR,arg[iarg+1],false,lmp) != 0;
+      if (strcmp(arg[iarg+1],"yes") == 0) _neighbor = true;
+      else if (strcmp(arg[iarg+1],"no") == 0) _neighbor = false;
+      else error->all(FLERR,"Illegal package omp command");
       iarg += 2;
     } else error->all(FLERR,"Illegal package omp command");
   }
@@ -129,7 +132,7 @@ FixOMP::FixOMP(LAMMPS *lmp, int narg, char **arg)
 #endif
   {
     const int tid = get_tid();
-    auto t = new Timer(lmp);
+    Timer *t = new Timer(lmp);
     thr[tid] = new ThrData(tid,t);
   }
 }
@@ -161,15 +164,12 @@ void FixOMP::init()
 {
   // OPENMP package cannot be used with atom_style template
   if (atom->molecular == Atom::TEMPLATE)
-    error->all(FLERR,"OPENMP package does not (yet) work with atom_style template");
+    error->all(FLERR,"OPENMP package does not (yet) work with "
+               "atom_style template");
 
   // adjust number of data objects when the number of OpenMP
   // threads has been changed somehow
   const int nthreads = comm->nthreads;
-#if defined(_OPENMP)
-  // make certain threads are initialized correctly. avoids segfaults with LAMMPS-GUI
-  if (nthreads != omp_get_max_threads()) omp_set_num_threads(nthreads);
-#endif
   if (_nthr != nthreads) {
     if (comm->me == 0)
       utils::logmesg(lmp,"Re-init OPENMP for {} OpenMP thread(s)\n", nthreads);
@@ -184,7 +184,7 @@ void FixOMP::init()
 #endif
     {
       const int tid = get_tid();
-      auto t = new Timer(lmp);
+      Timer *t = new Timer(lmp);
       thr[tid] = new ThrData(tid,t);
     }
   }
@@ -200,8 +200,10 @@ void FixOMP::init()
       && !utils::strmatch(update->integrate_style,"^respa/omp"))
     error->all(FLERR,"Must use respa/omp for r-RESPA with /omp styles");
 
-  _pair_compute_flag = force->pair && force->pair->compute_flag;
-  _kspace_compute_flag = force->kspace && force->kspace->compute_flag;
+  if (force->pair && force->pair->compute_flag) _pair_compute_flag = true;
+  else _pair_compute_flag = false;
+  if (force->kspace && force->kspace->compute_flag) _kspace_compute_flag = true;
+  else _kspace_compute_flag = false;
 
   int check_hybrid, kspace_split;
   last_pair_hybrid = nullptr;
@@ -215,7 +217,7 @@ void FixOMP::init()
   // kspace_split < 0  : master partition, does not do kspace
   // kspace_split > 0  : slave partition, only does kspace
 
-  if (utils::strmatch(update->integrate_style, "^verlet/split")) {
+  if (strstr(update->integrate_style,"verlet/split") != nullptr) {
     if (universe->iworld == 0) kspace_split = -1;
     else kspace_split = 1;
   } else {
@@ -277,7 +279,7 @@ void FixOMP::init()
 
 #undef CheckStyleForOMP
 #undef CheckHybridForOMP
-  neighbor->set_omp_neighbor(_neighbor ? 1 : 0);
+  set_neighbor_omp();
 
   // diagnostic output
   if (comm->me == 0) {
@@ -289,6 +291,27 @@ void FixOMP::init()
       utils::logmesg(lmp,"No /omp style for force computation currently active\n");
     }
   }
+}
+
+/* ---------------------------------------------------------------------- */
+
+void FixOMP::set_neighbor_omp()
+{
+  // select or deselect multi-threaded neighbor
+  // list build depending on setting in package omp.
+  // NOTE: since we are at the top of the list of
+  // fixes, we cannot adjust neighbor lists from
+  // other fixes. those have to be re-implemented
+  // as /omp fix styles. :-(
+
+  const int neigh_omp = _neighbor ? 1 : 0;
+  const int nrequest = neighbor->nrequest;
+
+  // flag *all* neighbor list requests as OPENMP threaded,
+  // but skip lists already flagged as INTEL threaded
+  for (int i = 0; i < nrequest; ++i)
+    if (! neighbor->requests[i]->intel)
+      neighbor->requests[i]->omp = neigh_omp;
 }
 
 /* ---------------------------------------------------------------------- */

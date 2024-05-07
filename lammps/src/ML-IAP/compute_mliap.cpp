@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -16,49 +16,45 @@
    Contributing author: Aidan Thompson (SNL)
 ------------------------------------------------------------------------- */
 
-#include "compute_mliap.h"
+#include <cstring>
 
 #include "mliap_data.h"
-#include "mliap_descriptor_snap.h"
-#include "mliap_descriptor_so3.h"
-#ifdef MLIAP_ACE
-#include "mliap_descriptor_ace.h"
-#endif
 #include "mliap_model_linear.h"
 #include "mliap_model_quadratic.h"
+#include "mliap_descriptor_snap.h"
 #ifdef MLIAP_PYTHON
 #include "mliap_model_python.h"
 #endif
 
+#include "compute_mliap.h"
 #include "atom.h"
-#include "comm.h"
-#include "error.h"
-#include "force.h"
-#include "memory.h"
+#include "update.h"
 #include "modify.h"
 #include "neighbor.h"
+#include "neigh_request.h"
+#include "force.h"
 #include "pair.h"
-#include "update.h"
-
-#include <cstring>
+#include "comm.h"
+#include "memory.h"
+#include "error.h"
 
 using namespace LAMMPS_NS;
 
-enum { SCALAR, VECTOR, ARRAY };
+enum{SCALAR,VECTOR,ARRAY};
 
 ComputeMLIAP::ComputeMLIAP(LAMMPS *lmp, int narg, char **arg) :
-    Compute(lmp, narg, arg), mliaparray(nullptr), mliaparrayall(nullptr), list(nullptr),
-    map(nullptr), model(nullptr), descriptor(nullptr), data(nullptr), c_pe(nullptr),
-    c_virial(nullptr)
+  Compute(lmp, narg, arg), mliaparray(nullptr),
+  mliaparrayall(nullptr), map(nullptr)
 {
   array_flag = 1;
   extarray = 0;
 
-  if (narg < 4) utils::missing_cmd_args(FLERR, "compute mliap", error);
+  if (narg < 4)
+    error->all(FLERR,"Illegal compute mliap command");
 
   // default values
 
-  int gradgradflag = 1;
+  gradgradflag = 1;
 
   // set flags for required keywords
 
@@ -91,27 +87,15 @@ ComputeMLIAP::ComputeMLIAP(LAMMPS *lmp, int narg, char **arg) :
       if (iarg+2 > narg) error->all(FLERR,"Illegal compute mliap command");
       if (strcmp(arg[iarg+1],"sna") == 0) {
         if (iarg+3 > narg) error->all(FLERR,"Illegal compute mliap command");
-        if (lmp->kokkos) error->all(FLERR,"Cannot (yet) use KOKKOS package with SNAP descriptors");
         descriptor = new MLIAPDescriptorSNAP(lmp,arg[iarg+2]);
         iarg += 3;
-      } else if (strcmp(arg[iarg+1],"so3") == 0) {
-        if (iarg+3 > narg) error->all(FLERR,"Illegal pair_style mliap command");
-        descriptor = new MLIAPDescriptorSO3(lmp,arg[iarg+2]);
-        iarg += 3;
-      }
-#ifdef MLIAP_ACE
-        else if (strcmp(arg[iarg+1],"ace") == 0) {
-        if (iarg+3 > narg) error->all(FLERR,"Illegal pair_style mliap command");
-        if (lmp->kokkos) error->all(FLERR,"Cannot (yet) use KOKKOS package with ACE descriptors");
-        descriptor = new MLIAPDescriptorACE(lmp,arg[iarg+2]);
-        iarg += 3;
-      }
-#endif
-       else error->all(FLERR,"Illegal compute mliap command");
+      } else error->all(FLERR,"Illegal compute mliap command");
       descriptorflag = 1;
     } else if (strcmp(arg[iarg],"gradgradflag") == 0) {
       if (iarg+1 > narg) error->all(FLERR,"Illegal compute mliap command");
-      gradgradflag = utils::logical(FLERR, arg[iarg+1], false, lmp);
+      gradgradflag = atoi(arg[iarg+1]);
+      if (gradgradflag != 0 && gradgradflag != 1)
+        error->all(FLERR,"Illegal compute mliap command");
       iarg += 2;
     } else
       error->all(FLERR,"Illegal compute mliap command");
@@ -143,6 +127,7 @@ ComputeMLIAP::ComputeMLIAP(LAMMPS *lmp, int narg, char **arg) :
 
 ComputeMLIAP::~ComputeMLIAP()
 {
+
   modify->delete_compute(id_virial);
 
   memory->destroy(mliaparray);
@@ -166,9 +151,17 @@ void ComputeMLIAP::init()
 
   // need an occasional full neighbor list
 
-  neighbor->add_request(this, NeighConst::REQ_FULL | NeighConst::REQ_OCCASIONAL);
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->pair = 0;
+  neighbor->requests[irequest]->compute = 1;
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
+  neighbor->requests[irequest]->occasional = 1;
 
-  if (modify->get_compute_by_style("mliap").size() > 1 && comm->me == 0)
+  int count = 0;
+  for (int i = 0; i < modify->ncompute; i++)
+    if (strcmp(modify->compute[i]->style,"mliap") == 0) count++;
+  if (count > 1 && comm->me == 0)
     error->warning(FLERR,"More than one compute mliap");
 
   // initialize model and descriptor
@@ -192,13 +185,23 @@ void ComputeMLIAP::init()
 
   // find compute for reference energy
 
-  c_pe = modify->get_compute_by_id("thermo_pe");
-  if (!c_pe) error->all(FLERR,"Compute thermo_pe does not exist.");
+  std::string id_pe = std::string("thermo_pe");
+  int ipe = modify->find_compute(id_pe);
+  if (ipe == -1)
+    error->all(FLERR,"compute thermo_pe does not exist.");
+  c_pe = modify->compute[ipe];
 
   // add compute for reference virial tensor
 
   id_virial = id + std::string("_press");
-  c_virial = modify->add_compute(id_virial + " all pressure NULL virial");
+  std::string pcmd = id_virial + " all pressure NULL virial";
+  modify->add_compute(pcmd);
+
+  int ivirial = modify->find_compute(id_virial);
+  if (ivirial == -1)
+    error->all(FLERR,"compute mliap_press does not exist.");
+  c_virial = modify->compute[ivirial];
+
 }
 
 
@@ -232,7 +235,7 @@ void ComputeMLIAP::compute_array()
 
   descriptor->compute_descriptors(data);
 
-  if (data->gradgradflag == 1) {
+  if (gradgradflag == 1) {
 
     // calculate double gradient w.r.t. parameters and descriptors
 
@@ -242,7 +245,7 @@ void ComputeMLIAP::compute_array()
 
     descriptor->compute_force_gradients(data);
 
-  } else if (data->gradgradflag == 0) {
+  } else if (gradgradflag == 0) {
 
     // calculate descriptor gradients
 

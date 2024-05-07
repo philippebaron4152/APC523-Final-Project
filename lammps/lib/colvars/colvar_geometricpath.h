@@ -12,8 +12,10 @@
 
 #include <vector>
 #include <cmath>
+#include <iostream>
 #include <algorithm>
 #include <string>
+#include <map>
 
 namespace GeometricPathCV {
 

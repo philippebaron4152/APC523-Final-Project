@@ -6,7 +6,7 @@ fix hyper/global command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID hyper/global cutbond qfactor Vmax Tequil
 

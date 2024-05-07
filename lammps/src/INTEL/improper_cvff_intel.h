@@ -1,7 +1,8 @@
+// clang-format off
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -32,8 +33,9 @@ namespace LAMMPS_NS {
 class ImproperCvffIntel : public ImproperCvff {
  public:
   ImproperCvffIntel(class LAMMPS *);
-  void compute(int, int) override;
-  void init_style() override;
+  virtual ~ImproperCvffIntel();
+  virtual void compute(int, int);
+  virtual void init_style();
 
  protected:
   FixIntel *fix;
@@ -60,8 +62,8 @@ class ImproperCvffIntel : public ImproperCvff {
 
     fc_packed1 *fc;
 
-    ForceConst() : fc(nullptr), _nimpropertypes(0) {}
-    ~ForceConst() noexcept(false) { set_ntypes(0, nullptr); }
+    ForceConst() : _nimpropertypes(0) {}
+    ~ForceConst() { set_ntypes(0, nullptr); }
 
     void set_ntypes(const int nimpropertypes, Memory *memory);
 
@@ -77,3 +79,12 @@ class ImproperCvffIntel : public ImproperCvff {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+W: Improper problem: %d %ld %d %d %d %d
+
+Conformation of the 4 listed improper atoms is extreme; you may want
+to check your simulation geometry.
+
+*/

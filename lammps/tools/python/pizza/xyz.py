@@ -1,12 +1,10 @@
-# Pizza.py toolkit, https://lammps.github.io/pizza
-# LAMMPS development team: developers@lammps.org
+# Pizza.py toolkit, www.cs.sandia.gov/~sjplimp/pizza.html
+# Steve Plimpton, sjplimp@sandia.gov, Sandia National Laboratories
 #
 # Copyright (2005) Sandia Corporation.  Under the terms of Contract
 # DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
 # certain rights in this software.  This software is distributed under
 # the GNU General Public License.
-
-from __future__ import print_function
 
 # xyz tool
 
@@ -58,18 +56,18 @@ class xyz:
       if flag == -1: break
       time,box,atoms,bonds,tris,lines = self.data.viz(which)
 
-      print(len(atoms), file=f)
-      print("Atoms", file=f)
+      print >>f,len(atoms)
+      print >>f,"Atoms"
       for atom in atoms:
         itype = int(atom[1])
-        print(itype,atom[2],atom[3],atom[4], file=f)
+        print >>f,itype,atom[2],atom[3],atom[4]
 
-      print(time)
+      print time,
       sys.stdout.flush()
       n += 1
 
     f.close()
-    print("\nwrote %d snapshots to %s in XYZ format" % (n,file))
+    print "\nwrote %d snapshots to %s in XYZ format" % (n,file)
 
   # --------------------------------------------------------------------
 
@@ -93,17 +91,17 @@ class xyz:
         file = root + str(n)
       file += ".xyz"
       f = open(file,"w")
-      print(len(atoms), file=f)
-      print("Atoms", file=f)
+      print >>f,len(atoms)
+      print >>f,"Atoms"
       for atom in atoms:
         itype = int(atom[1])
-        print(itype,atom[2],atom[3],atom[4], file=f)
-      print(time)
+        print >>f,itype,atom[2],atom[3],atom[4]
+      print time,
       sys.stdout.flush()
       f.close()
       n += 1
 
-    print("\nwrote %s snapshots in XYZ format" % n)
+    print "\nwrote %s snapshots in XYZ format" % n
 
   # --------------------------------------------------------------------
 
@@ -115,9 +113,9 @@ class xyz:
     which = self.data.findtime(time)
     time,box,atoms,bonds,tris,lines = self.data.viz(which)
     f = open(file,"w")
-    print(len(atoms), file=f)
-    print("Atoms", file=f)
+    print >>f,len(atoms)
+    print >>f,"Atoms"
     for atom in atoms:
       itype = int(atom[1])
-      print(itype,atom[2],atom[3],atom[4], file=f)
+      print >>f,itype,atom[2],atom[3],atom[4]
     f.close()

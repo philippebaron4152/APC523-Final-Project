@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -34,7 +34,7 @@
 using namespace LAMMPS_NS;
 using namespace MathConst;
 
-static constexpr double SMALL = 0.001;
+#define SMALL 0.001
 
 /* ---------------------------------------------------------------------- */
 
@@ -174,8 +174,6 @@ void AngleClass2P6::compute(int eflag, int vflag)
 
     // force & energy for bond-angle term
 
-    dr1 = r1 - ba_r1[type];
-    dr2 = r2 - ba_r2[type];
     aa1 = s * dr1 * ba_k1[type];
     aa2 = s * dr2 * ba_k2[type];
 
@@ -467,6 +465,10 @@ double AngleClass2P6::single(int type, int i1, int i2, int i3)
   if (c > 1.0) c = 1.0;
   if (c < -1.0) c = -1.0;
 
+  double s = sqrt(1.0 - c*c);
+  if (s < SMALL) s = SMALL;
+  s = 1.0/s;
+
   double dtheta = acos(c) - theta0[type];
   double dtheta2 = dtheta*dtheta;
   double dtheta3 = dtheta2*dtheta;
@@ -481,9 +483,6 @@ double AngleClass2P6::single(int type, int i1, int i2, int i3)
   double dr2 = r2 - bb_r2[type];
   energy += bb_k[type]*dr1*dr2;
 
-  dr1 = r1 - ba_r1[type];
-  dr2 = r2 - ba_r2[type];
   energy += ba_k1[type]*dr1*dtheta + ba_k2[type]*dr2*dtheta;
-
   return energy;
 }

@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -283,7 +283,7 @@ void PairBornCoulWolf::init_style()
   if (!atom->q_flag)
     error->all(FLERR,"Pair style born/coul/wolf requires atom attribute q");
 
-  neighbor->add_request(this);
+  neighbor->request(this,instance_me);
 
   cut_coulsq = cut_coul * cut_coul;
 }

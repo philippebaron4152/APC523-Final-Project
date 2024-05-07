@@ -6,7 +6,7 @@ fix_modify AtC filter scale command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> filter scale <scale>
 

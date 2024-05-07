@@ -2,7 +2,7 @@
 /* *- c++ -*- -----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -36,10 +36,10 @@ namespace LAMMPS_NS {
 class PPPMIntel : public PPPM {
  public:
   PPPMIntel(class LAMMPS *);
-  ~PPPMIntel() override;
-  void init() override;
-  void compute(int, int) override;
-  double memory_usage() override;
+  virtual ~PPPMIntel();
+  virtual void init();
+  virtual void compute(int, int);
+  virtual double memory_usage();
   void compute_first(int, int);
   void compute_second(int, int);
   void pack_buffers();
@@ -67,7 +67,7 @@ class PPPMIntel : public PPPM {
   int _use_base;
 #endif
 
-  void allocate() override;
+  virtual void allocate();
 
   template <class flt_t, class acc_t> void test_function(IntelBuffers<flt_t, acc_t> *buffers);
 
@@ -110,3 +110,12 @@ class PPPMIntel : public PPPM {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: PPPM order greater than supported by INTEL
+
+There is a compile time limit on the maximum order for PPPM
+in the INTEL package that might be different from LAMMPS
+
+*/

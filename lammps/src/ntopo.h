@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -14,7 +14,7 @@
 #ifndef LMP_NTOPO_H
 #define LMP_NTOPO_H
 
-#include "pointers.h"    // IWYU pragma: keep
+#include "pointers.h"
 
 namespace LAMMPS_NS {
 
@@ -24,11 +24,10 @@ class NTopo : protected Pointers {
   int **bondlist, **anglelist, **dihedrallist, **improperlist;
 
   NTopo(class LAMMPS *);
-  ~NTopo() override;
+  virtual ~NTopo();
 
   virtual void build() = 0;
 
-  void add_temporary_bond(int, int, int);
   double memory_usage();
 
  protected:
@@ -49,3 +48,19 @@ class NTopo : protected Pointers {
 }    // namespace LAMMPS_NS
 
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Bond extent > half of periodic box length
+
+UNDOCUMENTED
+
+E: Angle extent > half of periodic box length
+
+UNDOCUMENTED
+
+E: Dihedral/improper extent > half of periodic box length
+
+UNDOCUMENTED
+
+*/

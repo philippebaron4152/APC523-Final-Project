@@ -6,7 +6,7 @@ fix_modify AtC read_restart command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> read_restart <file_name>
 

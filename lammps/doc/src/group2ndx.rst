@@ -1,5 +1,4 @@
 .. index:: group2ndx
-.. index:: ndx2group
 
 group2ndx command
 =================
@@ -10,13 +9,13 @@ ndx2group command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
-   group2ndx file args
-   ndx2group file args
+   group2ndx file group-ID ...
+   ndx2group file group-ID ...
 
 * file = name of index file to write out or read in
-* args = zero or more group IDs may be appended
+* zero or more group IDs may be appended
 
 Examples
 """"""""

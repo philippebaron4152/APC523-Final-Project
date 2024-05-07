@@ -1,7 +1,7 @@
 /* -*- c++ -*- -------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -46,7 +46,7 @@ class ThrOMP {
 
  public:
   ThrOMP(LAMMPS *, int);
-  virtual ~ThrOMP() noexcept(false) {}
+  virtual ~ThrOMP();
 
   double memory_usage_thr();
 
@@ -129,8 +129,6 @@ class ThrOMP {
   void ev_tally_thr(Pair *const, const int, const int, const int, const int, const double,
                     const double, const double, const double, const double, const double,
                     ThrData *const);
-  void ev_tally_full_thr(Pair *const, const int, const double, const double, const double,
-                         const double, const double, const double, ThrData *const);
   void ev_tally_xyz_thr(Pair *const, const int, const int, const int, const int, const double,
                         const double, const double, const double, const double, const double,
                         const double, const double, ThrData *const);

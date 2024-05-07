@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -20,6 +20,8 @@
 #include "error.h"
 #include "force.h"
 #include "update.h"
+
+#include <cstring>
 
 using namespace LAMMPS_NS;
 
@@ -97,7 +99,6 @@ template<class DeviceType>
 void ComputeTempKokkos<DeviceType>::compute_vector()
 {
   atomKK->sync(execution_space,datamask_read);
-  atomKK->k_mass.sync<DeviceType>();
 
   int i;
 
@@ -157,3 +158,4 @@ template class ComputeTempKokkos<LMPDeviceType>;
 template class ComputeTempKokkos<LMPHostType>;
 #endif
 }
+

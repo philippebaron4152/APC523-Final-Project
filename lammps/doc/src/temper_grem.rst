@@ -6,7 +6,7 @@ temper/grem command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    temper/grem N M lambda fix-ID thermostat-ID seed1 seed2 index
 

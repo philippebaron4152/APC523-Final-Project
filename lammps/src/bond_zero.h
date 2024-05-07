@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,18 +27,18 @@ namespace LAMMPS_NS {
 class BondZero : public Bond {
  public:
   BondZero(class LAMMPS *);
-  ~BondZero() override;
-  void compute(int, int) override;
-  void settings(int, char **) override;
+  virtual ~BondZero();
+  virtual void compute(int, int);
+  virtual void settings(int, char **);
 
-  void coeff(int, char **) override;
-  double equilibrium_distance(int) override;
-  void write_restart(FILE *) override;
-  void read_restart(FILE *) override;
-  void write_data(FILE *) override;
+  void coeff(int, char **);
+  double equilibrium_distance(int);
+  void write_restart(FILE *);
+  void read_restart(FILE *);
+  void write_data(FILE *);
 
-  double single(int, double, int, int, double &) override;
-  void *extract(const char *, int &) override;
+  double single(int, double, int, int, double &);
+  virtual void *extract(const char *, int &);
 
  protected:
   double *r0;
@@ -51,3 +51,15 @@ class BondZero : public Bond {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal ... command
+
+UNDOCUMENTED
+
+E: Incorrect args for bond coefficients
+
+Self-explanatory.  Check the input script or data file.
+
+*/

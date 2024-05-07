@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -31,13 +31,13 @@
 using namespace LAMMPS_NS;
 using namespace MathSpecial;
 
-static constexpr int MAXLINE = 1024;
-static constexpr int DELTA = 4;
+#define MAXLINE 1024
+#define DELTA 4
 
 #ifdef DBL_EPSILON
-static constexpr double MY_EPSILON = 10.0*DBL_EPSILON;
+  #define MY_EPSILON (10.0*DBL_EPSILON)
 #else
-static constexpr double MY_EPSILON = 10.0*2.220446049250313e-16;
+  #define MY_EPSILON (10.0*2.220446049250313e-16)
 #endif
 
 #define oneFluidApproxParameter (-1)
@@ -58,7 +58,7 @@ struct PairExp6ParamDataType
           *epsilonOld2, *alphaOld2, *rmOld2, *mixWtSite2old;
 
    // Default constructor -- nullify everything.
-   PairExp6ParamDataType()
+   PairExp6ParamDataType(void)
       : n(0), epsilon1(nullptr), alpha1(nullptr), rm1(nullptr), mixWtSite1(nullptr),
               epsilon2(nullptr), alpha2(nullptr), rm2(nullptr), mixWtSite2(nullptr),
               epsilonOld1(nullptr), alphaOld1(nullptr), rmOld1(nullptr), mixWtSite1old(nullptr),
@@ -705,7 +705,7 @@ double PairExp6rx::init_one(int i, int j)
 void PairExp6rx::read_file(char *file)
 {
   int params_per_line = 5;
-  auto words = new char*[params_per_line+1];
+  char **words = new char*[params_per_line+1];
 
   memory->sfree(params);
   params = nullptr;
@@ -728,11 +728,10 @@ void PairExp6rx::read_file(char *file)
   // one set of params can span multiple lines
 
   int n,nwords,ispecies;
-  char line[MAXLINE] = {'\0'};
-  char *ptr;
+  char line[MAXLINE],*ptr;
   int eof = 0;
 
-  while (true) {
+  while (1) {
     if (comm->me == 0) {
       ptr = fgets(line,MAXLINE,fp);
       if (ptr == nullptr) {
@@ -821,7 +820,7 @@ void PairExp6rx::read_file(char *file)
 void PairExp6rx::read_file2(char *file)
 {
   int params_per_line = 7;
-  auto words = new char*[params_per_line+1];
+  char **words = new char*[params_per_line+1];
 
   // open file on proc 0
 
@@ -836,11 +835,10 @@ void PairExp6rx::read_file2(char *file)
 
   // one set of params can span multiple lines
   int n,nwords;
-  char line[MAXLINE] = {'\0'};
-  char *ptr;
+  char line[MAXLINE],*ptr;
   int eof = 0;
 
-  while (true) {
+  while (1) {
     if (comm->me == 0) {
       ptr = fgets(line,MAXLINE,fp);
       if (ptr == nullptr) {

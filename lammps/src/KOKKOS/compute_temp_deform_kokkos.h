@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -58,6 +58,16 @@ class ComputeTempDeformKokkos: public ComputeTempDeform {
       t5 += rhs.t5;
       return *this;
     }
+
+    KOKKOS_INLINE_FUNCTION
+    void operator+=(const volatile s_CTEMP &rhs) volatile {
+      t0 += rhs.t0;
+      t1 += rhs.t1;
+      t2 += rhs.t2;
+      t3 += rhs.t3;
+      t4 += rhs.t4;
+      t5 += rhs.t5;
+    }
   };
 
   typedef s_CTEMP CTEMP;
@@ -66,10 +76,11 @@ class ComputeTempDeformKokkos: public ComputeTempDeform {
   typedef ArrayTypes<DeviceType> AT;
 
   ComputeTempDeformKokkos(class LAMMPS *, int, char **);
-  double compute_scalar() override;
-  void compute_vector() override;
-  void remove_bias_all() override;
-  void restore_bias_all() override;
+  ~ComputeTempDeformKokkos();
+  double compute_scalar();
+  void compute_vector();
+  void remove_bias_all();
+  void restore_bias_all();
 
   template<int RMASS>
   KOKKOS_INLINE_FUNCTION
@@ -105,3 +116,11 @@ class ComputeTempDeformKokkos: public ComputeTempDeform {
 #endif
 #endif
 
+/* ERROR/WARNING messages:
+
+E: Temperature compute degrees of freedom < 0
+
+This should not happen if you are calculating the temperature
+on a valid set of atoms.
+
+*/

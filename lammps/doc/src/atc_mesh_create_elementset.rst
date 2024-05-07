@@ -6,7 +6,7 @@ fix_modify AtC mesh create_elementset command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> mesh create_elementset <id> <xmin> <xmax> <ymin> <ymax> <zmin> <zmax>
 

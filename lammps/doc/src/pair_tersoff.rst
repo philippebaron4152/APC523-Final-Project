@@ -23,7 +23,7 @@ Syntax
 
    pair_style style keywords values
 
-* style = *tersoff* or *tersoff/table*
+* style = *tersoff* or *tersoff/table* or *tersoff/gpu* or *tersoff/omp* or *tersoff/table/omp*
 * keyword = *shift*
 
   .. parsed-literal::

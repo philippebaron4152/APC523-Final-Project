@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,15 +27,20 @@ namespace LAMMPS_NS {
 class DihedralDeprecated : public Dihedral {
  public:
   DihedralDeprecated(class LAMMPS *lmp) : Dihedral(lmp) {}
+  virtual ~DihedralDeprecated() {}
 
-  void compute(int, int) override {}
-  void settings(int, char **) override;
-  void coeff(int, char **) override {}
-  void write_restart(FILE *) override {}
-  void read_restart(FILE *) override {}
+  virtual void compute(int, int) {}
+  virtual void settings(int, char **);
+  virtual void coeff(int, char **) {}
+  virtual void write_restart(FILE *) {}
+  virtual void read_restart(FILE *) {}
 };
 
 }    // namespace LAMMPS_NS
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+*/

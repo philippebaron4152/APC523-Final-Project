@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -28,11 +28,12 @@
 #include "random_mars.h"
 #include "respa.h"
 #include "potential_file_reader.h"
+#include "tokenizer.h"
 #include "update.h"
+#include "fmt/chrono.h"
 
 #include <cmath>
 #include <cstring>
-#include <exception>
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -77,7 +78,7 @@ FixTTM::FixTTM(LAMMPS *lmp, int narg, char **arg) :
   nzgrid = utils::inumeric(FLERR,arg[12],false,lmp);
 
   tinit = 0.0;
-  infile = outfile = nullptr;
+  infile = outfile = NULL;
 
   int iarg = 13;
   while (iarg < narg) {
@@ -141,7 +142,7 @@ FixTTM::FixTTM(LAMMPS *lmp, int narg, char **arg) :
   // allocate per-atom flangevin and zero it
 
   flangevin = nullptr;
-  FixTTM::grow_arrays(atom->nmax);
+  grow_arrays(atom->nmax);
 
   for (int i = 0; i < atom->nmax; i++) {
     flangevin[i][0] = 0.0;
@@ -164,7 +165,6 @@ FixTTM::FixTTM(LAMMPS *lmp, int narg, char **arg) :
 FixTTM::~FixTTM()
 {
   delete [] infile;
-  delete [] outfile;
 
   delete random;
 
@@ -173,7 +173,7 @@ FixTTM::~FixTTM()
 
   memory->destroy(flangevin);
 
-  if (!deallocate_flag) FixTTM::deallocate_grid();
+  if (!deallocate_flag) deallocate_grid();
 }
 
 /* ---------------------------------------------------------------------- */
@@ -226,6 +226,13 @@ void FixTTM::init()
   if (domain->triclinic)
     error->all(FLERR,"Cannot use fix ttm with triclinic box");
 
+  // to allow this, would have to reset grid bounds dynamically
+  // for RCB balancing would have to reassign grid pts to procs
+  //   and create a new GridComm, and pass old GC data to new GC
+
+  if (domain->box_change)
+    error->all(FLERR,"Cannot use fix ttm with changing box shape, size, or sub-domains");
+
   // set force prefactors
 
   for (int i = 1; i <= atom->ntypes; i++) {
@@ -235,7 +242,7 @@ void FixTTM::init()
   }
 
   if (utils::strmatch(update->integrate_style,"^respa"))
-    nlevels_respa = (dynamic_cast<Respa *>(update->integrate))->nlevels;
+    nlevels_respa = ((Respa *) update->integrate)->nlevels;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -245,9 +252,9 @@ void FixTTM::setup(int vflag)
   if (utils::strmatch(update->integrate_style,"^verlet")) {
     post_force_setup(vflag);
   } else {
-    (dynamic_cast<Respa *>(update->integrate))->copy_flevel_f(nlevels_respa-1);
+    ((Respa *) update->integrate)->copy_flevel_f(nlevels_respa-1);
     post_force_respa_setup(vflag,nlevels_respa-1,0);
-    (dynamic_cast<Respa *>(update->integrate))->copy_f_flevel(nlevels_respa-1);
+    ((Respa *) update->integrate)->copy_f_flevel(nlevels_respa-1);
   }
 }
 
@@ -463,7 +470,7 @@ void FixTTM::read_electron_temperatures(const std::string &filename)
   if (comm->me == 0) {
 
     int ***T_initial_set;
-    memory->create(T_initial_set,nzgrid,nygrid,nxgrid,"ttm:T_initial_set");
+    memory->create(T_initial_set,nxgrid,nygrid,nzgrid,"ttm:T_initial_set");
     memset(&T_initial_set[0][0][0],0,ngridtotal*sizeof(int));
 
     // read initial electron temperature values from file
@@ -477,18 +484,18 @@ void FixTTM::read_electron_temperatures(const std::string &filename)
         auto values = reader.next_values(4);
         ++nread;
 
-        int ix = values.next_int() - 1;
-        int iy = values.next_int() - 1;
-        int iz = values.next_int() - 1;
+        int ix = values.next_int();
+        int iy = values.next_int();
+        int iz = values.next_int();
         double T_tmp  = values.next_double();
 
         // check correctness of input data
 
         if ((ix < 0) || (ix >= nxgrid) || (iy < 0) || (iy >= nygrid) || (iz < 0) || (iz >= nzgrid))
-          throw TokenizerException("Fix ttm invalid grid index in fix ttm grid file","");
+          throw parser_error("Fix ttm invalid grid index in fix ttm grid file");
 
         if (T_tmp < 0.0)
-          throw TokenizerException("Fix ttm electron temperatures must be > 0.0","");
+          throw parser_error("Fix ttm electron temperatures must be > 0.0");
 
         T_electron[iz][iy][ix] = T_tmp;
         T_initial_set[iz][iy][ix] = 1;
@@ -520,11 +527,14 @@ void FixTTM::write_electron_temperatures(const std::string &filename)
 {
   if (comm->me) return;
 
+  time_t tv = time(nullptr);
+  std::tm current_date = fmt::localtime(tv);
+
   FILE *fp = fopen(filename.c_str(),"w");
   if (!fp) error->one(FLERR,"Fix ttm could not open output file {}: {}",
                       filename,utils::getsyserror());
-  fmt::print(fp,"# DATE: {} UNITS: {} COMMENT: Electron temperature on "
-             "{}x{}x{} grid at step {} - created by fix {}\n", utils::current_date(),
+  fmt::print(fp,"# DATE: {:%Y-%m-%d} UNITS: {} COMMENT: Electron temperature "
+             "{}x{}x{} grid at step {}. Created by fix {}\n", current_date,
              update->unit_style, nxgrid, nygrid, nzgrid, update->ntimestep, style);
 
   int ix,iy,iz;
@@ -532,7 +542,7 @@ void FixTTM::write_electron_temperatures(const std::string &filename)
   for (iz = 0; iz < nzgrid; iz++)
     for (iy = 0; iy < nygrid; iy++)
       for (ix = 0; ix < nxgrid; ix++)
-        fprintf(fp,"%d %d %d %20.16g\n",ix+1,iy+1,iz+1,T_electron[iz][iy][ix]);
+        fprintf(fp,"%d %d %d %20.16g\n",ix,iy,iz,T_electron[iz][iy][ix]);
 
   fclose(fp);
 }
@@ -591,7 +601,7 @@ void FixTTM::write_restart(FILE *fp)
 void FixTTM::restart(char *buf)
 {
   int n = 0;
-  auto rlist = (double *) buf;
+  double *rlist = (double *) buf;
 
   // check that restart grid size is same as current grid size
 

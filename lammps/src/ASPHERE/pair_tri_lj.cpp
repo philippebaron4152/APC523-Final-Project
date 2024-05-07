@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -26,7 +26,7 @@
 
 using namespace LAMMPS_NS;
 
-static constexpr int DELTA = 20;
+#define DELTA 20
 
 /* ---------------------------------------------------------------------- */
 
@@ -375,7 +375,8 @@ void PairTriLJ::compute(int eflag, int vflag)
         }
       }
 
-      if (evflag) ev_tally(i,j,nlocal,newton_pair,evdwl,0.0,fpair,delx,dely,delz);
+      if (evflag) ev_tally(i,j,nlocal,newton_pair,
+                           evdwl,0.0,fpair,delx,dely,delz);
     }
   }
 
@@ -467,10 +468,10 @@ void PairTriLJ::coeff(int narg, char **arg)
 
 void PairTriLJ::init_style()
 {
-  avec = dynamic_cast<AtomVecTri *>(atom->style_match("tri"));
+  avec = (AtomVecTri *) atom->style_match("tri");
   if (!avec) error->all(FLERR,"Pair tri/lj requires atom style tri");
 
-  neighbor->add_request(this,NeighConst::REQ_DEFAULT);
+  neighbor->request(this,instance_me);
 }
 
 /* ----------------------------------------------------------------------

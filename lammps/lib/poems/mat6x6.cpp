@@ -23,6 +23,8 @@ using namespace std;
 Mat6x6::Mat6x6(){
   numrows = numcols = 6;
 }
+Mat6x6::~Mat6x6(){
+}
 
 Mat6x6::Mat6x6(const Mat6x6& A){
   numrows = numcols = 6;

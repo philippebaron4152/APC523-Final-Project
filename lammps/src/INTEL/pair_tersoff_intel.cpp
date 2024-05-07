@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -18,12 +18,17 @@
 
 #include "pair_tersoff_intel.h"
 
-#include "comm.h"
-#include "error.h"
-#include "force.h"
-#include "memory.h"
-#include "neigh_list.h"
+#include "atom.h"
 #include "neighbor.h"
+#include "neigh_list.h"
+#include "neigh_request.h"
+#include "force.h"
+#include "comm.h"
+#include "memory.h"
+#include "error.h"
+
+#include <cmath>
+#include <cstring>
 
 using namespace LAMMPS_NS;
 
@@ -406,10 +411,16 @@ void PairTersoffIntel::init_style()
 
   // need a full neighbor list
 
-  neighbor->add_request(this, NeighConst::REQ_FULL);
+  int irequest = neighbor->request(this);
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
+  neighbor->requests[irequest]->intel = 1;
 
-  fix = static_cast<FixIntel *>(modify->get_fix_by_id("package_intel"));
-  if (!fix) error->all(FLERR, "The 'package intel' command is required for /intel styles");
+  int ifix = modify->find_fix("package_intel");
+  if (ifix < 0)
+    error->all(FLERR,
+               "The 'package intel' command is required for /intel styles");
+  fix = static_cast<FixIntel *>(modify->fix[ifix]);
 
   fix->pair_init_check();
   fix->three_body_neighbor(1);

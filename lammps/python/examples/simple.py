@@ -13,6 +13,7 @@
 
 from __future__ import print_function
 import sys
+import numpy as np
 import ctypes
 
 # parse command line

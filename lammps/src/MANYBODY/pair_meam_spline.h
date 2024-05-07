@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -40,16 +40,16 @@ namespace LAMMPS_NS {
 class PairMEAMSpline : public Pair {
  public:
   PairMEAMSpline(class LAMMPS *);
-  ~PairMEAMSpline() override;
-  void compute(int, int) override;
-  void settings(int, char **) override;
-  void coeff(int, char **) override;
+  virtual ~PairMEAMSpline();
+  virtual void compute(int, int);
+  void settings(int, char **);
+  void coeff(int, char **);
   void get_coeff(double *, double *);
   double pair_density(int);
   double three_body_density(int);
-  void init_style() override;
-  void init_list(int, class NeighList *) override;
-  double init_one(int, int) override;
+  void init_style();
+  void init_list(int, class NeighList *);
+  double init_one(int, int);
 
   // helper functions for compute()
 
@@ -59,11 +59,11 @@ class PairMEAMSpline : public Pair {
   }
   int i_to_potl(const int itype) const { return itype - 1; }
 
-  int pack_forward_comm(int, int *, double *, int, int *) override;
-  void unpack_forward_comm(int, int, double *) override;
-  int pack_reverse_comm(int, int, double *) override;
-  void unpack_reverse_comm(int, int *, double *) override;
-  double memory_usage() override;
+  int pack_forward_comm(int, int *, double *, int, int *);
+  void unpack_forward_comm(int, int, double *);
+  int pack_reverse_comm(int, int, double *);
+  void unpack_reverse_comm(int, int *, double *);
+  double memory_usage();
 
  protected:
   class SplineFunction {
@@ -82,9 +82,9 @@ class PairMEAMSpline : public Pair {
     }
 
     /// Initialization of spline function.
-    void init(int _n, double _deriv0, double _derivN)
+    void init(int _N, double _deriv0, double _derivN)
     {
-      N = _n;
+      N = _N;
       deriv0 = _deriv0;
       derivN = _derivN;
       // if (X) delete[] X;
@@ -110,10 +110,10 @@ class PairMEAMSpline : public Pair {
     int numKnots() const { return N; }
 
     /// Parses the spline knots from a text file.
-    void parse(class PotentialFileReader &reader, bool isNewFormat);
+    void parse(FILE *fp, Error *error, bool isNewFormat);
 
     /// Calculates the second derivatives of the cubic spline.
-    void prepareSpline();
+    void prepareSpline(Error *error);
 
     /// Evaluates the spline function at position x.
     inline double eval(double x) const
@@ -197,16 +197,10 @@ class PairMEAMSpline : public Pair {
     }
 
     /// Returns the number of bytes used by this function object.
-    double memory_usage() const
-    {
-      return sizeof(*this) + sizeof(X[0]) * N * 3;
-    }
+    double memory_usage() const { return sizeof(*this) + sizeof(X[0]) * N * 3; }
 
     /// Returns the cutoff radius of this function.
-    double cutoff() const
-    {
-      return X[N - 1];
-    }
+    double cutoff() const { return X[N - 1]; }
 
     /// Writes a Gnuplot script that plots the spline function.
     void writeGnuplot(const char *filename, const char *title = nullptr) const;

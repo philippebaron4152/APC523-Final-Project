@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -29,19 +29,20 @@
 #include "force.h"
 #include "memory.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "neighbor.h"
-#include "potential_file_reader.h"
 
 #include <cmath>
 #include <cstring>
-#include <exception>
 #include <limits>
 
 using namespace LAMMPS_NS;
 
-static constexpr int DELTA = 4;
-static constexpr int GRIDDENSITY = 8000;
-static constexpr double GRIDSTART = 0.1;
+#define MAXLINE 1024
+#define DELTA 4
+
+#define GRIDDENSITY 8000
+#define GRIDSTART 0.1
 
 // max number of interaction per atom for f(Z) environment potential
 
@@ -462,7 +463,7 @@ void PairEDIP::compute(int eflag, int vflag)
 
 /* ---------------------------------------------------------------------- */
 
-void PairEDIP::allocateGrids()
+void PairEDIP::allocateGrids(void)
 {
   int numGridPointsOneCutoffFunction;
   int numGridPointsNotOneCutoffFunction;
@@ -526,7 +527,7 @@ void PairEDIP::allocateGrids()
    pre-calculated structures
 ------------------------------------------------------------------------- */
 
-void PairEDIP::allocatePreLoops()
+void PairEDIP::allocatePreLoops(void)
 {
   int nthreads = comm->nthreads;
 
@@ -544,7 +545,7 @@ void PairEDIP::allocatePreLoops()
    deallocate grids
 ------------------------------------------------------------------------- */
 
-void PairEDIP::deallocateGrids()
+void PairEDIP::deallocateGrids(void)
 {
   memory->destroy(cutoffFunction);
   memory->destroy(cutoffFunctionDerived);
@@ -561,7 +562,7 @@ void PairEDIP::deallocateGrids()
    deallocate preLoops
 ------------------------------------------------------------------------- */
 
-void PairEDIP::deallocatePreLoops()
+void PairEDIP::deallocatePreLoops(void)
 {
   memory->destroy(preInvR_ij);
   memory->destroy(preExp3B_ij);
@@ -596,7 +597,7 @@ void PairEDIP::settings(int narg, char ** /*arg*/)
 
 /* ---------------------------------------------------------------------- */
 
-void PairEDIP::initGrids()
+void PairEDIP::initGrids(void)
 {
   int l;
   int numGridPointsOneCutoffFunction;
@@ -744,7 +745,9 @@ void PairEDIP::init_style()
 
   // need a full neighbor list
 
-  neighbor->add_request(this, NeighConst::REQ_FULL);
+  int irequest = neighbor->request(this, instance_me);
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
 }
 
 /* ----------------------------------------------------------------------
@@ -762,91 +765,136 @@ double PairEDIP::init_one(int i, int j)
 
 void PairEDIP::read_file(char *file)
 {
+  int params_per_line = 20;
+  char **words = new char *[params_per_line + 1];
+
   memory->sfree(params);
   params = nullptr;
   nparams = maxparam = 0;
 
   // open file on proc 0
 
+  FILE *fp;
   if (comm->me == 0) {
-    PotentialFileReader reader(lmp, file, "edip");
-    char *line;
-
-    while ((line = reader.next_line(NPARAMS_PER_LINE))) {
-      try {
-        ValueTokenizer values(line);
-        std::string iname = values.next_string();
-        std::string jname = values.next_string();
-        std::string kname = values.next_string();
-
-        // ielement,jelement,kelement = 1st args
-        // if all 3 args are in element list, then parse this line
-        // else skip to next entry in file
-        int ielement, jelement, kelement;
-
-        for (ielement = 0; ielement < nelements; ielement++)
-          if (iname == elements[ielement]) break;
-        if (ielement == nelements) continue;
-        for (jelement = 0; jelement < nelements; jelement++)
-          if (jname == elements[jelement]) break;
-        if (jelement == nelements) continue;
-        for (kelement = 0; kelement < nelements; kelement++)
-          if (kname == elements[kelement]) break;
-        if (kelement == nelements) continue;
-
-        // load up parameter settings and error check their values
-
-        if (nparams == maxparam) {
-          maxparam += DELTA;
-          params = (Param *) memory->srealloc(params, maxparam * sizeof(Param), "pair:params");
-
-          // make certain all addional allocated storage is initialized
-          // to avoid false positives when checking with valgrind
-
-          memset(params + nparams, 0, DELTA * sizeof(Param));
-        }
-
-        params[nparams].ielement = ielement;
-        params[nparams].jelement = jelement;
-        params[nparams].kelement = kelement;
-        params[nparams].A = values.next_double();
-        params[nparams].B = values.next_double();
-        params[nparams].cutoffA = values.next_double();
-        params[nparams].cutoffC = values.next_double();
-        params[nparams].alpha = values.next_double();
-        params[nparams].beta = values.next_double();
-        params[nparams].eta = values.next_double();
-        params[nparams].gamma = values.next_double();
-        params[nparams].lambda = values.next_double();
-        params[nparams].mu = values.next_double();
-        params[nparams].rho = values.next_double();
-        params[nparams].sigma = values.next_double();
-        params[nparams].Q0 = values.next_double();
-        params[nparams].u1 = values.next_double();
-        params[nparams].u2 = values.next_double();
-        params[nparams].u3 = values.next_double();
-        params[nparams].u4 = values.next_double();
-      } catch (std::exception &e) {
-        error->one(FLERR, "Error reading EDIP potential file: {}", e.what());
-      }
-
-      if (params[nparams].A < 0.0 || params[nparams].B < 0.0 || params[nparams].cutoffA < 0.0 ||
-          params[nparams].cutoffC < 0.0 || params[nparams].alpha < 0.0 ||
-          params[nparams].beta < 0.0 || params[nparams].eta < 0.0 || params[nparams].gamma < 0.0 ||
-          params[nparams].lambda < 0.0 || params[nparams].mu < 0.0 || params[nparams].rho < 0.0 ||
-          params[nparams].sigma < 0.0)
-        error->all(FLERR, "Illegal EDIP parameter");
-
-      nparams++;
-    }
+    fp = utils::open_potential(file, lmp, nullptr);
+    if (fp == nullptr)
+      error->one(FLERR, "Cannot open EDIP potential file {}: {}", file, utils::getsyserror());
   }
-  MPI_Bcast(&nparams, 1, MPI_INT, 0, world);
-  MPI_Bcast(&maxparam, 1, MPI_INT, 0, world);
 
-  if (comm->me != 0)
-    params = (Param *) memory->srealloc(params, maxparam * sizeof(Param), "pair:params");
+  // read each set of params from potential file
+  // one set of params can span multiple lines
+  // store params if all 3 element tags are in element list
 
-  MPI_Bcast(params, maxparam * sizeof(Param), MPI_BYTE, 0, world);
+  int n, nwords, ielement, jelement, kelement;
+  char line[MAXLINE], *ptr;
+  int eof = 0;
+
+  while (1) {
+    if (comm->me == 0) {
+      ptr = fgets(line, MAXLINE, fp);
+      if (ptr == nullptr) {
+        eof = 1;
+        fclose(fp);
+      } else
+        n = strlen(line) + 1;
+    }
+    MPI_Bcast(&eof, 1, MPI_INT, 0, world);
+    if (eof) break;
+    MPI_Bcast(&n, 1, MPI_INT, 0, world);
+    MPI_Bcast(line, n, MPI_CHAR, 0, world);
+
+    // strip comment, skip line if blank
+
+    if ((ptr = strchr(line, '#'))) *ptr = '\0';
+    nwords = utils::count_words(line);
+    if (nwords == 0) continue;
+
+    // concatenate additional lines until have params_per_line words
+
+    while (nwords < params_per_line) {
+      n = strlen(line);
+      if (comm->me == 0) {
+        ptr = fgets(&line[n], MAXLINE - n, fp);
+        if (ptr == nullptr) {
+          eof = 1;
+          fclose(fp);
+        } else
+          n = strlen(line) + 1;
+      }
+      MPI_Bcast(&eof, 1, MPI_INT, 0, world);
+      if (eof) break;
+      MPI_Bcast(&n, 1, MPI_INT, 0, world);
+      MPI_Bcast(line, n, MPI_CHAR, 0, world);
+      if ((ptr = strchr(line, '#'))) *ptr = '\0';
+      nwords = utils::count_words(line);
+    }
+
+    if (nwords != params_per_line) error->all(FLERR, "Incorrect format in EDIP potential file");
+
+    // words = ptrs to all words in line
+
+    nwords = 0;
+    words[nwords++] = strtok(line, " \t\n\r\f");
+    while ((words[nwords++] = strtok(nullptr, " \t\n\r\f"))) continue;
+
+    // ielement,jelement,kelement = 1st args
+    // if all 3 args are in element list, then parse this line
+    // else skip to next entry in file
+
+    for (ielement = 0; ielement < nelements; ielement++)
+      if (strcmp(words[0], elements[ielement]) == 0) break;
+    if (ielement == nelements) continue;
+    for (jelement = 0; jelement < nelements; jelement++)
+      if (strcmp(words[1], elements[jelement]) == 0) break;
+    if (jelement == nelements) continue;
+    for (kelement = 0; kelement < nelements; kelement++)
+      if (strcmp(words[2], elements[kelement]) == 0) break;
+    if (kelement == nelements) continue;
+
+    // load up parameter settings and error check their values
+
+    if (nparams == maxparam) {
+      maxparam += DELTA;
+      params = (Param *) memory->srealloc(params, maxparam * sizeof(Param), "pair:params");
+
+      // make certain all addional allocated storage is initialized
+      // to avoid false positives when checking with valgrind
+
+      memset(params + nparams, 0, DELTA * sizeof(Param));
+    }
+
+    params[nparams].ielement = ielement;
+    params[nparams].jelement = jelement;
+    params[nparams].kelement = kelement;
+    params[nparams].A = atof(words[3]);
+    params[nparams].B = atof(words[4]);
+    params[nparams].cutoffA = atof(words[5]);
+    params[nparams].cutoffC = atof(words[6]);
+    params[nparams].alpha = atof(words[7]);
+    params[nparams].beta = atof(words[8]);
+    params[nparams].eta = atof(words[9]);
+    params[nparams].gamm = atof(words[10]);
+    params[nparams].lambda = atof(words[11]);
+    params[nparams].mu = atof(words[12]);
+    params[nparams].rho = atof(words[13]);
+    params[nparams].sigma = atof(words[14]);
+    params[nparams].Q0 = atof(words[15]);
+    params[nparams].u1 = atof(words[16]);
+    params[nparams].u2 = atof(words[17]);
+    params[nparams].u3 = atof(words[18]);
+    params[nparams].u4 = atof(words[19]);
+
+    if (params[nparams].A < 0.0 || params[nparams].B < 0.0 || params[nparams].cutoffA < 0.0 ||
+        params[nparams].cutoffC < 0.0 || params[nparams].alpha < 0.0 ||
+        params[nparams].beta < 0.0 || params[nparams].eta < 0.0 || params[nparams].gamm < 0.0 ||
+        params[nparams].lambda < 0.0 || params[nparams].mu < 0.0 || params[nparams].rho < 0.0 ||
+        params[nparams].sigma < 0.0)
+      error->all(FLERR, "Illegal EDIP parameter");
+
+    nparams++;
+  }
+
+  delete[] words;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -869,15 +917,11 @@ void PairEDIP::setup_params()
         n = -1;
         for (m = 0; m < nparams; m++) {
           if (i == params[m].ielement && j == params[m].jelement && k == params[m].kelement) {
-            if (n >= 0)
-              error->all(FLERR, "Potential file has a duplicate entry for: {} {} {}", elements[i],
-                         elements[j], elements[k]);
+            if (n >= 0) error->all(FLERR, "Potential file has duplicate entry");
             n = m;
           }
         }
-        if (n < 0)
-          error->all(FLERR, "Potential file is missing an entry for: {} {} {}", elements[i],
-                     elements[j], elements[k]);
+        if (n < 0) error->all(FLERR, "Potential file is missing an entry");
         elem3param[i][j][k] = n;
       }
 
@@ -902,7 +946,7 @@ void PairEDIP::setup_params()
   cutoffC = params[0].cutoffC;
   sigma = params[0].sigma;
   lambda = params[0].lambda;
-  gamm = params[0].gamma;
+  gamm = params[0].gamm;
   eta = params[0].eta;
   Q0 = params[0].Q0;
   mu = params[0].mu;

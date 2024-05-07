@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -16,24 +16,25 @@
    Contributing author: Axel Kohlmeyer (Temple U)
 ------------------------------------------------------------------------- */
 
+#include "omp_compat.h"
+#include <cmath>
 #include "dihedral_quadratic_omp.h"
-
 #include "atom.h"
 #include "comm.h"
-#include "force.h"
-#include "math_const.h"
 #include "neighbor.h"
+#include "force.h"
+#include "update.h"
+#include "math_const.h"
+#include "error.h"
 
-#include <cmath>
 
-#include "omp_compat.h"
 #include "suffix.h"
 using namespace LAMMPS_NS;
 using namespace MathConst;
 
-static constexpr double TOLERANCE = 0.05;
-static constexpr double SMALL =     0.001;
-static constexpr double SMALLER =   0.00001;
+#define TOLERANCE 0.05
+#define SMALL     0.001
+#define SMALLER   0.00001
 
 /* ---------------------------------------------------------------------- */
 
@@ -97,8 +98,8 @@ void DihedralQuadraticOMP::eval(int nfrom, int nto, ThrData * const thr)
 
   edihedral = 0.0;
 
-  const auto * _noalias const x = (dbl3_t *) atom->x[0];
-  auto * _noalias const f = (dbl3_t *) thr->get_f()[0];
+  const dbl3_t * _noalias const x = (dbl3_t *) atom->x[0];
+  dbl3_t * _noalias const f = (dbl3_t *) thr->get_f()[0];
   const int5_t * _noalias const dihedrallist = (int5_t *) neighbor->dihedrallist[0];
   const int nlocal = atom->nlocal;
 

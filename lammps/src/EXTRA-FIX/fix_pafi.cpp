@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -40,11 +40,11 @@
 using namespace LAMMPS_NS;
 
 static const char cite_fix_pafi_package[] =
-  "citation for fix pafi: doi:10.1103/PhysRevLett.120.135503\n\n"
+  "citation for fix pafi:\n\n"
   "@article{SwinburneMarinica2018,\n"
   "author={T. D. Swinburne and M. C. Marinica},\n"
-  "title={Unsupervised Calculation of Free Energy Barriers in Large\n"
-  "   Crystalline Systems},\n"
+  "title={Unsupervised calculation of free energy barriers in large "
+  "crystalline systems},\n"
   "journal={Physical Review Letters},\n"
   "volume={120},\n"
   "number={13},\n"
@@ -77,14 +77,14 @@ FixPAFI::FixPAFI(LAMMPS *lmp, int narg, char **arg) :
 
   computename = utils::strdup(&arg[3][0]);
 
-  PathCompute = modify->get_compute_by_id(computename);
-  if (!PathCompute)
-    error->all(FLERR,"Compute ID {} for fix pafi does not exist", computename);
-
+  icompute = modify->find_compute(computename);
+  if (icompute == -1)
+    error->all(FLERR,"Compute ID for fix pafi does not exist");
+  PathCompute = modify->compute[icompute];
   if (PathCompute->peratom_flag==0)
-    error->all(FLERR,"Compute {} for fix pafi does not calculate a local array", computename);
+    error->all(FLERR,"Compute for fix pafi does not calculate a local array");
   if (PathCompute->size_peratom_cols < 9)
-    error->all(FLERR,"Compute {} for fix pafi must have 9 fields per atom", computename);
+    error->all(FLERR,"Compute for fix pafi must have 9 fields per atom");
 
   if (comm->me==0)
     utils::logmesg(lmp,"fix pafi compute name,style: {},{}\n",computename,PathCompute->style);
@@ -103,12 +103,16 @@ FixPAFI::FixPAFI(LAMMPS *lmp, int narg, char **arg) :
   int iarg = 7;
   while (iarg < narg) {
     if (strcmp(arg[iarg],"overdamped") == 0) {
-      if (iarg+2 > narg) error->all(FLERR,"Illegal fix pafi command");
-      od_flag = utils::logical(FLERR,arg[iarg+1],false,lmp);
+      if (strcmp(arg[iarg+1],"no") == 0) od_flag = 0;
+      else if (strcmp(arg[iarg+1],"0") == 0) od_flag = 0;
+      else if (strcmp(arg[iarg+1],"yes") == 0) od_flag = 1;
+      else if (strcmp(arg[iarg+1],"1") == 0) od_flag = 1;
       iarg += 2;
     } else if (strcmp(arg[iarg],"com") == 0) {
-      if (iarg+2 > narg) error->all(FLERR,"Illegal fix pafi command");
-      com_flag = utils::logical(FLERR,arg[iarg+1],false,lmp);
+      if (strcmp(arg[iarg+1],"no") == 0) com_flag = 0;
+      else if (strcmp(arg[iarg+1],"0") == 0) com_flag = 0;
+      else if (strcmp(arg[iarg+1],"yes") == 0) com_flag = 1;
+      else if (strcmp(arg[iarg+1],"1") == 0) com_flag = 1;
       iarg += 2;
     } else error->all(FLERR,"Illegal fix pafi command");
   }
@@ -167,21 +171,23 @@ void FixPAFI::init()
   dtv = update->dt;
   dtf = 0.5 * update->dt * force->ftm2v;
 
-  PathCompute = modify->get_compute_by_id(computename);
-  if (!PathCompute)
-    error->all(FLERR,"Compute ID {} for fix pafi does not exist", computename);
-
+  icompute = modify->find_compute(computename);
+  if (icompute == -1)
+    error->all(FLERR,"Compute ID for fix pafi does not exist");
+  PathCompute = modify->compute[icompute];
   if (PathCompute->peratom_flag==0)
-    error->all(FLERR,"Compute {} for fix pafi does not calculate a local array", computename);
+    error->all(FLERR,"Compute for fix pafi does not calculate a local array");
   if (PathCompute->size_peratom_cols < 9)
-    error->all(FLERR,"Compute {} for fix pafi must have 9 fields per atom", computename);
+    error->all(FLERR,"Compute for fix pafi must have 9 fields per atom");
+
 
   if (utils::strmatch(update->integrate_style,"^respa")) {
-    step_respa = (dynamic_cast<Respa *>(update->integrate))->step; // nve
-    nlevels_respa = (dynamic_cast<Respa *>(update->integrate))->nlevels;
+    step_respa = ((Respa *) update->integrate)->step; // nve
+    nlevels_respa = ((Respa *) update->integrate)->nlevels;
     if (respa_level >= 0) ilevel_respa = MIN(respa_level,nlevels_respa-1);
     else ilevel_respa = nlevels_respa-1;
   }
+
 }
 
 void FixPAFI::setup(int vflag)
@@ -190,9 +196,9 @@ void FixPAFI::setup(int vflag)
     post_force(vflag);
   else
     for (int ilevel = 0; ilevel < nlevels_respa; ilevel++) {
-      (dynamic_cast<Respa *>(update->integrate))->copy_flevel_f(ilevel);
+      ((Respa *) update->integrate)->copy_flevel_f(ilevel);
       post_force_respa(vflag,ilevel,0);
-      (dynamic_cast<Respa *>(update->integrate))->copy_f_flevel(ilevel);
+      ((Respa *) update->integrate)->copy_f_flevel(ilevel);
     }
 }
 
@@ -203,6 +209,7 @@ void FixPAFI::min_setup(int vflag)
     error->all(FLERR,"fix pafi requires a damped dynamics minimizer");
   min_post_force(vflag);
 }
+
 
 void FixPAFI::post_force(int /*vflag*/)
 {
@@ -586,6 +593,7 @@ void FixPAFI::initial_integrate(int /*vflag*/)
     if (rmass) {
       for (int i = 0; i < nlocal; i++)
         if (mask[i] & groupbit) {
+          dtfm = dtf / rmass[i];
           v[i][0] = 0.;
           v[i][1] = 0.;
           v[i][2] = 0.;
@@ -596,6 +604,7 @@ void FixPAFI::initial_integrate(int /*vflag*/)
     } else {
       for (int i = 0; i < nlocal; i++)
         if (mask[i] & groupbit) {
+          dtfm = dtf / mass[type[i]];
           v[i][0] = 0.;
           v[i][1] = 0.;
           v[i][2] = 0.;

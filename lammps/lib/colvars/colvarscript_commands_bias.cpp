@@ -36,10 +36,6 @@
         COLVARSCRIPT_OK) {                                              \
       return COLVARSCRIPT_ERROR;                                        \
     }                                                                   \
-    if (objc > 1) {                                                     \
-      /* Silence unused parameter warning */                            \
-      (void) objv;                                                      \
-    }                                                                   \
     colvarbias *this_bias = colvarbias_obj(pobj);                       \
     FN_BODY;                                                            \
   }

@@ -1,10 +1,7 @@
 .. index:: pair_style ilp/graphene/hbn
-.. index:: pair_style ilp/graphene/hbn/opt
 
 pair_style ilp/graphene/hbn command
 ===================================
-
-Accelerator Variant: *ilp/graphene/hbn/opt*
 
 Syntax
 """"""
@@ -128,10 +125,6 @@ headings) the following commands could be included in an input script:
 
 ----------
 
-.. include:: accel_styles.rst
-
-----------
-
 Mixing, shift, table, tail correction, restart, rRESPA info
 """""""""""""""""""""""""""""""""""""""""""""""""""""""""""
 
@@ -155,8 +148,8 @@ interactions.
 
 The BNCH.ILP potential file provided with LAMMPS (see the potentials
 directory) are parameterized for *metal* units.  You can use this
-potential with any LAMMPS units, but you would need to create your own
-custom BNCH.ILP potential file with coefficients listed in the appropriate
+potential with any LAMMPS units, but you would need to create your
+BNCH.ILP potential file with coefficients listed in the appropriate
 units, if your simulation does not use *metal* units.
 
 Related commands
@@ -166,8 +159,6 @@ Related commands
 :doc:`pair_none <pair_none>`,
 :doc:`pair_style hybrid/overlay <pair_hybrid>`,
 :doc:`pair_style drip <pair_drip>`,
-:doc:`pair_style ilp_tmd <pair_ilp_tmd>`,
-:doc:`pair_style saip_metal <pair_saip_metal>`,
 :doc:`pair_style pair_kolmogorov_crespi_z <pair_kolmogorov_crespi_z>`,
 :doc:`pair_style pair_kolmogorov_crespi_full <pair_kolmogorov_crespi_full>`,
 :doc:`pair_style pair_lebedeva_z <pair_lebedeva_z>`,
@@ -180,14 +171,6 @@ tap_flag = 1
 
 
 ----------
-
-.. _Ouyang1:
-
-**(Ouyang1)** W. Ouyang, D. Mandelli, M. Urbakh and O. Hod, Nano Lett. 18, 6009-6016 (2018).
-
-.. _Ouyang2:
-
-**(Ouyang2)** W. Ouyang et al., J. Chem. Theory Comput. 16(1), 666-676 (2020).
 
 .. _Leven1:
 
@@ -204,3 +187,11 @@ tap_flag = 1
 .. _Kolmogorov2:
 
 **(Kolmogorov)** A. N. Kolmogorov, V. H. Crespi, Phys. Rev. B 71, 235415 (2005).
+
+.. _Ouyang1:
+
+**(Ouyang1)** W. Ouyang, D. Mandelli, M. Urbakh and O. Hod, Nano Lett. 18, 6009-6016 (2018).
+
+.. _Ouyang2:
+
+**(Ouyang2)** W. Ouyang et al., J. Chem. Theory Comput. 16(1), 666-676 (2020).

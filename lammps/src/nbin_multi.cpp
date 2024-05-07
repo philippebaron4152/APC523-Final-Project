@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -22,12 +22,10 @@
 #include "error.h"
 #include "memory.h"
 
-#include <cmath>
-
 using namespace LAMMPS_NS;
 
-static constexpr double SMALL = 1.0e-6;
-static constexpr double CUT2BIN_RATIO = 100.0;
+#define SMALL 1.0e-6
+#define CUT2BIN_RATIO 100
 
 /* ---------------------------------------------------------------------- */
 
@@ -265,7 +263,7 @@ void NBinMulti::setup_bins(int /*style*/)
       mbinzhi = static_cast<int> ((coord-bboxlo[2])*bininvz_multi[n]);
     }
 
-    // extend bins by 1 to ensure stencil extent is included
+    // extend bins by 1 to insure stencil extent is included
     // for 2d, only 1 bin in z
 
     mbinxlo_multi[n] = mbinxlo_multi[n] - 1;

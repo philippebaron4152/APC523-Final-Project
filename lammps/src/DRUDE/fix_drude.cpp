@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -22,8 +22,10 @@
 #include "modify.h"
 #include "molecule.h"
 
+#include <cstring>
 #include <map>
 #include <set>
+#include <vector>
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -53,7 +55,7 @@ FixDrude::FixDrude(LAMMPS *lmp, int narg, char **arg) :
   }
 
   drudeid = nullptr;
-  FixDrude::grow_arrays(atom->nmax);
+  grow_arrays(atom->nmax);
   atom->add_callback(Atom::GROW);
   atom->add_callback(Atom::RESTART);
   atom->add_callback(Atom::BORDER);
@@ -82,7 +84,10 @@ FixDrude::~FixDrude()
 
 void FixDrude::init()
 {
-  if (modify->get_fix_by_style("^drude$").size() > 1) error->all(FLERR,"More than one fix drude");
+  int count = 0;
+  for (int i = 0; i < modify->nfix; i++)
+    if (strcmp(modify->fix[i]->style,"drude") == 0) count++;
+  if (count > 1) error->all(FLERR,"More than one fix drude");
 
   if (!rebuildflag) rebuild_special();
 }
@@ -170,7 +175,7 @@ void FixDrude::build_drudeid() {
 ------------------------------------------------------------------------- */
 void FixDrude::ring_search_drudeid(int size, char *cbuf, void *ptr) {
   // Search for the drude partner of my cores
-  auto fdptr = (FixDrude *) ptr;
+  FixDrude *fdptr = (FixDrude *) ptr;
   Atom *atom = fdptr->atom;
   int nlocal = atom->nlocal;
   int *type = atom->type;
@@ -178,7 +183,7 @@ void FixDrude::ring_search_drudeid(int size, char *cbuf, void *ptr) {
   tagint *drudeid = fdptr->drudeid;
   int *drudetype = fdptr->drudetype;
 
-  auto first = (tagint *) cbuf;
+  tagint *first = (tagint *) cbuf;
   tagint *last = first + size;
   std::set<tagint> drude_set(first, last);
   std::set<tagint>::iterator it;
@@ -200,11 +205,11 @@ void FixDrude::ring_search_drudeid(int size, char *cbuf, void *ptr) {
 ------------------------------------------------------------------------- */
 void FixDrude::ring_build_partner(int size, char *cbuf, void *ptr) {
   // Add partners from incoming list
-  auto fdptr = (FixDrude *) ptr;
+  FixDrude *fdptr = (FixDrude *) ptr;
   Atom *atom = fdptr->atom;
   int nlocal = atom->nlocal;
   std::set<tagint> *partner_set = fdptr->partner_set;
-  auto it = (tagint *) cbuf;
+  tagint *it = (tagint *) cbuf;
   tagint *last = it + size;
 
   while (it < last) {
@@ -371,13 +376,13 @@ void FixDrude::rebuild_special() {
 ------------------------------------------------------------------------- */
 void FixDrude::ring_remove_drude(int size, char *cbuf, void *ptr) {
   // Remove all drude particles from special list
-  auto fdptr = (FixDrude *) ptr;
+  FixDrude *fdptr = (FixDrude *) ptr;
   Atom *atom = fdptr->atom;
   int nlocal = atom->nlocal;
   int **nspecial = atom->nspecial;
   tagint **special = atom->special;
   int *type = atom->type;
-  auto first = (tagint *) cbuf;
+  tagint *first = (tagint *) cbuf;
   tagint *last = first + size;
   std::set<tagint> drude_set(first, last);
   int *drudetype = fdptr->drudetype;
@@ -408,7 +413,7 @@ void FixDrude::ring_remove_drude(int size, char *cbuf, void *ptr) {
 void FixDrude::ring_add_drude(int size, char *cbuf, void *ptr) {
   // Assume special array size is big enough
   // Add all particle just after their core in the special list
-  auto fdptr = (FixDrude *) ptr;
+  FixDrude *fdptr = (FixDrude *) ptr;
   Atom *atom = fdptr->atom;
   int nlocal = atom->nlocal;
   int **nspecial = atom->nspecial;
@@ -417,7 +422,7 @@ void FixDrude::ring_add_drude(int size, char *cbuf, void *ptr) {
   tagint *drudeid = fdptr->drudeid;
   int *drudetype = fdptr->drudetype;
 
-  auto first = (tagint *) cbuf;
+  tagint *first = (tagint *) cbuf;
   tagint *last = first + size;
   std::map<tagint, tagint> core_drude_map;
 
@@ -464,7 +469,7 @@ void FixDrude::ring_add_drude(int size, char *cbuf, void *ptr) {
 ------------------------------------------------------------------------- */
 void FixDrude::ring_copy_drude(int size, char *cbuf, void *ptr) {
   // Copy special list of drude from its core (except itself)
-  auto fdptr = (FixDrude *) ptr;
+  FixDrude *fdptr = (FixDrude *) ptr;
   Atom *atom = fdptr->atom;
   int nlocal = atom->nlocal;
   int **nspecial = atom->nspecial;
@@ -473,7 +478,7 @@ void FixDrude::ring_copy_drude(int size, char *cbuf, void *ptr) {
   tagint *drudeid = fdptr->drudeid;
   int *drudetype = fdptr->drudetype;
 
-  auto first = (tagint *) cbuf;
+  tagint *first = (tagint *) cbuf;
   tagint *last = first + size;
   std::map<tagint, tagint*> core_special_map;
 
@@ -511,8 +516,7 @@ void FixDrude::ring_copy_drude(int size, char *cbuf, void *ptr) {
  * ----------------------------------------------------------------------*/
 void FixDrude::set_arrays(int i) {
     if (drudetype[atom->type[i]] != NOPOL_TYPE) {
-        if (atom->nspecial[i] == nullptr)
-          error->all(FLERR, "Polarizable atoms cannot be inserted with special lists info from the molecule template");
+        if (atom->nspecial[i] ==0) error->all(FLERR, "Polarizable atoms cannot be inserted with special lists info from the molecule template");
         drudeid[i] = atom->special[i][0]; // Drude partner should be at first place in the special list
     } else {
         drudeid[i] = 0;

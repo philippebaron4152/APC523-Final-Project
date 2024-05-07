@@ -25,6 +25,7 @@ Setup simulation box:
    :columns: 4
 
    * :doc:`boundary <boundary>`
+   * :doc:`box <box>`
    * :doc:`change_box <change_box>`
    * :doc:`create_box <create_box>`
    * :doc:`dimension <dimension>`

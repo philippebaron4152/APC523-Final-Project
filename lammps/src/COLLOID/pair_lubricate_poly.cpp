@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -20,26 +20,30 @@
 
 #include "pair_lubricate_poly.h"
 
+#include <cmath>
+#include <cstring>
 #include "atom.h"
 #include "comm.h"
+#include "force.h"
+#include "neighbor.h"
+#include "neigh_list.h"
+#include "neigh_request.h"
 #include "domain.h"
-#include "error.h"
+#include "modify.h"
 #include "fix.h"
 #include "fix_deform.h"
 #include "fix_wall.h"
-#include "force.h"
 #include "input.h"
-#include "math_const.h"
-#include "modify.h"
-#include "neigh_list.h"
-#include "neighbor.h"
 #include "variable.h"
-
-#include <cmath>
-#include <cstring>
+#include "math_const.h"
+#include "error.h"
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
+
+// same as fix_wall.cpp
+
+enum{EDGE,CONSTANT,VARIABLE};
 
 /* ---------------------------------------------------------------------- */
 
@@ -126,7 +130,7 @@ void PairLubricatePoly::compute(int eflag, int vflag)
     // copy updated omega to the ghost particles
     // no need to do this if not shearing since comm->ghost_velocity is set
 
-    comm->forward_comm(this);
+    comm->forward_comm_pair(this);
   }
 
   // This section of code adjusts R0/RT0/RS0 if necessary due to changes
@@ -147,7 +151,7 @@ void PairLubricatePoly::compute(int eflag, int vflag)
          for (int m = 0; m < wallfix->nwall; m++) {
            int dim = wallfix->wallwhich[m] / 2;
            int side = wallfix->wallwhich[m] % 2;
-           if (wallfix->xstyle[m] == FixWall::VARIABLE) {
+           if (wallfix->xstyle[m] == VARIABLE) {
              wallcoord = input->variable->compute_equal(wallfix->xindex[m]);
            }
            else wallcoord = wallfix->coord0[m];
@@ -424,13 +428,12 @@ void PairLubricatePoly::compute(int eflag, int vflag)
 void PairLubricatePoly::init_style()
 {
   if (force->newton_pair == 1)
-    error->all(FLERR, "Pair lubricate/poly requires newton pair off");
+    error->all(FLERR,"Pair lubricate/poly requires newton pair off");
   if (comm->ghost_velocity == 0)
-    error->all(FLERR, "Pair lubricate/poly requires ghost atoms store velocity");
-  if (!atom->omega_flag)
-    error->all(FLERR, "Pair lubricate/poly requires atom attribute omega");
-  if (!atom->radius_flag)
-    error->all(FLERR, "Pair lubricate/poly requires atom attribute radius");
+    error->all(FLERR,
+               "Pair lubricate/poly requires ghost atoms store velocity");
+  if (!atom->sphere_flag)
+    error->all(FLERR,"Pair lubricate/poly requires atom style sphere");
 
   // ensure all particles are finite-size
   // for pair hybrid, should limit test to types using the pair style
@@ -440,9 +443,11 @@ void PairLubricatePoly::init_style()
 
   for (int i = 0; i < nlocal; i++)
     if (radius[i] == 0.0)
-      error->one(FLERR,"Pair lubricate/poly requires only extended particles");
+      error->one(FLERR,"Pair lubricate/poly requires extended particles");
 
-  neighbor->add_request(this, NeighConst::REQ_FULL);
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
 
   // set the isotropic constants that depend on the volume fraction
   // vol_T = total volume
@@ -460,7 +465,7 @@ void PairLubricatePoly::init_style()
   for (int i = 0; i < modify->nfix; i++) {
     if (strcmp(modify->fix[i]->style,"deform") == 0) {
       shearing = flagdeform = 1;
-      if ((dynamic_cast<FixDeform *>(modify->fix[i]))->remapflag != Domain::V_REMAP)
+      if (((FixDeform *) modify->fix[i])->remapflag != Domain::V_REMAP)
         error->all(FLERR,"Using pair lubricate with inconsistent "
                    "fix deform remap option");
     }
@@ -470,15 +475,15 @@ void PairLubricatePoly::init_style()
                    "Cannot use multiple fix wall commands with "
                    "pair lubricate/poly");
       flagwall = 1; // Walls exist
-      wallfix = dynamic_cast<FixWall *>(modify->fix[i]);
+      wallfix = (FixWall *) modify->fix[i];
       if (wallfix->xflag) flagwall = 2; // Moving walls exist
     }
 
     if (strstr(modify->fix[i]->style,"wall") != nullptr) {
       flagwall = 1; // Walls exist
-      if ((dynamic_cast<FixWall *>(modify->fix[i]))->xflag) {
+      if (((FixWall *) modify->fix[i])->xflag) {
         flagwall = 2; // Moving walls exist
-        wallfix = dynamic_cast<FixWall *>(modify->fix[i]);
+        wallfix = (FixWall *) modify->fix[i];
       }
     }
   }
@@ -495,7 +500,7 @@ void PairLubricatePoly::init_style()
     for (int m = 0; m < wallfix->nwall; m++) {
       int dim = wallfix->wallwhich[m] / 2;
       int side = wallfix->wallwhich[m] % 2;
-      if (wallfix->xstyle[m] == FixWall::VARIABLE) {
+      if (wallfix->xstyle[m] == VARIABLE) {
         wallfix->xindex[m] = input->variable->find(wallfix->xstr[m]);
         //Since fix->wall->init happens after pair->init_style
         wallcoord = input->variable->compute_equal(wallfix->xindex[m]);
@@ -536,7 +541,7 @@ void PairLubricatePoly::init_style()
   for (int i = 0; i < modify->nfix; i++)
     if (strcmp(modify->fix[i]->style,"deform") == 0) {
       shearing = 1;
-      if ((dynamic_cast<FixDeform *>(modify->fix[i]))->remapflag != Domain::V_REMAP)
+      if (((FixDeform *) modify->fix[i])->remapflag != Domain::V_REMAP)
         error->all(FLERR,"Using pair lubricate/poly with inconsistent "
                    "fix deform remap option");
     }

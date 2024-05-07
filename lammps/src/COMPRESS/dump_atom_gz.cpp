@@ -1,7 +1,8 @@
+// clang-format off
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -11,25 +12,31 @@
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
 
-#include "dump_atom_gz.h"
-
 #include "domain.h"
+#include "dump_atom_gz.h"
 #include "error.h"
-#include "file_writer.h"
 #include "update.h"
 
 #include <cstring>
 
 using namespace LAMMPS_NS;
 
-DumpAtomGZ::DumpAtomGZ(LAMMPS *lmp, int narg, char **arg) : DumpAtom(lmp, narg, arg)
+DumpAtomGZ::DumpAtomGZ(LAMMPS *lmp, int narg, char **arg) :
+  DumpAtom(lmp, narg, arg)
 {
-  if (!compressed) error->all(FLERR, "Dump atom/gz only writes compressed files");
+  if (!compressed)
+    error->all(FLERR,"Dump atom/gz only writes compressed files");
+}
+
+/* ---------------------------------------------------------------------- */
+
+DumpAtomGZ::~DumpAtomGZ()
+{
 }
 
 /* ----------------------------------------------------------------------
    generic opening of a dump file
-   ASCII or binary or compressed
+   ASCII or binary or gzipped
    some derived classes override this function
 ------------------------------------------------------------------------- */
 
@@ -46,7 +53,20 @@ void DumpAtomGZ::openfile()
   if (multiproc) filecurrent = multiname;
 
   if (multifile) {
-    filecurrent = utils::strdup(utils::star_subst(filecurrent, update->ntimestep, padflag));
+    char *filestar = filecurrent;
+    filecurrent = new char[strlen(filestar) + 16];
+    char *ptr = strchr(filestar,'*');
+    *ptr = '\0';
+    if (padflag == 0)
+      sprintf(filecurrent,"%s" BIGINT_FORMAT "%s",
+              filestar,update->ntimestep,ptr+1);
+    else {
+      char bif[8],pad[16];
+      strcpy(bif,BIGINT_FORMAT);
+      sprintf(pad,"%%s%%0%d%s%%s",padflag,&bif[1]);
+      sprintf(filecurrent,pad,filestar,update->ntimestep,ptr+1);
+    }
+    *ptr = '*';
     if (maxfiles > 0) {
       if (numfiles < maxfiles) {
         nameslist[numfiles] = utils::strdup(filecurrent);
@@ -74,7 +94,7 @@ void DumpAtomGZ::openfile()
 
   // delete string with timestep replaced
 
-  if (multifile) delete[] filecurrent;
+  if (multifile) delete [] filecurrent;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -86,10 +106,12 @@ void DumpAtomGZ::write_header(bigint ndump)
   if ((multiproc) || (!multiproc && me == 0)) {
     if (unit_flag && !unit_count) {
       ++unit_count;
-      header = fmt::format("ITEM: UNITS\n{}\n", update->unit_style);
+      header = fmt::format("ITEM: UNITS\n{}\n",update->unit_style);
     }
 
-    if (time_flag) { header += fmt::format("ITEM: TIME\n{0:.16g}\n", compute_time()); }
+    if (time_flag) {
+      header += fmt::format("ITEM: TIME\n{0:.16g}\n", compute_time());
+    }
 
     header += fmt::format("ITEM: TIMESTEP\n{}\n", update->ntimestep);
     header += fmt::format("ITEM: NUMBER OF ATOMS\n{}\n", ndump);
@@ -123,14 +145,14 @@ void DumpAtomGZ::write_data(int n, double *mybuf)
     for (int i = 0; i < n; i++) {
       int written = 0;
       if (image_flag == 1) {
-        written = snprintf(vbuffer, VBUFFER_SIZE, format, static_cast<tagint>(mybuf[m]),
-                           static_cast<int>(mybuf[m + 1]), mybuf[m + 2], mybuf[m + 3], mybuf[m + 4],
-                           static_cast<int>(mybuf[m + 5]), static_cast<int>(mybuf[m + 6]),
-                           static_cast<int>(mybuf[m + 7]));
+        written = snprintf(vbuffer, VBUFFER_SIZE, format,
+              static_cast<tagint> (mybuf[m]), static_cast<int> (mybuf[m+1]),
+              mybuf[m+2],mybuf[m+3],mybuf[m+4], static_cast<int> (mybuf[m+5]),
+              static_cast<int> (mybuf[m+6]), static_cast<int> (mybuf[m+7]));
       } else {
-        written =
-            snprintf(vbuffer, VBUFFER_SIZE, format, static_cast<tagint>(mybuf[m]),
-                     static_cast<int>(mybuf[m + 1]), mybuf[m + 2], mybuf[m + 3], mybuf[m + 4]);
+        written = snprintf(vbuffer, VBUFFER_SIZE, format,
+              static_cast<tagint> (mybuf[m]), static_cast<int> (mybuf[m+1]),
+              mybuf[m+2],mybuf[m+3],mybuf[m+4]);
       }
       if (written > 0) {
         writer.write(vbuffer, written);
@@ -152,7 +174,9 @@ void DumpAtomGZ::write()
     if (multifile) {
       writer.close();
     } else {
-      if (flush_flag && writer.isopen()) { writer.flush(); }
+      if (flush_flag && writer.isopen()) {
+        writer.flush();
+      }
     }
   }
 }
@@ -164,14 +188,14 @@ int DumpAtomGZ::modify_param(int narg, char **arg)
   int consumed = DumpAtom::modify_param(narg, arg);
   if (consumed == 0) {
     try {
-      if (strcmp(arg[0], "compression_level") == 0) {
-        if (narg < 2) error->all(FLERR, "Illegal dump_modify command");
+      if (strcmp(arg[0],"compression_level") == 0) {
+        if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
         int compression_level = utils::inumeric(FLERR, arg[1], false, lmp);
         writer.setCompressionLevel(compression_level);
         return 2;
       }
     } catch (FileWriterException &e) {
-      error->one(FLERR, "Illegal dump_modify command: {}", e.what());
+      error->one(FLERR,"Illegal dump_modify command: {}", e.what());
     }
   }
   return consumed;

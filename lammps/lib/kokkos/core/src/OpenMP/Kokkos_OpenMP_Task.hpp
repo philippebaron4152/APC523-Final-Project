@@ -1,18 +1,46 @@
+/*
 //@HEADER
 // ************************************************************************
 //
-//                        Kokkos v. 4.0
-//       Copyright (2022) National Technology & Engineering
+//                        Kokkos v. 3.0
+//       Copyright (2020) National Technology & Engineering
 //               Solutions of Sandia, LLC (NTESS).
 //
 // Under the terms of Contract DE-NA0003525 with NTESS,
 // the U.S. Government retains certain rights in this software.
 //
-// Part of Kokkos, under the Apache License v2.0 with LLVM Exceptions.
-// See https://kokkos.org/LICENSE for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
 //
+// 1. Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright
+// notice, this list of conditions and the following disclaimer in the
+// documentation and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the Corporation nor the names of the
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY NTESS "AS IS" AND ANY
+// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NTESS OR THE
+// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+// Questions? Contact Christian R. Trott (crtrott@sandia.gov)
+//
+// ************************************************************************
 //@HEADER
+*/
 
 #ifndef KOKKOS_IMPL_OPENMP_TASK_HPP
 #define KOKKOS_IMPL_OPENMP_TASK_HPP
@@ -20,11 +48,10 @@
 #include <Kokkos_Macros.hpp>
 #if defined(KOKKOS_ENABLE_OPENMP) && defined(KOKKOS_ENABLE_TASKDAG)
 
-#include <Kokkos_Atomic.hpp>
 #include <Kokkos_TaskScheduler_fwd.hpp>
 
 #include <impl/Kokkos_HostThreadTeam.hpp>
-#include <OpenMP/Kokkos_OpenMP.hpp>
+#include <Kokkos_OpenMP.hpp>
 
 #include <type_traits>
 #include <cassert>
@@ -48,7 +75,7 @@ class HostThreadTeamDataSingleton : private HostThreadTeamData {
 // TODO @tasking @cleanup DSH Make this the general class template and make the
 // old code the partial specialization
 template <class QueueType>
-class TaskQueueSpecialization<SimpleTaskScheduler<Kokkos::OpenMP, QueueType>> {
+class TaskQueueSpecialization<SimpleTaskScheduler<Kokkos::OpenMP, QueueType> > {
  public:
   using execution_space = Kokkos::OpenMP;
   using scheduler_type  = SimpleTaskScheduler<Kokkos::OpenMP, QueueType>;
@@ -69,11 +96,11 @@ class TaskQueueSpecialization<SimpleTaskScheduler<Kokkos::OpenMP, QueueType>> {
     // HostThreadTeamData& team_data_single =
     // HostThreadTeamDataSingleton::singleton();
 
-    Impl::OpenMPInternal* instance =
-        execution_space().impl_internal_space_instance();
+    // TODO @tasking @generalization DSH use
+    // scheduler.get_execution_space().impl() (or something like that) instead
+    // of the thread-local variable
+    Impl::OpenMPExec* instance = t_openmp_instance;
     const int pool_size = get_max_team_count(scheduler.get_execution_space());
-
-    instance->acquire_lock();
 
     // TODO @tasking @new_feature DSH allow team sizes other than 1
     const int team_size = 1;                      // Threads per core
@@ -152,8 +179,6 @@ class TaskQueueSpecialization<SimpleTaskScheduler<Kokkos::OpenMP, QueueType>> {
       }
       self.disband_team();
     }  // end pragma omp parallel
-
-    instance->release_lock();
   }
 
   static uint32_t get_max_team_count(execution_space const& espace) {
@@ -173,8 +198,8 @@ class TaskQueueSpecialization<SimpleTaskScheduler<Kokkos::OpenMP, QueueType>> {
 template <class Scheduler>
 class TaskQueueSpecializationConstrained<
     Scheduler,
-    std::enable_if_t<std::is_same<typename Scheduler::execution_space,
-                                  Kokkos::OpenMP>::value>> {
+    typename std::enable_if<std::is_same<typename Scheduler::execution_space,
+                                         Kokkos::OpenMP>::value>::type> {
  public:
   using execution_space = Kokkos::OpenMP;
   using scheduler_type  = Scheduler;
@@ -190,8 +215,7 @@ class TaskQueueSpecializationConstrained<
     using task_base_type = typename scheduler_type::task_base;
     using queue_type     = typename scheduler_type::queue_type;
 
-    execution_space exec;
-    if (1 == exec.impl_thread_pool_size()) {
+    if (1 == OpenMP::impl_thread_pool_size()) {
       task_base_type* const end = (task_base_type*)task_base_type::EndTag;
 
       HostThreadTeamData& team_data_single =
@@ -234,11 +258,8 @@ class TaskQueueSpecializationConstrained<
     HostThreadTeamData& team_data_single =
         HostThreadTeamDataSingleton::singleton();
 
-    Impl::OpenMPInternal* instance =
-        execution_space().impl_internal_space_instance();
-    const int pool_size = instance->thread_pool_size();
-
-    instance->acquire_lock();
+    Impl::OpenMPExec* instance = t_openmp_instance;
+    const int pool_size        = OpenMP::impl_thread_pool_size();
 
     const int team_size = 1;       // Threads per core
     instance->resize_thread_data(0 /* global reduce buffer */
@@ -288,9 +309,7 @@ class TaskQueueSpecializationConstrained<
 
               // If 0 == m_ready_count then set task = 0
 
-              if (desul::atomic_load(&team_queue.m_ready_count,
-                                     desul::MemoryOrderAcquire(),
-                                     desul::MemoryScopeDevice()) > 0) {
+              if (*((volatile int*)&team_queue.m_ready_count) > 0) {
                 task = end;
                 // Attempt to acquire a task
                 // Loop by priority and then type
@@ -305,6 +324,11 @@ class TaskQueueSpecializationConstrained<
                 // count of 0 also. Otherwise, returns a task from another queue
                 // or `end` if one couldn't be popped
                 task = team_queue.attempt_to_steal_task();
+#if 0
+                if(task != no_more_tasks_sentinel && task != end) {
+                  std::printf("task stolen on rank %d\n", team_exec.league_rank());
+                }
+#endif
               }
 
               // If still tasks are still executing
@@ -343,8 +367,6 @@ class TaskQueueSpecializationConstrained<
       }
       self.disband_team();
     }  // end pragma omp parallel
-
-    instance->release_lock();
   }
 
   template <typename TaskType>

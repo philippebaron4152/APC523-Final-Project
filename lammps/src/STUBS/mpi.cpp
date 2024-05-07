@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -19,14 +19,9 @@
 
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-
-#if defined(_WIN32)
-#define WIN32_LEAN_AND_MEAN
-#include <windows.h>
-#else
 #include <sys/time.h>
-#endif
 
 /* data structure for double/int */
 
@@ -172,7 +167,7 @@ int MPI_Finalize()
 
 double MPI_Wtime()
 {
-#if defined(_WIN32)
+#if defined(_MSC_VER)
   double t;
 
   t = GetTickCount();
@@ -423,15 +418,6 @@ int MPI_Group_incl(MPI_Group group, int n, int *ranks, MPI_Group *newgroup)
     *newgroup = group;
   return 0;
 }
-
-/* ---------------------------------------------------------------------- */
-
-int MPI_Group_free(MPI_Group *group)
-{
-  if (group) *group = MPI_GROUP_NULL;
-  return 0;
-}
-
 /* ---------------------------------------------------------------------- */
 
 int MPI_Cart_create(MPI_Comm comm_old, int ndims, int *dims, int *periods, int reorder,

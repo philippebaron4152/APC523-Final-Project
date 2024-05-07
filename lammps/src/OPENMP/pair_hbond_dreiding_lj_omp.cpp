@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    This software is distributed under the GNU General Public License.
 
@@ -33,7 +33,7 @@ using namespace LAMMPS_NS;
 using namespace MathConst;
 using namespace MathSpecial;
 
-static constexpr double SMALL = 0.001;
+#define SMALL 0.001
 
 /* ---------------------------------------------------------------------- */
 
@@ -130,8 +130,8 @@ void PairHbondDreidingLJOMP::eval(int iifrom, int iito, ThrData * const thr)
 
   evdwl = 0.0;
 
-  const auto * _noalias const x = (dbl3_t *) atom->x[0];
-  auto * _noalias const f = (dbl3_t *) thr->get_f()[0];
+  const dbl3_t * _noalias const x = (dbl3_t *) atom->x[0];
+  dbl3_t * _noalias const f = (dbl3_t *) thr->get_f()[0];
   const tagint * _noalias const tag = atom->tag;
   const int * _noalias const molindex = atom->molindex;
   const int * _noalias const molatom = atom->molatom;

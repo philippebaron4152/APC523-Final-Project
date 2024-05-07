@@ -84,7 +84,7 @@ int sw_gpu_init(const int ntypes, const int inum, const int nall,
                         sigma_gamma, c1, c2, c3, c4, c5, c6, lambda_epsilon,
                         costheta, map, e2param);
 
-    SWMF.device->serialize_init();
+    SWMF.device->gpu_barrier();
     if (message)
       fprintf(screen,"Done.\n");
   }

@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -44,10 +44,11 @@ struct RandWrap {
 class RandPoolWrap : protected Pointers {
  public:
   RandPoolWrap(int, class LAMMPS *);
-  ~RandPoolWrap() override;
+  ~RandPoolWrap();
   void destroy();
   void init(RanMars*, int);
 
+  KOKKOS_INLINE_FUNCTION
   RandWrap get_state() const
   {
 #ifdef LMP_KOKKOS_GPU
@@ -67,7 +68,11 @@ class RandPoolWrap : protected Pointers {
     return rand_wrap;
   }
 
-  void free_state(RandWrap) const {}
+  KOKKOS_INLINE_FUNCTION
+  void free_state(RandWrap) const
+  {
+
+  }
 
  private:
   class RanMars **random_thr;
@@ -78,3 +83,6 @@ class RandPoolWrap : protected Pointers {
 
 #endif
 
+/* ERROR/WARNING messages:
+
+*/

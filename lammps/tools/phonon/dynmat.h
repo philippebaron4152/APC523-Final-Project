@@ -1,9 +1,11 @@
 #ifndef DYNMAT_H
 #define DYNMAT_H
 
-#include "zheevd.h"
-
-#include <cstdio>
+#include "stdio.h"
+#include "stdlib.h"
+#include "string.h"
+#include "memory.h"
+#include "interpolate.h"
 
 class DynMat {
 public:
@@ -13,7 +15,7 @@ public:
 
   int nx, ny, nz, nucell;
   int sysdim, fftdim;
-  double eml2f, eml2fc, symprec;
+  double eml2f, eml2fc;
   char *funit;
 
   void getDMq(double *);
@@ -32,18 +34,18 @@ public:
   double **basis;
   int *attyp;
 
-  class UserInput *input;
-
 private:
 
   int flag_skip, flag_reset_gamma;
-  class Interpolate *interpolate;
-  class Memory *memory;
+  Interpolate *interpolate;
+  
+  Memory *memory;
 
+  int nasr;
   void EnforceASR();
 
   char *binfile, *dmfile;
-  double boltz;
+  double boltz, q[3];
 
   doublecomplex **DM_all;
 

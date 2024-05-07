@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -18,19 +18,17 @@
 ------------------------------------------------------------------------- */
 
 #include "dump_dcd.h"
-
-#include "atom.h"
+#include <cmath>
+#include <ctime>
+#include <cstring>
 #include "domain.h"
-#include "error.h"
-#include "fmt/chrono.h"
+#include "atom.h"
+#include "update.h"
+#include "output.h"
 #include "group.h"
 #include "memory.h"
-#include "output.h"
-#include "update.h"
-
-#include <cmath>
-#include <cstring>
-#include <ctime>
+#include "error.h"
+#include "fmt/chrono.h"
 
 using namespace LAMMPS_NS;
 
@@ -80,7 +78,7 @@ DumpDCD::DumpDCD(LAMMPS *lmp, int narg, char **arg) : Dump(lmp, narg, arg),
   yf = &coords[1*natoms];
   zf = &coords[2*natoms];
 
-  DumpDCD::openfile();
+  openfile();
   headerflag = 0;
   nevery_save = 0;
   ntotal = 0;
@@ -100,17 +98,13 @@ void DumpDCD::init_style()
   if (sort_flag == 0 || sortcol != 0)
     error->all(FLERR,"Dump dcd requires sorting by atom ID");
 
-  // check that dump modify settings are compatible with dcd
-  // but only when not being called from the "write_dump" command
+  // check that dump frequency has not changed and is not a variable
+  // but only when not being called from the "write_dump" command.
 
   if (strcmp(id,"WRITE_DUMP") != 0) {
     int idump;
     for (idump = 0; idump < output->ndump; idump++)
       if (strcmp(id,output->dump[idump]->id) == 0) break;
-
-    if (output->mode_dump[idump] == 1)
-      error->all(FLERR,"Cannot use every/time setting for dump dcd");
-
     if (output->every_dump[idump] == 0)
       error->all(FLERR,"Cannot use variable every setting for dump dcd");
 
@@ -262,7 +256,9 @@ int DumpDCD::modify_param(int narg, char **arg)
 {
   if (strcmp(arg[0],"unwrap") == 0) {
     if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
-    unwrap_flag = utils::logical(FLERR,arg[1],false,lmp);
+    if (strcmp(arg[1],"yes") == 0) unwrap_flag = 1;
+    else if (strcmp(arg[1],"no") == 0) unwrap_flag = 0;
+    else error->all(FLERR,"Illegal dump_modify command");
     return 2;
   }
   return 0;

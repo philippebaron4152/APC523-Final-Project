@@ -6,7 +6,7 @@ fix temp/rescale/eff command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID temp/rescale/eff N Tstart Tstop window fraction
 

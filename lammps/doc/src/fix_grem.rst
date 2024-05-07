@@ -6,7 +6,7 @@ fix grem command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID grem lambda eta H0 thermostat-ID
 

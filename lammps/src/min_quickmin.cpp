@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -28,8 +28,9 @@ using namespace LAMMPS_NS;
 
 // EPS_ENERGY = minimum normalization for energy tolerance
 
-static constexpr double EPS_ENERGY = 1.0e-8;
-static constexpr int DELAYSTEP = 5;
+#define EPS_ENERGY 1.0e-8
+
+#define DELAYSTEP 5
 
 /* ---------------------------------------------------------------------- */
 

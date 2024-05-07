@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,7 +21,6 @@
 #include "atom.h"
 #include "comm.h"
 #include "error.h"
-#include "ewald_const.h"
 #include "force.h"
 #include "kspace.h"
 #include "memory.h"
@@ -32,13 +31,21 @@
 #include <cstring>
 
 using namespace LAMMPS_NS;
-using namespace EwaldConst;
+
+#define EWALD_F   1.12837917
+#define EWALD_P   0.3275911
+#define A1        0.254829592
+#define A2       -0.284496736
+#define A3        1.421413741
+#define A4       -1.453152027
+#define A5        1.061405429
 
 /* ---------------------------------------------------------------------- */
 
 PairCoulSlaterLong::PairCoulSlaterLong(LAMMPS *lmp) : Pair(lmp)
 {
   ewaldflag = pppmflag = 1;
+  //ftable = nullptr;
   qdist = 0.0;
 }
 
@@ -110,15 +117,32 @@ void PairCoulSlaterLong::compute(int eflag, int vflag)
 
       if (rsq < cut_coulsq) {
         r2inv = 1.0/rsq;
-        r = sqrt(rsq);
-        grij = g_ewald * r;
-        expm2 = exp(-grij*grij);
-        t = 1.0 / (1.0 + EWALD_P*grij);
-        erfc = t * (A1+t*(A2+t*(A3+t*(A4+t*A5)))) * expm2;
-        slater_term = exp(-2*r/lamda)*(1 + (2*r/lamda*(1+r/lamda)));
-        prefactor = qqrd2e * scale[itype][jtype] * qtmp*q[j]/r;
-        forcecoul = prefactor * (erfc + EWALD_F*grij*expm2 - slater_term);
-        if (factor_coul < 1.0) forcecoul -= (1.0-factor_coul)*prefactor*(1-slater_term);
+//        if (!ncoultablebits || rsq <= tabinnersq) {
+          r = sqrt(rsq);
+          grij = g_ewald * r;
+          expm2 = exp(-grij*grij);
+          t = 1.0 / (1.0 + EWALD_P*grij);
+          erfc = t * (A1+t*(A2+t*(A3+t*(A4+t*A5)))) * expm2;
+          slater_term = exp(-2*r/lamda)*(1 + (2*r/lamda*(1+r/lamda)));
+          prefactor = qqrd2e * scale[itype][jtype] * qtmp*q[j]/r;
+          forcecoul = prefactor * (erfc + EWALD_F*grij*expm2 - slater_term);
+          if (factor_coul < 1.0) forcecoul -= (1.0-factor_coul)*prefactor;
+/*
+        } else {
+          union_int_float_t rsq_lookup;
+          rsq_lookup.f = rsq;
+          itable = rsq_lookup.i & ncoulmask;
+          itable >>= ncoulshiftbits;
+          fraction = (rsq_lookup.f - rtable[itable]) * drtable[itable];
+          table = ftable[itable] + fraction*dftable[itable];
+          forcecoul = scale[itype][jtype] * qtmp*q[j] * table;
+          if (factor_coul < 1.0) {
+            table = ctable[itable] + fraction*dctable[itable];
+            prefactor = scale[itype][jtype] * qtmp*q[j] * table;
+            forcecoul -= (1.0-factor_coul)*prefactor;
+          }
+        }
+*/
 
         fpair = forcecoul * r2inv;
 
@@ -132,8 +156,15 @@ void PairCoulSlaterLong::compute(int eflag, int vflag)
         }
 
         if (eflag) {
-          ecoul = prefactor*(erfc - (1 + r/lamda)*exp(-2*r/lamda));
-          if (factor_coul < 1.0) ecoul -= (1.0-factor_coul)*prefactor*(1.0-(1 + r/lamda)*exp(-2*r/lamda));
+//          if (!ncoultablebits || rsq <= tabinnersq)
+            ecoul = prefactor*(erfc - (1 + r/lamda)*exp(-2*r/lamda));
+/*
+          else {
+            table = etable[itable] + fraction*detable[itable];
+            ecoul = scale[itype][jtype] * qtmp*q[j] * table;
+          }
+*/
+          if (factor_coul < 1.0) ecoul -= (1.0-factor_coul)*prefactor;
         }
 
         if (evflag) ev_tally(i,j,nlocal,newton_pair,
@@ -210,11 +241,11 @@ void PairCoulSlaterLong::init_style()
   if (!atom->q_flag)
     error->all(FLERR,"Pair style coul/slater/long requires atom attribute q");
 
-  neighbor->add_request(this);
+  neighbor->request(this,instance_me);
 
   cut_coulsq = cut_coul * cut_coul;
 
-  // ensure use of KSpace long-range solver, set g_ewald
+  // insure use of KSpace long-range solver, set g_ewald
 
  if (force->kspace == nullptr)
     error->all(FLERR,"Pair style requires a KSpace style");
@@ -265,10 +296,10 @@ void PairCoulSlaterLong::read_restart(FILE *fp)
   int me = comm->me;
   for (i = 1; i <= atom->ntypes; i++)
     for (j = i; j <= atom->ntypes; j++) {
-      if (me == 0) utils::sfread(FLERR, &setflag[i][j],sizeof(int),1,fp, nullptr, error);
+      if (me == 0) fread(&setflag[i][j],sizeof(int),1,fp);
       MPI_Bcast(&setflag[i][j],1,MPI_INT,0,world);
       if (setflag[i][j]) {
-        if (me == 0) utils::sfread(FLERR, &scale[i][j],sizeof(double),1,fp, nullptr, error);
+        if (me == 0) fread(&scale[i][j],sizeof(double),1,fp);
         MPI_Bcast(&scale[i][j],1,MPI_DOUBLE,0,world);
       }
     }
@@ -284,6 +315,8 @@ void PairCoulSlaterLong::write_restart_settings(FILE *fp)
   fwrite(&lamda,sizeof(double),1,fp);
   fwrite(&offset_flag,sizeof(int),1,fp);
   fwrite(&mix_flag,sizeof(int),1,fp);
+  //fwrite(&ncoultablebits,sizeof(int),1,fp);
+  //fwrite(&tabinner,sizeof(double),1,fp);
 }
 
 /* ----------------------------------------------------------------------
@@ -293,39 +326,71 @@ void PairCoulSlaterLong::write_restart_settings(FILE *fp)
 void PairCoulSlaterLong::read_restart_settings(FILE *fp)
 {
   if (comm->me == 0) {
-    utils::sfread(FLERR, &cut_coul,sizeof(double),1,fp,nullptr,error);
-    utils::sfread(FLERR, &lamda,sizeof(double),1,fp,nullptr,error);
-    utils::sfread(FLERR, &offset_flag,sizeof(int),1,fp,nullptr,error);
-    utils::sfread(FLERR, &mix_flag,sizeof(int),1,fp,nullptr,error);
+    fread(&cut_coul,sizeof(double),1,fp);
+    fread(&lamda,sizeof(double),1,fp);
+    fread(&offset_flag,sizeof(int),1,fp);
+    fread(&mix_flag,sizeof(int),1,fp);
+    //fread(&ncoultablebits,sizeof(int),1,fp);
+    //fread(&tabinner,sizeof(double),1,fp);
   }
   MPI_Bcast(&cut_coul,1,MPI_DOUBLE,0,world);
   MPI_Bcast(&lamda,1,MPI_DOUBLE,0,world);
   MPI_Bcast(&offset_flag,1,MPI_INT,0,world);
   MPI_Bcast(&mix_flag,1,MPI_INT,0,world);
+  //MPI_Bcast(&ncoultablebits,1,MPI_INT,0,world);
+  //MPI_Bcast(&tabinner,1,MPI_DOUBLE,0,world);
 }
 
 /* ---------------------------------------------------------------------- */
 
-double PairCoulSlaterLong::single(int i, int j, int /*itype*/, int /*jtype*/, double rsq,
-                                  double factor_coul, double /*factor_lj*/, double &fforce)
+double PairCoulSlaterLong::single(int i, int j, int /*itype*/, int /*jtype*/,
+                            double rsq,
+                            double factor_coul, double /*factor_lj*/,
+                            double &fforce)
 {
   double r2inv,r,grij,expm2,t,erfc,prefactor;
   double slater_term;
+//  double fraction,table;
   double forcecoul,phicoul;
+//  int itable;
 
   r2inv = 1.0/rsq;
-  r = sqrt(rsq);
-  grij = g_ewald * r;
-  expm2 = exp(-grij*grij);
-  t = 1.0 / (1.0 + EWALD_P*grij);
-  erfc = t * (A1+t*(A2+t*(A3+t*(A4+t*A5)))) * expm2;
-  slater_term = exp(-2*r/lamda)*(1 + (2*r/lamda*(1+r/lamda)));
-  prefactor = force->qqrd2e * atom->q[i]*atom->q[j]/r;
-  forcecoul = prefactor * (erfc + EWALD_F*grij*expm2 - slater_term);
-  if (factor_coul < 1.0) forcecoul -= (1.0-factor_coul)*prefactor;
+//  if (!ncoultablebits || rsq <= tabinnersq) {
+    r = sqrt(rsq);
+    grij = g_ewald * r;
+    expm2 = exp(-grij*grij);
+    t = 1.0 / (1.0 + EWALD_P*grij);
+    erfc = t * (A1+t*(A2+t*(A3+t*(A4+t*A5)))) * expm2;
+    slater_term = exp(-2*r/lamda)*(1 + (2*r/lamda*(1+r/lamda)));
+    prefactor = force->qqrd2e * atom->q[i]*atom->q[j]/r;
+    forcecoul = prefactor * (erfc + EWALD_F*grij*expm2 - slater_term);
+    if (factor_coul < 1.0) forcecoul -= (1.0-factor_coul)*prefactor;
+/*
+  } else {
+    union_int_float_t rsq_lookup;
+    rsq_lookup.f = rsq;
+    itable = rsq_lookup.i & ncoulmask;
+    itable >>= ncoulshiftbits;
+    fraction = (rsq_lookup.f - rtable[itable]) * drtable[itable];
+    table = ftable[itable] + fraction*dftable[itable];
+    forcecoul = atom->q[i]*atom->q[j] * table;
+    if (factor_coul < 1.0) {
+      table = ctable[itable] + fraction*dctable[itable];
+      prefactor = atom->q[i]*atom->q[j] * table;
+      forcecoul -= (1.0-factor_coul)*prefactor;
+    }
+  }
+*/
   fforce = forcecoul * r2inv;
 
-  phicoul = prefactor*(erfc - (1 + r/lamda)*exp(-2*r/lamda));
+//  if (!ncoultablebits || rsq <= tabinnersq)
+    phicoul = prefactor*(erfc - (1 + r/lamda)*exp(-2*r/lamda));
+/*
+  else {
+    table = etable[itable] + fraction*detable[itable];
+    phicoul = atom->q[i]*atom->q[j] * table;
+  }
+*/
   if (factor_coul < 1.0) phicoul -= (1.0-factor_coul)*prefactor;
 
   return phicoul;

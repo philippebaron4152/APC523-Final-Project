@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -320,7 +320,7 @@ struct potdata2 {
     tdeppot.devol0 = maketempspline(ntemp,potlist,&(potlist[0].devol0));
 
 
-    tdeppot.ddl[0] = nullptr;
+    tdeppot.ddl[0] = 0;
     for(int k = 1; k<=4; k++)
       tdeppot.ddl[k] = maketempspline(ntemp,potlist,&(potlist[0].ddl[k]));
 

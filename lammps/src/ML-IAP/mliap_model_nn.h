@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -16,20 +16,18 @@
 
 #include "mliap_model.h"
 
-#include <cmath>
-
 namespace LAMMPS_NS {
 
 class MLIAPModelNN : public MLIAPModel {
  public:
   MLIAPModelNN(LAMMPS *, char * = nullptr);
-  ~MLIAPModelNN() override;
-  int get_nparams() override;
-  int get_gamma_nnz(class MLIAPData *) override;
-  void compute_gradients(class MLIAPData *) override;
-  void compute_gradgrads(class MLIAPData *) override;
-  void compute_force_gradients(class MLIAPData *) override;
-  double memory_usage() override;
+  ~MLIAPModelNN();
+  virtual int get_nparams();
+  virtual int get_gamma_nnz(class MLIAPData *);
+  virtual void compute_gradients(class MLIAPData *);
+  virtual void compute_gradgrads(class MLIAPData *);
+  virtual void compute_force_gradients(class MLIAPData *);
+  virtual double memory_usage();
 
   int nlayers;    // number of layers per element
 
@@ -37,7 +35,7 @@ class MLIAPModelNN : public MLIAPModel {
   int *activation;    // activation functions
   int *nnodes;        // number of nodes per layer
   double ***scale;    // element scale values
-  void read_coeffs(char *) override;
+  virtual void read_coeffs(char *);
 
   inline double sigm(double x, double &deriv)
   {

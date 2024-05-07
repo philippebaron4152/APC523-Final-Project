@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -17,7 +17,7 @@
 
 #ifdef PAIR_CLASS
 // clang-format off
-PairStyle(lubricate/poly/omp,PairLubricatePolyOMP);
+PairStyle(lubricate/poly/omp,PairLubricateOMP);
 // clang-format on
 #else
 
@@ -33,10 +33,10 @@ class PairLubricatePolyOMP : public PairLubricatePoly, public ThrOMP {
 
  public:
   PairLubricatePolyOMP(class LAMMPS *);
-  ~PairLubricatePolyOMP() override = default;
+  virtual ~PairLubricatePolyOMP();
 
-  void compute(int, int) override;
-  double memory_usage() override;
+  virtual void compute(int, int);
+  virtual double memory_usage();
 
  private:
   template <int LOGFLAG, int EVFLAG, int NEWTON_PAIR>

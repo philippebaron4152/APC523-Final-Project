@@ -6,7 +6,7 @@ fix_modify AtC material command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> material <elementset_name> <material_id>
 

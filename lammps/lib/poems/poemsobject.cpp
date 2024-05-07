@@ -20,7 +20,7 @@
 #include <cstring>
 
 POEMSObject::POEMSObject(){
-  name = nullptr;
+  name = 0;
   ChangeName((const char*)"unnamed");
   ID = -1;
 }

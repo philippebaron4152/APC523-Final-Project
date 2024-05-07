@@ -12,7 +12,8 @@
 
 #include <vector>
 #include <list>
-#include <iosfwd>
+#include <sstream>
+#include <fstream>
 
 #include "colvarbias.h"
 #include "colvargrid.h"
@@ -83,7 +84,9 @@ protected:
   size_t     new_hill_freq;
 
   /// Write the hill logfile
-  bool b_hills_traj;
+  bool           b_hills_traj;
+  /// Logfile of hill management (creation and deletion)
+  std::ostream  *hills_traj_os;
 
   /// Name of the hill logfile
   std::string const hills_traj_file_name() const;
@@ -211,10 +214,10 @@ protected:
   std::string            replica_file_name;
 
   /// \brief Read the existing replicas on registry
-  virtual int update_replicas_registry();
+  virtual void update_replicas_registry();
 
   /// \brief Read new data from replicas' files
-  virtual int read_replica_files();
+  virtual void read_replica_files();
 
   /// Write full state information to be read by other replicas
   virtual int write_replica_state_file();
@@ -309,9 +312,6 @@ public:
 
   /// Destructor
   ~hill();
-
-  /// Assignment operator
-  hill & operator = (colvarbias_meta::hill const &h);
 
   /// Get the energy
   inline cvm::real energy()

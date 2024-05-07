@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -18,22 +18,22 @@
 
 #include "compute_rdf.h"
 
+#include <cmath>
+#include <cstring>
 #include "atom.h"
-#include "comm.h"
-#include "domain.h"
-#include "error.h"
+#include "update.h"
 #include "force.h"
+#include "pair.h"
+#include "domain.h"
+#include "neighbor.h"
+#include "neigh_request.h"
+#include "neigh_list.h"
 #include "group.h"
 #include "math_const.h"
 #include "memory.h"
-#include "neigh_list.h"
-#include "neigh_request.h"
-#include "neighbor.h"
-#include "pair.h"
-#include "update.h"
+#include "error.h"
+#include "comm.h"
 
-#include <cmath>
-#include <cstring>
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
@@ -46,7 +46,7 @@ ComputeRDF::ComputeRDF(LAMMPS *lmp, int narg, char **arg) :
   hist(nullptr), histall(nullptr), typecount(nullptr), icount(nullptr), jcount(nullptr),
   duplicates(nullptr)
 {
-  if (narg < 4) utils::missing_cmd_args(FLERR,"compute rdf", error);
+  if (narg < 4) error->all(FLERR,"Illegal compute rdf command");
 
   array_flag = 1;
   extarray = 0;
@@ -67,14 +67,12 @@ ComputeRDF::ComputeRDF(LAMMPS *lmp, int narg, char **arg) :
 
   while (iarg < narg) {
     if (strcmp(arg[iarg],"cutoff") == 0) {
-      if (iarg+2 > narg) utils::missing_cmd_args(FLERR,"compute rdf cutoff", error);
-      if ((neighbor->style == Neighbor::MULTI) || (neighbor->style == Neighbor::MULTI_OLD))
-        error->all(FLERR, "Compute rdf with custom cutoff requires neighbor style 'bin' or 'nsq'");
+      if (iarg+2 > narg) error->all(FLERR,"Illegal compute rdf command");
       cutoff_user = utils::numeric(FLERR,arg[iarg+1],false,lmp);
       if (cutoff_user <= 0.0) cutflag = 0;
       else cutflag = 1;
       iarg += 2;
-    } else error->all(FLERR,"Unknown compute rdf keyword {}", arg[iarg]);
+    } else error->all(FLERR,"Illegal compute rdf command");
   }
 
   // pairwise args
@@ -96,7 +94,7 @@ ComputeRDF::ComputeRDF(LAMMPS *lmp, int narg, char **arg) :
   jlo = new int[npairs];
   jhi = new int[npairs];
 
-  if (!nargpair) {
+  if (nargpair == 0) {
     ilo[0] = 1; ihi[0] = ntypes;
     jlo[0] = 1; jhi[0] = ntypes;
   } else {
@@ -141,17 +139,17 @@ ComputeRDF::~ComputeRDF()
 {
   memory->destroy(rdfpair);
   memory->destroy(nrdfpair);
-  delete[] ilo;
-  delete[] ihi;
-  delete[] jlo;
-  delete[] jhi;
+  delete [] ilo;
+  delete [] ihi;
+  delete [] jlo;
+  delete [] jhi;
   memory->destroy(hist);
   memory->destroy(histall);
   memory->destroy(array);
-  delete[] typecount;
-  delete[] icount;
-  delete[] jcount;
-  delete[] duplicates;
+  delete [] typecount;
+  delete [] icount;
+  delete [] jcount;
+  delete [] duplicates;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -160,7 +158,8 @@ void ComputeRDF::init()
 {
 
   if (!force->pair && !cutflag)
-    error->all(FLERR,"Compute rdf requires a pair style or an explicit cutoff");
+    error->all(FLERR,"Compute rdf requires a pair style be defined "
+               "or cutoff specified");
 
   if (cutflag) {
     double skin = neighbor->skin;
@@ -205,11 +204,13 @@ void ComputeRDF::init()
   //   (until next reneighbor), so it needs to contain atoms further
   //   than cutoff_user apart, just like a normal neighbor list does
 
-  auto req = neighbor->add_request(this, NeighConst::REQ_OCCASIONAL);
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->pair = 0;
+  neighbor->requests[irequest]->compute = 1;
+  neighbor->requests[irequest]->occasional = 1;
   if (cutflag) {
-    if ((neighbor->style == Neighbor::MULTI) || (neighbor->style == Neighbor::MULTI_OLD))
-      error->all(FLERR, "Compute rdf with custom cutoff requires neighbor style 'bin' or 'nsq'");
-    req->set_cutoff(mycutneigh);
+    neighbor->requests[irequest]->cut = 1;
+    neighbor->requests[irequest]->cutoff = mycutneigh;
   }
 }
 
@@ -259,7 +260,7 @@ void ComputeRDF::init_norm()
   for (i = 0; i < npairs; i++) jcount[i] = scratch[i];
   MPI_Allreduce(duplicates,scratch,npairs,MPI_INT,MPI_SUM,world);
   for (i = 0; i < npairs; i++) duplicates[i] = scratch[i];
-  delete[] scratch;
+  delete [] scratch;
 }
 
 /* ---------------------------------------------------------------------- */

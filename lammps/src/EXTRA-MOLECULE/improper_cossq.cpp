@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -26,23 +26,19 @@
 #include "math_const.h"
 #include "memory.h"
 #include "neighbor.h"
+#include "update.h"
 
 #include <cmath>
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
 
-static constexpr double TOLERANCE = 0.05;
-static constexpr double SMALL =     0.001;
+#define TOLERANCE 0.05
+#define SMALL     0.001
 
 /* ---------------------------------------------------------------------- */
 
-ImproperCossq::ImproperCossq(LAMMPS *lmp) : Improper(lmp)
-{
-  // the first atom in the quadruplet is the atom of symmetry
-
-  symmatoms[0] = 1;
-}
+ImproperCossq::ImproperCossq(LAMMPS *lmp) : Improper(lmp) {}
 
 /* ---------------------------------------------------------------------- */
 

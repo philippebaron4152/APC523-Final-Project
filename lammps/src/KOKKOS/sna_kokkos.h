@@ -2,7 +2,7 @@
 /* -*- c++ -*- -------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -61,83 +61,17 @@ struct alignas(8) FullHalfMapper {
   int flip_sign; // 0 -> isn't flipped, 1 -> conj, -1 -> -conj
 };
 
-// Packed types for Zi, Yi lookup tables
-// This is abstracted into a stand-alone struct so different implementations
-// could be used for different architectures via various `ifdef` guards.
-struct alignas(16) idxz_struct {
-  reax_int4 j1_j2_j_jjuhalf;
-  reax_int4 mabminmax;
-  reax_int4 nanb_idxcg;
-
-  idxz_struct() = default;
-
-  KOKKOS_INLINE_FUNCTION
-  idxz_struct(int j1, int j2, int j, int ma1min, int ma2max, int mb1min, int mb2max, int na, int nb, int jju_half, int idxcg)
-    : j1_j2_j_jjuhalf{j1, j2, j, jju_half},
-      mabminmax{ma1min, ma2max, mb1min, mb2max},
-      nanb_idxcg{na, nb, idxcg, 0}
-  { }
-
-  KOKKOS_INLINE_FUNCTION
-  void get_zi(int &j1, int &j2, int &j, int &ma1min, int &ma2max, int &mb1min, int &mb2max, int &na, int &nb, int &idxcg) {
-    reax_int4 pack1 = this->j1_j2_j_jjuhalf;
-    j1 = pack1.i0;
-    j2 = pack1.i1;
-    j = pack1.i2;
-    reax_int4 pack2 = this->mabminmax;
-    ma1min = pack2.i0;
-    ma2max = pack2.i1;
-    mb1min = pack2.i2;
-    mb2max = pack2.i3;
-    reax_int4 pack3 = this->nanb_idxcg;
-    na = pack3.i0;
-    nb = pack3.i1;
-    idxcg = pack3.i2;
-  }
-
-  KOKKOS_INLINE_FUNCTION
-  void get_yi(int &j1, int &j2, int &j, int &ma1min, int &ma2max, int &mb1min, int &mb2max, int &na, int &nb, int& jju_half, int& idxcg) {
-    reax_int4 pack1 = this->j1_j2_j_jjuhalf;
-    j1 = pack1.i0;
-    j2 = pack1.i1;
-    j = pack1.i2;
-    jju_half = pack1.i3;
-    reax_int4 pack2 = this->mabminmax;
-    ma1min = pack2.i0;
-    ma2max = pack2.i1;
-    mb1min = pack2.i2;
-    mb2max = pack2.i3;
-    reax_int4 pack3 = this->nanb_idxcg;
-    na = pack3.i0;
-    nb = pack3.i1;
-    idxcg = pack3.i2;
-  }
-
-  KOKKOS_INLINE_FUNCTION
-  void get_yi_with_zlist(int &j1, int &j2, int &j, int &jju_half) {
-    reax_int4 pack1 = this->j1_j2_j_jjuhalf;
-    j1 = pack1.i0;
-    j2 = pack1.i1;
-    j = pack1.i2;
-    jju_half = pack1.i3;
-  }
-
-};
-
-
 template<class DeviceType, typename real_type_, int vector_length_>
 class SNAKokkos {
 
- public:
+public:
   using real_type = real_type_;
   using complex = SNAComplex<real_type>;
   static constexpr int vector_length = vector_length_;
 
-  using KKDeviceType = typename KKDevice<DeviceType>::value;
-
   typedef Kokkos::View<int*, DeviceType> t_sna_1i;
   typedef Kokkos::View<real_type*, DeviceType> t_sna_1d;
-  typedef Kokkos::View<real_type*, KKDeviceType, Kokkos::MemoryTraits<Kokkos::Atomic>> t_sna_1d_atomic;
+  typedef Kokkos::View<real_type*, typename KKDevice<DeviceType>::value, Kokkos::MemoryTraits<Kokkos::Atomic> > t_sna_1d_atomic;
   typedef Kokkos::View<int**, DeviceType> t_sna_2i;
   typedef Kokkos::View<real_type**, DeviceType> t_sna_2d;
   typedef Kokkos::View<real_type**, Kokkos::LayoutLeft, DeviceType> t_sna_2d_ll;
@@ -149,7 +83,7 @@ class SNAKokkos {
   typedef Kokkos::View<real_type*****, DeviceType> t_sna_5d;
 
   typedef Kokkos::View<complex*, DeviceType> t_sna_1c;
-  typedef Kokkos::View<complex*, KKDeviceType, Kokkos::MemoryTraits<Kokkos::Atomic>> t_sna_1c_atomic;
+  typedef Kokkos::View<complex*, typename KKDevice<DeviceType>::value, Kokkos::MemoryTraits<Kokkos::Atomic> > t_sna_1c_atomic;
   typedef Kokkos::View<complex**, DeviceType> t_sna_2c;
   typedef Kokkos::View<complex**, Kokkos::LayoutLeft, DeviceType> t_sna_2c_ll;
   typedef Kokkos::View<complex**, Kokkos::LayoutRight, DeviceType> t_sna_2c_lr;
@@ -161,22 +95,21 @@ class SNAKokkos {
   typedef Kokkos::View<complex**[3], DeviceType> t_sna_3c3;
   typedef Kokkos::View<complex*****, DeviceType> t_sna_5c;
 
-  inline
+inline
   SNAKokkos() {};
-
   KOKKOS_INLINE_FUNCTION
   SNAKokkos(const SNAKokkos<DeviceType,real_type,vector_length>& sna, const typename Kokkos::TeamPolicy<DeviceType>::member_type& team);
 
-  inline
-  SNAKokkos(real_type, int, real_type, int, int, int, int, int, int, int);
+inline
+  SNAKokkos(real_type, int, real_type, int, int, int, int, int, int);
 
   KOKKOS_INLINE_FUNCTION
   ~SNAKokkos();
 
-  inline
+inline
   void build_indexlist(); // SNAKokkos()
 
-  inline
+inline
   void init();            //
 
   double memory_usage();
@@ -257,13 +190,13 @@ class SNAKokkos {
   void compute_deidrj_cpu(const typename Kokkos::TeamPolicy<DeviceType>::member_type& team, int, int); // ForceSNAP
 
   KOKKOS_INLINE_FUNCTION
-  real_type compute_sfac(real_type, real_type, real_type, real_type); // add_uarraytot, compute_duarray
+  real_type compute_sfac(real_type, real_type); // add_uarraytot, compute_duarray
 
   KOKKOS_INLINE_FUNCTION
-  real_type compute_dsfac(real_type, real_type, real_type, real_type); // compute_duarray
+  real_type compute_dsfac(real_type, real_type); // compute_duarray
 
   KOKKOS_INLINE_FUNCTION
-  void compute_s_dsfac(const real_type, const real_type, const real_type, const real_type, real_type&, real_type&); // compute_cayley_klein
+  void compute_s_dsfac(const real_type, const real_type, real_type&, real_type&); // compute_cayley_klein
 
 #ifdef TIMING_INFO
   double* timers;
@@ -279,8 +212,6 @@ class SNAKokkos {
   t_sna_2i inside;
   t_sna_2d wj;
   t_sna_2d rcutij;
-  t_sna_2d sinnerij;
-  t_sna_2d dinnerij;
   t_sna_2i element;
   t_sna_3d dedr;
   int natom, nmax;
@@ -322,22 +253,22 @@ class SNAKokkos {
   int ndoubles;
   int ntriples;
 
- private:
+private:
   real_type rmin0, rfac0;
 
   //use indexlist instead of loops, constructor generates these
   // Same across all SNAKokkos
-  Kokkos::View<idxz_struct*, DeviceType> idxz;
+  Kokkos::View<int*[10], DeviceType> idxz;
   Kokkos::View<int*[3], DeviceType> idxb;
   Kokkos::View<int***, DeviceType> idxcg_block;
 
- public:
+public:
   Kokkos::View<int*, DeviceType> idxu_block;
   Kokkos::View<int*, DeviceType> idxu_half_block;
   Kokkos::View<int*, DeviceType> idxu_cache_block;
   Kokkos::View<FullHalfMapper*, DeviceType> idxu_full_half;
 
- private:
+private:
   Kokkos::View<int***, DeviceType> idxz_block;
   Kokkos::View<int***, DeviceType> idxb_block;
 
@@ -357,14 +288,14 @@ class SNAKokkos {
   KOKKOS_INLINE_FUNCTION
   void create_thread_scratch_arrays(const typename Kokkos::TeamPolicy<DeviceType>::member_type& team); // SNAKokkos()
 
-  inline
+inline
   void init_clebsch_gordan(); // init()
 
-  inline
+inline
   void init_rootpqarray();    // init()
 
   KOKKOS_INLINE_FUNCTION
-  void add_uarraytot(const typename Kokkos::TeamPolicy<DeviceType>::member_type& team, int, int, const real_type&, const real_type&, const real_type&, const real_type&, const real_type&, int); // compute_ui
+  void add_uarraytot(const typename Kokkos::TeamPolicy<DeviceType>::member_type& team, int, int, const real_type&, const real_type&, const real_type&, int); // compute_ui
 
   KOKKOS_INLINE_FUNCTION
   void compute_uarray_cpu(const typename Kokkos::TeamPolicy<DeviceType>::member_type& team, int, int,
@@ -375,23 +306,17 @@ class SNAKokkos {
   inline
   double deltacg(int, int, int);  // init_clebsch_gordan
 
-  inline
+inline
   int compute_ncoeff();           // SNAKokkos()
   KOKKOS_INLINE_FUNCTION
   void compute_duarray_cpu(const typename Kokkos::TeamPolicy<DeviceType>::member_type& team, int, int,
                        const real_type&, const real_type&, const real_type&, // compute_duidrj_cpu
-                           const real_type&, const real_type&, const real_type&, const real_type&, const real_type&,
-                           const real_type&, const real_type&);
+                       const real_type&, const real_type&, const real_type&, const real_type&, const real_type&);
 
   // Sets the style for the switching function
   // 0 = none
   // 1 = cosine
   int switch_flag;
-
-  // Sets the style for the inner switching function
-  // 0 = none
-  // 1 = cosine
-  int switch_inner_flag;
 
   // Chem snap flags
   int chem_flag;
@@ -410,3 +335,11 @@ class SNAKokkos {
 #include "sna_kokkos_impl.h"
 #endif
 
+/* ERROR/WARNING messages:
+
+E: Invalid argument to factorial %d
+
+N must be >= 0 and <= 167, otherwise the factorial result is too
+large.
+
+*/

@@ -6,7 +6,7 @@ fix wall/body/polyhedron command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID wall/body/polyhedron k_n c_n c_t wallstyle args keyword values ...
 

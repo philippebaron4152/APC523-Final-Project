@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    This software is distributed under the GNU General Public License.
 
@@ -54,7 +54,7 @@ void PairGranHookeHistoryOMP::compute(int eflag, int vflag)
   if (fix_rigid && neighbor->ago == 0) {
     int tmp;
     int *body = (int *) fix_rigid->extract("body",tmp);
-    auto mass_body = (double *) fix_rigid->extract("masstotal",tmp);
+    double *mass_body = (double *) fix_rigid->extract("masstotal",tmp);
     if (atom->nmax > nmax) {
       memory->destroy(mass_rigid);
       nmax = atom->nmax;
@@ -64,7 +64,7 @@ void PairGranHookeHistoryOMP::compute(int eflag, int vflag)
     for (int i = 0; i < nlocal; i++)
       if (body[i] >= 0) mass_rigid[i] = mass_body[body[i]];
       else mass_rigid[i] = 0.0;
-    comm->forward_comm(this);
+    comm->forward_comm_pair(this);
   }
 
   const int nall = atom->nlocal + atom->nghost;

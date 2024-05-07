@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -24,24 +24,19 @@ AtomStyle(dielectric,AtomVecDielectric);
 
 namespace LAMMPS_NS {
 
-class AtomVecDielectric : virtual public AtomVec {
+class AtomVecDielectric : public AtomVec {
   friend class PairLJCutCoulDebyeDielectric;
   friend class PairLJLongCoulLongDielectric;
 
  public:
   AtomVecDielectric(class LAMMPS *);
 
-  void init() override;
-  void grow_pointers() override;
-  void create_atom_post(int) override;
-  void data_atom_post(int) override;
-  void read_data_general_to_restricted(int, int) override;
-  void write_data_restricted_to_general() override;
-  void write_data_restore_restricted() override;
-
-  void unpack_restart_init(int) override;
-  int property_atom(const std::string &) override;
-  void pack_property_atom(int, double *, int, int) override;
+  void grow_pointers();
+  void create_atom_post(int);
+  void data_atom_post(int);
+  void unpack_restart_init(int);
+  int property_atom(char *);
+  void pack_property_atom(int, double *, int, int);
 
  protected:
   int *num_bond, *num_angle, *num_dihedral, *num_improper;
@@ -51,12 +46,23 @@ class AtomVecDielectric : virtual public AtomVec {
   int bond_per_atom, angle_per_atom, dihedral_per_atom, improper_per_atom;
 
   double **mu;
-  double *area, *ed, *em, *epsilon, *curvature, *q_scaled;
-
-  double **mu_hold;
+  double *area, *ed, *em, *epsilon, *curvature, *q_unscaled;
 };
 
 }    // namespace LAMMPS_NS
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Per-processor system is too big
+
+The number of owned atoms plus ghost atoms on a single
+processor must fit in 32-bit integer.
+
+E: Invalid atom type in Atoms section of data file
+
+Atom types must range from 1 to specified # of types.
+
+*/

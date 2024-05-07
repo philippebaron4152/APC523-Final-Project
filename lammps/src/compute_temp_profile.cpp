@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -119,9 +119,6 @@ ComputeTempProfile::ComputeTempProfile(LAMMPS *lmp, int narg, char **arg) :
   nbins = nbinx*nbiny*nbinz;
   if (nbins <= 0) error->all(FLERR,"Illegal compute temp/profile command");
 
-  nstreaming = (xflag==0 ? 0 : 1) + (yflag==0 ? 0 : 1) + (zflag==0 ? 0 : 1);
-  reset_extra_dof();
-
   memory->create(vbin,nbins,ncount,"temp/profile:vbin");
   memory->create(binave,nbins,ncount,"temp/profile:binave");
 
@@ -200,10 +197,9 @@ void ComputeTempProfile::dof_compute()
   natoms_temp = group->count(igroup);
   dof = domain->dimension * natoms_temp;
 
-  // subtract additional Nbins DOF for each adjusted direction,
-  // as in Evans and Morriss paper
+  // subtract additional d*Nbins DOF, as in Evans and Morriss paper
 
-  dof -= extra_dof + fix_dof + nstreaming*nbins;
+  dof -= extra_dof + fix_dof + domain->dimension*nbins;
   if (dof > 0) tfactor = force->mvv2e / (dof * force->boltz);
   else tfactor = 0.0;
 }
@@ -338,19 +334,14 @@ void ComputeTempProfile::compute_array()
 
   MPI_Allreduce(tbin,tbinall,nbins,MPI_DOUBLE,MPI_SUM,world);
 
-  double totcount = 0.0;
+  int nper = domain->dimension;
   for (i = 0; i < nbins; i++) {
     array[i][0] = binave[i][ncount-1];
-    totcount += array[i][0];
-  }
-  double nper = domain->dimension - (extra_dof + fix_dof)/totcount;
-  double dofbin, tfactorbin;
-  for (i = 0; i < nbins; i++) {
     if (array[i][0] > 0.0) {
-      dofbin = nper*array[i][0] - nstreaming;
-      if (dofbin > 0) tfactorbin = force->mvv2e / (dofbin * force->boltz);
-      else tfactorbin = 0.0;
-      array[i][1] = tfactorbin*tbinall[i];
+      dof = nper*array[i][0] - extra_dof;
+      if (dof > 0) tfactor = force->mvv2e / (dof * force->boltz);
+      else tfactor = 0.0;
+      array[i][1] = tfactor*tbinall[i];
     } else array[i][1] = 0.0;
   }
 }
@@ -581,12 +572,6 @@ void ComputeTempProfile::bin_assign()
     }
 
   if (triclinic) domain->lamda2x(nlocal);
-}
-
-/* ---------------------------------------------------------------------- */
-
-void ComputeTempProfile::reset_extra_dof() {
-  extra_dof = domain->dimension - nstreaming;
 }
 
 /* ---------------------------------------------------------------------- */

@@ -17,12 +17,11 @@ parser = ArgumentParser(prog='Install.py',
 
 # settings
 
-version = '3.4.0'
+version = '3.3.9'
 tarball = "eigen.tar.gz"
 
 # known checksums for different Eigen versions. used to validate the download.
 checksums = { \
-              '3.4.0' : '4c527a9171d71a72a9d4186e65bea559', \
               '3.3.9' : '609286804b0f79be622ccf7f9ff2b660', \
               '3.3.7' : '9e30f67e8531477de4117506fe44669b' \
 }
@@ -31,17 +30,17 @@ checksums = { \
 # help message
 
 HELP = """
-Syntax from src dir: make lib-machdyn args="-b"
-                 or: make lib-machdyn args="-p /usr/include/eigen3"
+Syntax from src dir: make lib-smd args="-b"
+                 or: make lib-smd args="-p /usr/include/eigen3"
 
 Syntax from lib dir: python Install.py -b
                  or: python Install.py -p /usr/include/eigen3"
-                 or: python Install.py -v 3.4.0 -b
+                 or: python Install.py -v 3.3.7 -b
 
 Example:
 
-make lib-machdyn args="-b"   # download/build in default lib/machdyn/eigen-eigen-*
-make lib-machdyn args="-p /usr/include/eigen3" # use existing Eigen installation in /usr/include/eigen3
+make lib-smd args="-b"   # download/build in default lib/smd/eigen-eigen-*
+make lib-smd args="-p /usr/include/eigen3" # use existing Eigen installation in /usr/include/eigen3
 """
 
 pgroup = parser.add_mutually_exclusive_group()
@@ -78,7 +77,7 @@ if pathflag:
 if buildflag:
   print("Downloading Eigen ...")
   eigentar = os.path.join(homepath, tarball)
-  url = "https://download.lammps.org/thirdparty/eigen-%s.tar.gz" %  version
+  url = "https://gitlab.com/libeigen/eigen/-/archive/%s/eigen-%s.tar.gz" %  (version,version)
   geturl(url, eigentar)
 
   # verify downloaded archive integrity via md5 checksum, if known.
@@ -105,7 +104,7 @@ if buildflag:
   edir = os.path.join(homepath, "eigen-%s" % version)
   os.rename(edir, eigenpath)
 
-# create link in lib/machdyn to Eigen src dir
+# create link in lib/smd to Eigen src dir
 
 print("Creating link to Eigen include folder")
 if os.path.isfile("includelink") or os.path.islink("includelink"):

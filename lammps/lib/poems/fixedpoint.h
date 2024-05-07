@@ -24,8 +24,8 @@
 
 class FixedPoint : public Point  {
 public:
-  FixedPoint() = default;
-  ~FixedPoint() = default;
+  FixedPoint();
+  ~FixedPoint();
   FixedPoint(double x, double y, double z);
   FixedPoint(Vect3& v);
   PointType GetType();

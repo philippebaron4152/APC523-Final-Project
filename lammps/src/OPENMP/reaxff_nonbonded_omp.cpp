@@ -221,7 +221,7 @@ namespace ReaxFF {
     data->my_en.e_vdW = total_EvdW;
     data->my_en.e_ele = total_Eele;
 
-    Compute_Polarization_Energy(system, data, workspace);
+    Compute_Polarization_Energy(system, data);
   }
 
 /* ---------------------------------------------------------------------- */
@@ -343,6 +343,6 @@ namespace ReaxFF {
     data->my_en.e_vdW = total_EvdW;
     data->my_en.e_ele = total_Eele;
 
-    Compute_Polarization_Energy(system, data, workspace);
+    Compute_Polarization_Energy(system, data);
   }
 }

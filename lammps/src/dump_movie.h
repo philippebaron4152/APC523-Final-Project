@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,11 +27,10 @@ namespace LAMMPS_NS {
 class DumpMovie : public DumpImage {
  public:
   DumpMovie(LAMMPS *, int, char **);
-  ~DumpMovie() override;
 
-  void openfile() override;
-  void init_style() override;
-  int modify_param(int, char **) override;
+  virtual void openfile();
+  virtual void init_style();
+  virtual int modify_param(int, char **);
 
  protected:
   double framerate;    // frame rate of animation
@@ -42,3 +41,27 @@ class DumpMovie : public DumpImage {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Invalid dump movie filename
+
+The file produced by dump movie cannot be binary or compressed
+and must be a single file for a single processor.
+
+E: Support for writing movies not included
+
+LAMMPS was not built with the -DLAMMPS_FFMPEG switch in the Makefile
+
+E: Failed to open FFmpeg pipeline to file %s
+
+The specified file cannot be opened.  Check that the path and name are
+correct and writable and that the FFmpeg executable can be found and run.
+
+E: Illegal ... command
+
+Self-explanatory.  Check the input script syntax and compare to the
+documentation for the command.  You can use -echo screen as a
+command-line option when running LAMMPS to see the offending line.
+
+*/

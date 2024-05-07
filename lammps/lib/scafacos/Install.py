@@ -10,13 +10,15 @@ import sys, os, subprocess, shutil, tarfile
 from argparse import ArgumentParser
 
 sys.path.append('..')
-from install_helpers import fullpath, geturl, get_cpus, checkmd5sum, getfallback
+from install_helpers import fullpath, geturl, get_cpus, checkmd5sum
 
-parser = ArgumentParser(prog='Install.py', description="LAMMPS library build wrapper script")
+parser = ArgumentParser(prog='Install.py',
+                        description="LAMMPS library build wrapper script")
 
 # settings
 
 version = "1.0.1"
+url = "https://github.com/scafacos/scafacos/releases/download/v%s/scafacos-%s.tar.gz" % (version, version)
 
 # known checksums for different ScaFaCoS versions. used to validate the download.
 checksums = { \
@@ -57,7 +59,6 @@ if not args.build and not args.path:
 buildflag = args.build
 pathflag = args.path is not None
 version = args.version
-url = "https://github.com/scafacos/scafacos/releases/download/v%s/scafacos-%s.tar.gz" % (version, version)
 
 homepath = fullpath(".")
 scafacospath = os.path.join(homepath, "scafacos-%s" % version)
@@ -75,20 +76,12 @@ if pathflag:
 
 if buildflag:
   print("Downloading ScaFaCoS ...")
-  filename = "%s/scafacos-%s.tar.gz" % (homepath, version)
-  fallback = getfallback('scafacos', url)
-  try:
-    geturl(url, filename)
-  except:
-    geturl(fallback, filename)
+  geturl(url, "%s/scafacos-%s.tar.gz" % (homepath, version))
 
   # verify downloaded archive integrity via md5 checksum, if known.
   if version in checksums:
-    if not checkmd5sum(checksums[version], filename):
-      print("Checksum did not match. Trying fallback URL", fallback)
-      geturl(fallback, filename)
-      if not checkmd5sum(checksums[version], filename):
-        sys.exit("Checksum for ScaFaCoS library does not match for fallback, too.")
+    if not checkmd5sum(checksums[version], '%s/scafacos-%s.tar.gz' % (homepath, version)):
+      sys.exit("Checksum for ScaFaCoS library does not match")
 
   print("Unpacking ScaFaCoS tarball ...")
   if os.path.exists(scafacospath):

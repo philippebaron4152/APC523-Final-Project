@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -18,14 +18,18 @@
 
 #include "fix_nh_kokkos.h"
 
+#include "atom.h"
 #include "atom_kokkos.h"
 #include "atom_masks.h"
+#include "comm.h"
 #include "compute.h"
 #include "domain_kokkos.h"
 #include "error.h"
+#include "fix_deform.h"
 #include "force.h"
 #include "irregular.h"
 #include "kspace.h"
+#include "memory_kokkos.h"
 #include "neighbor.h"
 #include "update.h"
 
@@ -35,8 +39,8 @@
 using namespace LAMMPS_NS;
 using namespace FixConst;
 
-static constexpr double DELTAFLIP = 0.1;
-static constexpr double TILTMAX = 1.5;
+#define DELTAFLIP 0.1
+#define TILTMAX 1.5
 
 enum{NOBIAS,BIAS};
 enum{NONE,XYZ,XY,YZ,XZ};
@@ -60,6 +64,15 @@ FixNHKokkos<DeviceType>::FixNHKokkos(LAMMPS *lmp, int narg, char **arg) : FixNH(
 /* ---------------------------------------------------------------------- */
 
 template<class DeviceType>
+FixNHKokkos<DeviceType>::~FixNHKokkos()
+{
+
+
+}
+
+/* ---------------------------------------------------------------------- */
+
+template<class DeviceType>
 void FixNHKokkos<DeviceType>::init()
 {
   FixNH::init();
@@ -75,11 +88,6 @@ void FixNHKokkos<DeviceType>::init()
 template<class DeviceType>
 void FixNHKokkos<DeviceType>::setup(int /*vflag*/)
 {
-  // tdof needed by compute_temp_target()
-
-  t_current = temperature->compute_scalar();
-  tdof = temperature->dof;
-
   // t_target is needed by NPH and NPT in compute_scalar()
   // If no thermostat or using fix nphug,
   // t_target must be defined by other means.
@@ -306,9 +314,10 @@ void FixNHKokkos<DeviceType>::remap()
   //      domain->x2lamda(x[i],x[i]);
   //}
 
-  if (rfix.size() > 0)
+  if (nrigid)
     error->all(FLERR,"Cannot (yet) use rigid bodies with fix nh and Kokkos");
-  // for (auto &ifix : rfix) ifix->deform(0);
+    //for (i = 0; i < nrigid; i++)
+    //  modify->fix[rfix[i]]->deform(0);
 
   // reset global and local box to new size/shape
 
@@ -454,7 +463,9 @@ void FixNHKokkos<DeviceType>::remap()
   //      domain->lamda2x(x[i],x[i]);
   //}
 
-  // for (auto &ifix : rfix) ifix->deform(1);
+  //if (nrigid)
+  //  for (i = 0; i < nrigid; i++)
+  //    modify->fix[rfix[i]]->deform(1);
 }
 
 /* ----------------------------------------------------------------------
@@ -726,3 +737,4 @@ template class FixNHKokkos<LMPDeviceType>;
 template class FixNHKokkos<LMPHostType>;
 #endif
 }
+

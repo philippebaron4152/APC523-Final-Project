@@ -6,7 +6,7 @@ undump command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    undump dump-ID
 

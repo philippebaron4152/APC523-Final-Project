@@ -86,7 +86,7 @@ int borncwcs_gpu_init(const int ntypes, double **cutsq, double **host_rhoinv,
                             host_cut_coulsq, host_special_coul, qqrd2e,
                             alf, e_shift, f_shift);
 
-    BornCWCST.device->serialize_init();
+    BornCWCST.device->gpu_barrier();
     if (message)
       fprintf(screen,"Done.\n");
   }

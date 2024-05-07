@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -92,13 +92,6 @@ void PotentialFileReader::ignore_comments(bool value)
   reader->ignore_comments = value;
 }
 
-/** Reset file to the beginning */
-
-void PotentialFileReader::rewind()
-{
-  reader->rewind();
-}
-
 /** Read a line but ignore its content */
 
 void PotentialFileReader::skip_line()
@@ -144,8 +137,6 @@ void PotentialFileReader::next_dvector(double *list, int n)
 {
   try {
     return reader->next_dvector(list, n);
-  } catch (EOFException &) {
-    throw EOFException("EOF reached");
   } catch (FileReaderException &e) {
     error->one(FLERR, e.what());
   }
@@ -168,7 +159,7 @@ ValueTokenizer PotentialFileReader::next_values(int nparams, const std::string &
   } catch (FileReaderException &e) {
     error->one(FLERR, e.what());
   }
-  return {""};
+  return ValueTokenizer("");
 }
 
 /** Read next line and convert first word to a double

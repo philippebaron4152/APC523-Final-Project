@@ -6,15 +6,15 @@
 #          oldfile = old LAMMPS dump file in native LAMMPS format
 #          N = column # for atom ID (usually 1)
 #          newfile = new sorted LAMMPS dump file
-# Author:  Steve Plimpton (Sandia), sjplimp at gmail.com
+# Author:  Steve Plimpton (Sandia), sjplimp at sandia.gov
 
 import sys,os
 path = os.environ["LAMMPS_PYTHON_TOOLS"]
-sys.path.insert(1,path)
+sys.path.append(path)
 from dump import dump
 
 if len(sys.argv) != 4:
-  sys.exit("Syntax: dumpsort.py oldfile N newfile")
+  raise StandardError, "Syntax: dumpsort.py oldfile N newfile"
 
 oldfile = sys.argv[1]
 ncolumn = int(sys.argv[2])

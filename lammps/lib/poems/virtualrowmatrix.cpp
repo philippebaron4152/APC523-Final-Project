@@ -26,6 +26,9 @@ VirtualRowMatrix::VirtualRowMatrix(){
   numrows = 1;
 }
 
+VirtualRowMatrix::~VirtualRowMatrix(){
+}
+
 double& VirtualRowMatrix::operator_2int (int i, int j){
   if(i!=1){
     cerr << "matrix index invalid in operator ()" << endl;

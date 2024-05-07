@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS Development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -20,6 +20,7 @@
 #include "lammps.h"
 #include "lattice.h"
 #include "region.h"
+#include "utils.h"
 #include "gmock/gmock.h"
 #include "gtest/gtest.h"
 
@@ -32,9 +33,11 @@
 // whether to print verbose output (i.e. not capturing LAMMPS screen output).
 bool verbose = false;
 
+using LAMMPS_NS::utils::split_words;
+
 namespace LAMMPS_NS {
-using ::testing::ContainsRegex;
 using ::testing::ExitedWithCode;
+using ::testing::MatchesRegex;
 using ::testing::StrEq;
 
 class LatticeRegionTest : public LAMMPSTest {
@@ -43,9 +46,7 @@ protected:
     {
         testbinary = "LatticeRegionTest";
         LAMMPSTest::SetUp();
-        HIDE_OUTPUT([&] {
-            command("units metal");
-        });
+        command("units metal");
     }
 };
 
@@ -63,7 +64,7 @@ TEST_F(LatticeRegionTest, lattice_none)
     ASSERT_EQ(lattice->basis, nullptr);
 
     TEST_FAILURE(".*ERROR: Illegal lattice command.*", command("lattice"););
-    TEST_FAILURE(".*ERROR: Unknown lattice keyword: xxx.*", command("lattice xxx"););
+    TEST_FAILURE(".*ERROR: Illegal lattice command.*", command("lattice xxx"););
     TEST_FAILURE(".*ERROR: Illegal lattice command.*", command("lattice none 1.0 origin"););
     TEST_FAILURE(".*ERROR: Expected floating point.*", command("lattice none xxx"););
 
@@ -82,7 +83,7 @@ TEST_F(LatticeRegionTest, lattice_sc)
     BEGIN_CAPTURE_OUTPUT();
     command("lattice sc 1.0 spacing 1.5 2.0 3.0");
     auto output = END_CAPTURE_OUTPUT();
-    ASSERT_THAT(output, ContainsRegex(".*Lattice spacing in x,y,z = 1.5.* 2.* 3.*"));
+    ASSERT_THAT(output, MatchesRegex(".*Lattice spacing in x,y,z = 1.50* 2.0* 3.0*.*"));
 
     auto lattice = lmp->domain->lattice;
     ASSERT_EQ(lattice->xlattice, 1.5);
@@ -92,7 +93,7 @@ TEST_F(LatticeRegionTest, lattice_sc)
     BEGIN_CAPTURE_OUTPUT();
     command("lattice sc 2.0");
     output = END_CAPTURE_OUTPUT();
-    ASSERT_THAT(output, ContainsRegex(".*Lattice spacing in x,y,z = 2.* 2.* 2.*"));
+    ASSERT_THAT(output, MatchesRegex(".*Lattice spacing in x,y,z = 2.0* 2.0* 2.0*.*"));
 
     lattice = lmp->domain->lattice;
     ASSERT_EQ(lattice->style, Lattice::SC);
@@ -114,11 +115,10 @@ TEST_F(LatticeRegionTest, lattice_sc)
     ASSERT_EQ(lattice->basis[0][1], 0.0);
     ASSERT_EQ(lattice->basis[0][2], 0.0);
 
-    TEST_FAILURE(".*ERROR: Invalid lattice origin argument: 1.*",
+    TEST_FAILURE(".*ERROR: Illegal lattice command.*",
                  command("lattice sc 1.0 origin 1.0 1.0 1.0"););
-    TEST_FAILURE(".*ERROR: Illegal lattice origin command: missing argument.*",
-                 command("lattice sc 1.0 origin 1.0"););
-    TEST_FAILURE(".*ERROR: Unknown lattice keyword: xxx.*",
+    TEST_FAILURE(".*ERROR: Illegal lattice command.*", command("lattice sc 1.0 origin 1.0"););
+    TEST_FAILURE(".*ERROR: Illegal lattice command.*",
                  command("lattice sc 1.0 origin 0.0 0.0 0.0 xxx"););
     TEST_FAILURE(".*ERROR: Expected floating point.*",
                  command("lattice sc 1.0 origin xxx 1.0 1.0"););
@@ -196,12 +196,11 @@ TEST_F(LatticeRegionTest, lattice_fcc)
     ASSERT_EQ(lattice->basis[3][1], 0.5);
     ASSERT_EQ(lattice->basis[3][2], 0.5);
 
-    TEST_FAILURE(".*ERROR: Invalid basis option in lattice command for non-custom style.*",
+    TEST_FAILURE(".*ERROR: Invalid option in lattice command for non-custom style.*",
                  command("lattice fcc 1.0 basis 0.0 0.0 0.0"););
-    TEST_FAILURE(".*ERROR: Invalid a1 option in lattice command for non-custom style.*",
+    TEST_FAILURE(".*ERROR: Invalid option in lattice command for non-custom style.*",
                  command("lattice fcc 1.0 a1 0.0 1.0 0.0"););
-    TEST_FAILURE(".*ERROR: Unknown lattice orient argument: w.*",
-                 command("lattice fcc 1.0 orient w 1 0 0"););
+    TEST_FAILURE(".*ERROR: Illegal lattice command.*", command("lattice fcc 1.0 orient w 1 0 0"););
 
     BEGIN_HIDE_OUTPUT();
     command("dimension 2");
@@ -243,9 +242,9 @@ TEST_F(LatticeRegionTest, lattice_hcp)
     ASSERT_EQ(lattice->a3[1], 0.0);
     ASSERT_DOUBLE_EQ(lattice->a3[2], sqrt(8.0 / 3.0));
 
-    TEST_FAILURE(".*ERROR: Invalid a2 option in lattice command for non-custom style.*",
+    TEST_FAILURE(".*ERROR: Invalid option in lattice command for non-custom style.*",
                  command("lattice hcp 1.0 a2 0.0 1.0 0.0"););
-    TEST_FAILURE(".*ERROR: Invalid a3 option in lattice command for non-custom style.*",
+    TEST_FAILURE(".*ERROR: Invalid option in lattice command for non-custom style.*",
                  command("lattice hcp 1.0 a3 0.0 1.0 0.0"););
     BEGIN_HIDE_OUTPUT();
     command("dimension 2");
@@ -322,7 +321,7 @@ TEST_F(LatticeRegionTest, lattice_sq)
     ASSERT_EQ(lattice->basis[0][1], 0.0);
     ASSERT_EQ(lattice->basis[0][2], 0.0);
 
-    TEST_FAILURE(".*ERROR: Lattice orient vectors are not compatible with 2d simulation.*",
+    TEST_FAILURE(".*ERROR: Lattice settings are not compatible with 2d simulation.*",
                  command("lattice sq 1.0 orient x 1 1 2 orient y -1 1 0 orient z -1 -1 1"););
 
     BEGIN_HIDE_OUTPUT();
@@ -454,22 +453,22 @@ TEST_F(LatticeRegionTest, lattice_custom)
     ASSERT_DOUBLE_EQ(lattice->a3[1], 0.0);
     ASSERT_DOUBLE_EQ(lattice->a3[2], 4.34 * sqrt(8.0 / 3.0));
 
-    TEST_FAILURE(".*ERROR: Invalid lattice basis argument: -0.1.*",
+    TEST_FAILURE(".*ERROR: Illegal lattice command.*",
                  command("lattice custom 1.0 basis -0.1 0 0"););
-    TEST_FAILURE(".*ERROR: Invalid lattice basis argument: 1.*",
+    TEST_FAILURE(".*ERROR: Illegal lattice command.*",
                  command("lattice custom 1.0 basis 0.0 1.0 0"););
 
     BEGIN_HIDE_OUTPUT();
     command("dimension 2");
     END_HIDE_OUTPUT();
     TEST_FAILURE(".*ERROR: No basis atoms in lattice.*", command("lattice custom 1.0"););
-    TEST_FAILURE(".*ERROR: Lattice origin z coord must be 0.0 for 2d simulation.*",
+    TEST_FAILURE(".*ERROR: Lattice settings are not compatible with 2d simulation.*",
                  command("lattice custom 1.0 origin 0.5 0.5 0.5 basis 0.0 0.0 0.0"););
-    TEST_FAILURE(".*ERROR: Lattice a1/a2/a3 vectors are not compatible with 2d simulation.*",
+    TEST_FAILURE(".*ERROR: Lattice settings are not compatible with 2d simulation.*",
                  command("lattice custom 1.0 a1 1.0 1.0 1.0 basis 0.0 0.0 0.0"););
-    TEST_FAILURE(".*ERROR: Lattice a1/a2/a3 vectors are not compatible with 2d simulation.*",
+    TEST_FAILURE(".*ERROR: Lattice settings are not compatible with 2d simulation.*",
                  command("lattice custom 1.0 a2 1.0 1.0 1.0 basis 0.0 0.0 0.0"););
-    TEST_FAILURE(".*ERROR: Lattice a1/a2/a3 vectors are not compatible with 2d simulation.*",
+    TEST_FAILURE(".*ERROR: Lattice settings are not compatible with 2d simulation.*",
                  command("lattice custom 1.0 a3 1.0 1.0 1.0 basis 0.0 0.0 0.0"););
 }
 
@@ -632,9 +631,13 @@ int main(int argc, char **argv)
     MPI_Init(&argc, &argv);
     ::testing::InitGoogleMock(&argc, argv);
 
+    if (Info::get_mpi_vendor() == "Open MPI" && !LAMMPS_NS::Info::has_exceptions())
+        std::cout << "Warning: using OpenMPI without exceptions. "
+                     "Death tests will be skipped\n";
+
     // handle arguments passed via environment variable
     if (const char *var = getenv("TEST_ARGS")) {
-        std::vector<std::string> env = LAMMPS_NS::utils::split_words(var);
+        std::vector<std::string> env = split_words(var);
         for (auto arg : env) {
             if (arg == "-v") {
                 verbose = true;

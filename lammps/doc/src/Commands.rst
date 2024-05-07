@@ -21,7 +21,6 @@ commands in it are used to define a LAMMPS simulation.
    Commands_pair
    Commands_bond
    Commands_kspace
-   Commands_dump
 
 .. toctree::
    :maxdepth: 1

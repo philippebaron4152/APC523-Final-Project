@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS Development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,10 +27,6 @@
 #include "../testing/core.h"
 #include "../testing/systems/melt.h"
 
-#if defined(TEST_HAVE_PYTHON_DEVELOPMENT)
-#include <Python.h>
-#endif
-
 // location of '*.py' files required by tests
 #define STRINGIFY(val) XSTR(val)
 #define XSTR(val) #val
@@ -43,16 +39,16 @@ bool verbose = false;
 using LAMMPS_NS::utils::split_words;
 
 namespace LAMMPS_NS {
-using ::testing::ContainsRegex;
 using ::testing::Eq;
 using ::testing::HasSubstr;
+using ::testing::MatchesRegex;
 using ::testing::StrEq;
 
 class PythonPackageTest : public LAMMPSTest {
 protected:
     void InitSystem() override
     {
-        if (!Info::has_package("PYTHON")) GTEST_SKIP();
+        if (!info->has_package("PYTHON")) GTEST_SKIP();
 
         HIDE_OUTPUT([&] {
             command("units real");
@@ -73,7 +69,7 @@ class FixPythonInvokeTest : public MeltTest {
 protected:
     void InitSystem() override
     {
-        if (!Info::has_package("PYTHON")) GTEST_SKIP();
+        if (!info->has_package("PYTHON")) GTEST_SKIP();
 
         MeltTest::InitSystem();
     }
@@ -89,25 +85,8 @@ TEST_F(PythonPackageTest, InvokeFunctionFromFile)
     auto output = CAPTURE_OUTPUT([&]() {
         command("python printnum invoke");
     });
-    ASSERT_THAT(output, HasSubstr("2.25"));
+    ASSERT_THAT(output, HasSubstr("2.25\n"));
 }
-
-#if defined(TEST_HAVE_PYTHON_DEVELOPMENT)
-TEST_F(PythonPackageTest, InvokeInitialized)
-{
-    // execute python function from file
-    HIDE_OUTPUT([&] {
-        command("python printnum file ${input_dir}/func.py");
-    });
-    ASSERT_TRUE(Py_IsInitialized());
-    HIDE_OUTPUT([&] {
-        command("clear");
-    });
-    ASSERT_TRUE(Py_IsInitialized());
-    lammps_python_finalize();
-    ASSERT_FALSE(Py_IsInitialized());
-}
-#endif
 
 TEST_F(PythonPackageTest, InvokeFunctionPassInt)
 {
@@ -210,7 +189,7 @@ TEST_F(PythonPackageTest, InvokeOtherFunctionFromFile)
     auto output = CAPTURE_OUTPUT([&] {
         command("python printtxt invoke");
     });
-    ASSERT_THAT(output, HasSubstr("sometext"));
+    ASSERT_THAT(output, HasSubstr("sometext\n"));
 }
 
 TEST_F(PythonPackageTest, InvokeFunctionThatUsesLAMMPSModule)
@@ -224,7 +203,7 @@ TEST_F(PythonPackageTest, InvokeFunctionThatUsesLAMMPSModule)
     auto output = CAPTURE_OUTPUT([&] {
         command("python getidxvar invoke");
     });
-    ASSERT_THAT(output, HasSubstr("2.25"));
+    ASSERT_THAT(output, HasSubstr("2.25\n"));
 }
 
 TEST_F(PythonPackageTest, python_variable)
@@ -238,7 +217,7 @@ TEST_F(PythonPackageTest, python_variable)
     std::string output = CAPTURE_OUTPUT([&] {
         command("print \"${sq}\"");
     });
-    ASSERT_THAT(output, ContainsRegex("print.*\n.*2.25.*"));
+    ASSERT_THAT(output, MatchesRegex("print.*2.25.*"));
 }
 
 TEST_F(PythonPackageTest, InlineFunction)
@@ -276,7 +255,7 @@ TEST_F(PythonPackageTest, RunSource)
 {
     // execute python script from file
     auto output = CAPTURE_OUTPUT([&] {
-        command("python source ${input_dir}/run.py");
+        command("python xyz source ${input_dir}/run.py");
     });
 
     ASSERT_THAT(output, HasSubstr(LOREM_IPSUM));
@@ -286,7 +265,7 @@ TEST_F(PythonPackageTest, RunSourceInline)
 {
     // execute inline python script
     auto output = CAPTURE_OUTPUT([&] {
-        command("python source here \"\"\"\n"
+        command("python xyz source \"\"\"\n"
                 "from __future__ import print_function\n"
                 "print(2+2)\n"
                 "\"\"\"");
@@ -309,7 +288,7 @@ TEST_F(FixPythonInvokeTest, end_of_step)
     auto output = CAPTURE_OUTPUT([&] {
         command("run 50");
     });
-    fprintf(stderr, "lines: %s\n", output.c_str());
+
     auto lines = utils::split_lines(output);
     int count  = 0;
 

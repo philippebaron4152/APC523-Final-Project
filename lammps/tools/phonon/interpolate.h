@@ -1,7 +1,16 @@
 #ifndef INTERPOLATION_H
 #define INTERPOLATION_H
 
-#include "zheevd.h"
+#include "stdio.h"
+#include "stdlib.h"
+#include "string.h"
+#include "memory.h"
+#include "tricubic.h"
+
+extern "C"{
+#include "f2c.h"
+#include "clapack.h"
+}
 
 class Interpolate{
 public:
@@ -14,13 +23,11 @@ public:
  
    int UseGamma;
 
-   class UserInput *input;
-
 private:
    void tricubic_init();
    void tricubic(double *, doublecomplex *);
    void trilinear(double *, doublecomplex *);
-   class Memory *memory;
+   Memory *memory;
  
    int which;
    int Nx, Ny, Nz, Npt, ndim;

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,9 +27,9 @@ namespace LAMMPS_NS {
 class FixBrownian : public FixBrownianBase {
  public:
   FixBrownian(class LAMMPS *, int, char **);
-
-  void init() override;
-  void initial_integrate(int) override;
+  virtual ~FixBrownian(){};
+  void init();
+  void initial_integrate(int);
 
  private:
   template <int Tp_UNIFORM, int Tp_GAUSS, int Tp_2D> void initial_integrate_templated();
@@ -38,3 +38,23 @@ class FixBrownian : public FixBrownianBase {
 }    // namespace LAMMPS_NS
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal fix brownian command.
+
+Wrong number/type of input arguments.
+
+E: Fix brownian viscous drag coefficient must be > 0.
+
+Self-explanatory.
+
+E: Fix brownian diffusion coefficient must be > 0.
+
+Self-explanatory.
+
+E: Fix brownian seed must be > 0.
+
+Self-explanatory.
+
+*/

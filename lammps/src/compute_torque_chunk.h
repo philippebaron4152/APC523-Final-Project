@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -20,27 +20,56 @@ ComputeStyle(torque/chunk,ComputeTorqueChunk);
 #ifndef LMP_COMPUTE_TORQUE_CHUNK_H
 #define LMP_COMPUTE_TORQUE_CHUNK_H
 
-#include "compute_chunk.h"
+#include "compute.h"
 
 namespace LAMMPS_NS {
 
-class ComputeTorqueChunk : public ComputeChunk {
+class ComputeTorqueChunk : public Compute {
  public:
   ComputeTorqueChunk(class LAMMPS *, int, char **);
-  ~ComputeTorqueChunk() override;
-  void compute_array() override;
+  ~ComputeTorqueChunk();
+  void init();
+  void compute_array();
 
-  double memory_usage() override;
+  void lock_enable();
+  void lock_disable();
+  int lock_length();
+  void lock(class Fix *, bigint, bigint);
+  void unlock(class Fix *);
+
+  double memory_usage();
 
  private:
+  int nchunk, maxchunk;
+  char *idchunk;
+  class ComputeChunkAtom *cchunk;
+
   double *massproc, *masstotal;
   double **com, **comall;
   double **torque, **torqueall;
 
-  void allocate() override;
+  void allocate();
 };
 
 }    // namespace LAMMPS_NS
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal ... command
+
+Self-explanatory.  Check the input script syntax and compare to the
+documentation for the command.  You can use -echo screen as a
+command-line option when running LAMMPS to see the offending line.
+
+E: Chunk/atom compute does not exist for compute torque/chunk
+
+Self-explanatory.
+
+E: Compute torque/chunk does not use chunk/atom compute
+
+The style of the specified compute is not chunk/atom.
+
+*/

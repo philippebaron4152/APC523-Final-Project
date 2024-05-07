@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -30,26 +30,26 @@
 using namespace LAMMPS_NS;
 using namespace FixConst;
 
-static constexpr double INERTIA = 0.2;          // moment of inertia prefactor for ellipsoid
+#define INERTIA 0.2          // moment of inertia prefactor for ellipsoid
 
 /* ---------------------------------------------------------------------- */
 
 FixNVEAsphereIntel::FixNVEAsphereIntel(LAMMPS *lmp, int narg, char **arg) :
   FixNVE(lmp, narg, arg)
 {
-  _dtfm = nullptr;
+  _dtfm = 0;
   _nlocal3 = 0;
   _nlocal_max = 0;
-  _inertia0 = nullptr;
-  _inertia1 = nullptr;
-  _inertia2 = nullptr;
+  _inertia0 = 0;
+  _inertia1 = 0;
+  _inertia2 = 0;
 }
 
 /* ---------------------------------------------------------------------- */
 
 void FixNVEAsphereIntel::init()
 {
-  avec = dynamic_cast<AtomVecEllipsoid *>(atom->style_match("ellipsoid"));
+  avec = (AtomVecEllipsoid *) atom->style_match("ellipsoid");
   if (!avec)
     error->all(FLERR,"Compute nve/asphere requires atom style ellipsoid");
 

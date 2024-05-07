@@ -76,7 +76,7 @@ int yukawa_gpu_init(const int ntypes, double **cutsq, double kappa,
                       inum, nall, max_nbors, maxspecial, cell_size,
                       gpu_split, screen);
 
-    YKMF.device->serialize_init();
+    YKMF.device->gpu_barrier();
     if (message)
       fprintf(screen,"Done.\n");
   }

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -15,10 +15,6 @@
 // clang-format off
 // list all deprecated and removed dump styles here
 DumpStyle(DEPRECATED,DumpDeprecated);
-DumpStyle(atom/mpiio,DumpDeprecated);
-DumpStyle(cfg/mpiio,DumpDeprecated);
-DumpStyle(custom/mpiio,DumpDeprecated);
-DumpStyle(xyz/mpiio,DumpDeprecated);
 // clang-format on
 #else
 
@@ -32,14 +28,22 @@ namespace LAMMPS_NS {
 class DumpDeprecated : public Dump {
  public:
   DumpDeprecated(class LAMMPS *, int, char **);
-
-  void init_style() override {}
-  void write_header(bigint) override {}
-  void pack(tagint *) override {}
-  void write_data(int, double *) override {}
+  ~DumpDeprecated() {}
+  virtual void init_style() {}
+  virtual void write_header(bigint) {}
+  virtual void pack(tagint *) {}
+  virtual void write_data(int, double *) {}
 };
 
 }    // namespace LAMMPS_NS
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: This dump style has been removed from LAMMPS
+
+UNDOCUMENTED
+
+*/

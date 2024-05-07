@@ -5,7 +5,6 @@ epsilon: 2.5e-13
 prerequisites: ! |
   atom full
   angle fourier/simple
-skip_tests: numdiff
 pre_commands: ! ""
 post_commands: ! ""
 input_file: in.fourmol

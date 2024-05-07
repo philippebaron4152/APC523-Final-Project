@@ -6,7 +6,7 @@ fix_modify AtC mesh delete_elements command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> mesh delete_elements <id>
 

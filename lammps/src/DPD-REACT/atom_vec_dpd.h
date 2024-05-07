@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -24,15 +24,15 @@ AtomStyle(dpd,AtomVecDPD);
 
 namespace LAMMPS_NS {
 
-class AtomVecDPD : virtual public AtomVec {
+class AtomVecDPD : public AtomVec {
  public:
   AtomVecDPD(class LAMMPS *);
 
-  void grow_pointers() override;
-  void unpack_restart_init(int) override;
-  void data_atom_post(int) override;
+  void grow_pointers();
+  void unpack_restart_init(int);
+  void data_atom_post(int);
 
- protected:
+ private:
   double *rho, *dpdTheta;
   double *uCond, *uMech, *uChem;
   double *uCG, *uCGnew;
@@ -42,3 +42,11 @@ class AtomVecDPD : virtual public AtomVec {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Internal temperature in Atoms section of data file must be > zero
+
+All internal temperatures must be > zero
+
+*/

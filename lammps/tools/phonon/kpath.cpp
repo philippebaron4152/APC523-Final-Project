@@ -1,19 +1,11 @@
-
-#include "kpath.h"
-
 #include "global.h"
-#include "dynmat.h"
-#include "memory.h"
-#include "qnodes.h"
+#include "kpath.h"
 
 #ifdef UseSPG
 extern "C"{
 #include "spglib.h"
 }
-#include <cmath>
-#include <cstdio>
-#include <string>
-#include <vector>
+#include "math.h"
 
 /* ----------------------------------------------------------------------------
  * Class kPath will help to find the high symmetry k-path for a given lattice.
@@ -55,15 +47,12 @@ kPath::kPath(DynMat *dm, QNodes *qn)
    for (int idim = 0; idim < sysdim; ++idim) atpos[i][idim] = dynmat->basis[i][idim];
  
    // get the space group number
-   double symprec = 1.0e-3;
-   double **pos;
-   memory->create(pos,num_atom,3,"kpath:pos");
-   if (dynmat->symprec > 0.0) symprec = dynmat->symprec;
-
+   double symprec = 1.e-4, pos[num_atom][3];
    for (int i = 0; i < num_atom; ++i)
    for (int j = 0; j < 3; ++j) pos[i][j] = atpos[i][j];
-   spgnum  = spg_get_international(symbol, latvec, (double (*)[3])pos, attyp, num_atom, symprec);
-   memory->destroy(pos);
+   spgnum  = spg_get_international(symbol, latvec, pos, attyp, num_atom, symprec);
+ 
+   return;
 }
 
 /* ----------------------------------------------------------------------------
@@ -72,7 +61,7 @@ kPath::kPath(DynMat *dm, QNodes *qn)
 void kPath::show_info()
 {
    // display the unit cell info read
-   puts("--------------------------------------------------------------------------------");
+   for (int ii = 0; ii < 80; ++ii) printf("-"); printf("\n");
    printf("The basis vectors of the unit cell:\n");
    for (int idim = 0; idim < 3; ++idim){
       printf("  A%d =", idim+1);
@@ -87,8 +76,11 @@ void kPath::show_info()
    if (num_atom > NUMATOM) printf("  ... (%d atoms omitted.)\n", num_atom-NUMATOM);
  
    printf("The space group number of your unit cell is: %d => %s\n", spgnum, symbol);
-   puts("--------------------------------------------------------------------------------");
+   for (int ii = 0; ii < 80; ++ii) printf("-"); printf("\n");
+ 
+   return;
 }
+
 
 /* ----------------------------------------------------------------------------
  * Free the memeory used by kPath.
@@ -100,6 +92,8 @@ kPath::~kPath( )
    delete memory;
    dynmat = NULL;
    q = NULL;
+
+   return;
 }
   
 /* ----------------------------------------------------------------------------
@@ -2760,28 +2754,23 @@ void kPath::kpath( )
       q->nqbin.push_back(nqpt);
    }
 
-   }
+   return;
+}
 
 /* ----------------------------------------------------------------------------
  * Show the k-path info
  * ---------------------------------------------------------------------------- */
 void kPath::show_path()
 {
-   if (q == nullptr) return;
+   if (q == NULL) return;
    int nbin = q->ndstr.size();
    if (nbin > 0){
-      puts("\n--------------------------------------------------------------------------------");
-      printf("k-path for the current lattice will be:\n  %s", q->ndstr[0].c_str());
+      printf("\nk-path for the current lattice will be:\n\t%s", q->ndstr[0].c_str());
       for (int is = 1; is < nbin; ++is) printf("-%s", q->ndstr[is].c_str());
-
-      printf("\n\nThe fractional coordinates of these paths are:\n");
-      for (int is = 0; is < nbin-1; ++is)
-         printf("  [%6.4f %6.4f %6.4f] --> [%6.4f %6.4f %6.4f] (%s - %s)\n", q->qs[is][0],
-                q->qs[is][1], q->qs[is][2], q->qe[is][0], q->qe[is][1], q->qe[is][2],
-                q->ndstr[is].c_str(), q->ndstr[is+1].c_str() );
-      puts("--------------------------------------------------------------------------------");
+      printf("\n");
    }
 
-   }
+   return;
+}
 /* ---------------------------------------------------------------------------- */
 #endif

@@ -6,7 +6,7 @@ fix_modify AtC atom_weight command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> atom_weight <method> <args>
 

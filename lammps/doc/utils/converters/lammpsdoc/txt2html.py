@@ -3,7 +3,7 @@
 #
 # Python rewrite of txt2html
 # The original txt2html was written in C by Steve Plimpton
-# (https://sjplimp.github.io/)
+# (http://www.cs.sandia.gov/cgi-bin/sjplimp/)
 #
 # Copyright (C) 2015 Richard Berger
 #

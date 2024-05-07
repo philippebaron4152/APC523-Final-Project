@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,17 +21,17 @@ namespace LAMMPS_NS {
 class ImbalanceVar : public Imbalance {
  public:
   ImbalanceVar(class LAMMPS *);
-  ~ImbalanceVar() override;
+  virtual ~ImbalanceVar();
 
  public:
   // parse options. return number of arguments consumed.
-  int options(int, char **) override;
+  virtual int options(int, char **) override;
   // re-initialize internal data, e.g. variable ID
-  void init(int) override;
+  virtual void init(int) override;
   // compute per-atom imbalance and apply to weight array
-  void compute(double *) override;
+  virtual void compute(double *) override;
   // print information about the state of this imbalance compute (required)
-  std::string info() override;
+  virtual std::string info() override;
 
  private:
   char *name;    // variable name
@@ -41,3 +41,23 @@ class ImbalanceVar : public Imbalance {
 }    // namespace LAMMPS_NS
 
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal ... command
+
+UNDOCUMENTED
+
+E: Variable name for balance weight does not exist
+
+UNDOCUMENTED
+
+E: Variable for balance weight has invalid style
+
+UNDOCUMENTED
+
+E: Balance weight <= 0.0
+
+UNDOCUMENTED
+
+*/

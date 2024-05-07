@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -38,8 +38,15 @@
 using namespace LAMMPS_NS;
 using namespace MathConst;
 
-static constexpr FFT_SCALAR ZEROF = 0.0;
-static constexpr int OFFSET = 16384;
+#ifdef FFT_SINGLE
+#define ZEROF 0.0f
+#define ONEF  1.0f
+#else
+#define ZEROF 0.0
+#define ONEF  1.0
+#endif
+
+#define OFFSET 16384
 
 
 /* ---------------------------------------------------------------------- */
@@ -337,8 +344,8 @@ void PPPMDispOMP::particle_map(double dxinv, double dyinv,
                                int nxhi_o, int nyhi_o,
                                int nzhi_o)
 {
-  const auto * _noalias const x = (dbl3_t *) atom->x[0];
-  auto * _noalias const p2g = (int3_t *) part2grid[0];
+  const dbl3_t * _noalias const x = (dbl3_t *) atom->x[0];
+  int3_t * _noalias const p2g = (int3_t *) part2grid[0];
   const double boxlox = boxlo[0];
   const double boxloy = boxlo[1];
   const double boxloz = boxlo[2];
@@ -419,8 +426,8 @@ void PPPMDispOMP::make_rho_c()
 #endif
   {
     const double * _noalias const q = atom->q;
-    const auto * _noalias const x = (dbl3_t *) atom->x[0];
-    const auto * _noalias const p2g = (int3_t *) part2grid[0];
+    const dbl3_t * _noalias const x = (dbl3_t *) atom->x[0];
+    const int3_t * _noalias const p2g = (int3_t *) part2grid[0];
 
     const double boxlox = boxlo[0];
     const double boxloy = boxlo[1];
@@ -508,8 +515,8 @@ void PPPMDispOMP::make_rho_g()
 #pragma omp parallel LMP_DEFAULT_NONE
 #endif
   {
-    const auto * _noalias const x = (dbl3_t *) atom->x[0];
-    const auto * _noalias const p2g = (int3_t *) part2grid_6[0];
+    const dbl3_t * _noalias const x = (dbl3_t *) atom->x[0];
+    const int3_t * _noalias const p2g = (int3_t *) part2grid_6[0];
 
     const double boxlox = boxlo[0];
     const double boxloy = boxlo[1];
@@ -612,8 +619,8 @@ void PPPMDispOMP::make_rho_a()
 #pragma omp parallel LMP_DEFAULT_NONE
 #endif
   {
-    const auto * _noalias const x = (dbl3_t *) atom->x[0];
-    const auto * _noalias const p2g = (int3_t *) part2grid_6[0];
+    const dbl3_t * _noalias const x = (dbl3_t *) atom->x[0];
+    const int3_t * _noalias const p2g = (int3_t *) part2grid_6[0];
 
     const double boxlox = boxlo[0];
     const double boxloy = boxlo[1];

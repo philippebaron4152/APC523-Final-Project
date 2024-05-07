@@ -10,7 +10,7 @@ Accelerator Variants: *nve/asphere/gpu*, *nve/asphere/intel*
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID nve/asphere
 

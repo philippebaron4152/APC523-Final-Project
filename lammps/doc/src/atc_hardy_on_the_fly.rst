@@ -6,7 +6,7 @@ fix_modify AtC on_the_fly command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> on_the_fly <bond|kernel> <on|off>
 

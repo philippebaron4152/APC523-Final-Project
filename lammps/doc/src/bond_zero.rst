@@ -8,10 +8,7 @@ Syntax
 
 .. code-block:: LAMMPS
 
-   bond_style zero keyword
-
-* zero or more keywords may be appended
-* keyword = *nocoeff*
+   bond_style zero [nocoeff]
 
 Examples
 """"""""

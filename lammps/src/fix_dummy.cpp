@@ -1,7 +1,8 @@
+// clang-format off
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -12,16 +13,16 @@
 ------------------------------------------------------------------------- */
 
 #include "fix_dummy.h"
-#include "error.h"
-
 #include <cstring>
+#include "error.h"
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
 
 /* ---------------------------------------------------------------------- */
 
-FixDummy::FixDummy(LAMMPS *lmp, int narg, char **arg) : Fix(lmp, narg, arg)
+FixDummy::FixDummy(LAMMPS *lmp, int narg, char **arg) :
+  Fix(lmp, narg, arg)
 {
   // process optional args
   // customize here and in setmask() by adding a new keyword from fix.h
@@ -38,22 +39,14 @@ FixDummy::FixDummy(LAMMPS *lmp, int narg, char **arg) : Fix(lmp, narg, arg)
 
   int iarg = 3;
   while (iarg < narg) {
-    if (strcmp(arg[iarg], "initial_integrate") == 0)
-      initial_integrate_flag = 1;
-    else if (strcmp(arg[iarg], "final_integrate") == 0)
-      final_integrate_flag = 1;
-    else if (strcmp(arg[iarg], "pre_exchange") == 0)
-      pre_exchange_flag = 1;
-    else if (strcmp(arg[iarg], "pre_neighbor") == 0)
-      pre_neighbor_flag = 1;
-    else if (strcmp(arg[iarg], "pre_force") == 0)
-      pre_force_flag = 1;
-    else if (strcmp(arg[iarg], "post_force") == 0)
-      post_force_flag = 1;
-    else if (strcmp(arg[iarg], "end_of_step") == 0)
-      end_of_step_flag = 1;
-    else
-      error->all(FLERR, "Illegal fix DUMMY command");
+    if (strcmp(arg[iarg],"initial_integrate") == 0) initial_integrate_flag = 1;
+    else if (strcmp(arg[iarg],"final_integrate") == 0) final_integrate_flag = 1;
+    else if (strcmp(arg[iarg],"pre_exchange") == 0) pre_exchange_flag = 1;
+    else if (strcmp(arg[iarg],"pre_neighbor") == 0) pre_neighbor_flag = 1;
+    else if (strcmp(arg[iarg],"pre_force") == 0) pre_force_flag = 1;
+    else if (strcmp(arg[iarg],"post_force") == 0) post_force_flag = 1;
+    else if (strcmp(arg[iarg],"end_of_step") == 0) end_of_step_flag = 1;
+    else error->all(FLERR,"Illegal fix DUMMY command");
     iarg++;
   }
 }

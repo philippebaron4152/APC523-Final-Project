@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    This software is distributed under the GNU General Public License.
 
@@ -32,14 +32,23 @@
 using namespace LAMMPS_NS;
 using namespace MathConst;
 
+// same as fix_wall.cpp
+
+enum{EDGE,CONSTANT,VARIABLE};
+
 /* ---------------------------------------------------------------------- */
 
-PairLubricatePolyOMP::PairLubricatePolyOMP(LAMMPS *_lmp) :
-  PairLubricatePoly(_lmp), ThrOMP(_lmp, THR_PAIR)
+PairLubricatePolyOMP::PairLubricatePolyOMP(LAMMPS *lmp) :
+  PairLubricatePoly(lmp), ThrOMP(lmp, THR_PAIR)
 {
   suffix_flag |= Suffix::OMP;
   respa_enable = 0;
 }
+
+/* ---------------------------------------------------------------------- */
+
+PairLubricatePolyOMP::~PairLubricatePolyOMP()
+{}
 
 /* ---------------------------------------------------------------------- */
 
@@ -70,7 +79,7 @@ void PairLubricatePolyOMP::compute(int eflag, int vflag)
          for (int m = 0; m < wallfix->nwall; m++) {
            int dim = wallfix->wallwhich[m] / 2;
            int side = wallfix->wallwhich[m] % 2;
-           if (wallfix->xstyle[m] == FixWall::VARIABLE) {
+           if (wallfix->xstyle[m] == VARIABLE) {
              wallcoord = input->variable->compute_equal(wallfix->xindex[m]);
            }
            else wallcoord = wallfix->coord0[m];
@@ -159,6 +168,8 @@ void PairLubricatePolyOMP::eval(int iifrom, int iito, ThrData * const thr)
   const int * const type = atom->type;
   const int nlocal = atom->nlocal;
 
+  int overlaps = 0;
+
   ilist = list->ilist;
   numneigh = list->numneigh;
   firstneigh = list->firstneigh;
@@ -213,7 +224,7 @@ void PairLubricatePolyOMP::eval(int iifrom, int iito, ThrData * const thr)
 #if defined(_OPENMP)
 #pragma omp master
 #endif
-    { comm->forward_comm(this); }
+    { comm->forward_comm_pair(this); }
 
     sync_threads();
   }
@@ -315,6 +326,10 @@ void PairLubricatePolyOMP::eval(int iifrom, int iito, ThrData * const thr)
         // scalar resistances XA and YA
 
         h_sep = r - radi-radj;
+
+        // check for overlaps
+
+        if (h_sep < 0.0) overlaps++;
 
         // if less than the minimum gap use the minimum gap instead
 

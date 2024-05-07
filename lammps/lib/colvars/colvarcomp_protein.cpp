@@ -16,10 +16,17 @@
 #include "colvarcomp.h"
 
 
+//////////////////////////////////////////////////////////////////////
+// alpha component
+//////////////////////////////////////////////////////////////////////
+
 colvar::alpha_angles::alpha_angles(std::string const &conf)
   : cvc(conf)
 {
-  set_function_type("alpha");
+  if (cvm::debug())
+    cvm::log("Initializing alpha_angles object.\n");
+
+  function_type = "alpha_angles";
   enable(f_cvc_explicit_gradient);
   x.type(colvarvalue::type_scalar);
 
@@ -86,7 +93,7 @@ colvar::alpha_angles::alpha_angles(std::string const &conf)
   {
     cvm::real r0;
     size_t en, ed;
-    get_keyval(conf, "hBondCutoff",   r0, proxy->angstrom_to_internal(3.3));
+    get_keyval(conf, "hBondCutoff",   r0, (3.3 * proxy->angstrom_value));
     get_keyval(conf, "hBondExpNumer", en, 6);
     get_keyval(conf, "hBondExpDenom", ed, 8);
 
@@ -103,13 +110,16 @@ colvar::alpha_angles::alpha_angles(std::string const &conf)
       cvm::log("The hBondCoeff specified will disable the hydrogen bond terms.\n");
     }
   }
+
+  if (cvm::debug())
+    cvm::log("Done initializing alpha_angles object.\n");
 }
 
 
 colvar::alpha_angles::alpha_angles()
   : cvc()
 {
-  set_function_type("alphaAngles");
+  function_type = "alpha_angles";
   enable(f_cvc_explicit_gradient);
   x.type(colvarvalue::type_scalar);
 }
@@ -287,7 +297,7 @@ colvar::dihedPC::dihedPC(std::string const &conf)
   if (cvm::debug())
     cvm::log("Initializing dihedral PC object.\n");
 
-  set_function_type("dihedPC");
+  function_type = "dihedPC";
   // Supported through references to atom groups of children cvcs
   enable(f_cvc_explicit_gradient);
   x.type(colvarvalue::type_scalar);
@@ -333,11 +343,10 @@ colvar::dihedPC::dihedPC(std::string const &conf)
       return;
     }
 
-    std::istream &vecFile =
-      cvm::main()->proxy->input_stream(vecFileName,
-                                       "dihedral PCA vector file");
-    if (!vecFile) {
-      return;
+    std::ifstream vecFile;
+    vecFile.open(vecFileName.c_str());
+    if (!vecFile.good()) {
+      cvm::error("Error opening dihedral PCA vector file " + vecFileName + " for reading");
     }
 
     // TODO: adapt to different formats by setting this flag
@@ -376,7 +385,7 @@ colvar::dihedPC::dihedPC(std::string const &conf)
       }
     }
  */
-    cvm::main()->proxy->close_input_stream(vecFileName);
+    vecFile.close();
 
   } else {
     get_keyval(conf, "vector", coeffs, coeffs);
@@ -419,7 +428,7 @@ colvar::dihedPC::dihedPC(std::string const &conf)
 colvar::dihedPC::dihedPC()
   : cvc()
 {
-  set_function_type("dihedPC");
+  function_type = "dihedPC";
   // Supported through references to atom groups of children cvcs
   enable(f_cvc_explicit_gradient);
   x.type(colvarvalue::type_scalar);

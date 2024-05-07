@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -167,7 +167,7 @@ void PRD::command(int narg, char **arg)
 
   // create FixEventPRD class to store event and pre-quench states
 
-  fix_event = dynamic_cast<FixEventPRD *>(modify->add_fix("prd_event all EVENT/PRD"));
+  fix_event = (FixEventPRD *) modify->add_fix("prd_event all EVENT/PRD");
 
   // create Finish for timing output
 
@@ -229,11 +229,12 @@ void PRD::command(int narg, char **arg)
 
   // cannot use PRD with time-dependent fixes or regions
 
-  for (auto &ifix : modify->get_fix_list())
-    if (ifix->time_depend) error->all(FLERR,"Cannot use PRD with a time-dependent fix defined");
+  for (int i = 0; i < modify->nfix; i++)
+    if (modify->fix[i]->time_depend)
+      error->all(FLERR,"Cannot use PRD with a time-dependent fix defined");
 
-  for (auto &reg : domain->get_region_list())
-    if (reg->dynamic_check())
+  for (int i = 0; i < domain->nregion; i++)
+    if (domain->regions[i]->dynamic_check())
       error->all(FLERR,"Cannot use PRD with a time-dependent region defined");
 
   // perform PRD simulation
@@ -252,7 +253,7 @@ void PRD::command(int narg, char **arg)
 
   // store hot state and quenched event for replica 0
   // use share_event() to copy that info to all replicas
-  // this ensures all start from same place
+  // this insures all start from same place
 
   // need this line if quench() does only setup_minimal()
   // update->minimize->setup();
@@ -415,10 +416,18 @@ void PRD::command(int narg, char **arg)
   neighbor->ndanger = ndanger;
 
   if (me_universe == 0) {
-    auto mesg = fmt::format("Loop time of {} on {} procs for {} steps with {} atoms\n",
-                            timer->get_wall(Timer::TOTAL), nprocs_universe, nsteps,atom->natoms);
-    if (universe->uscreen) fmt::print(universe->uscreen, mesg);
-    if (universe->ulogfile) fmt::print(universe->ulogfile, mesg);
+    if (universe->uscreen)
+      fprintf(universe->uscreen,
+              "Loop time of %g on %d procs for %d steps with " BIGINT_FORMAT
+              " atoms\n",
+              timer->get_wall(Timer::TOTAL),nprocs_universe,
+              nsteps,atom->natoms);
+    if (universe->ulogfile)
+      fprintf(universe->ulogfile,
+              "Loop time of %g on %d procs for %d steps with " BIGINT_FORMAT
+              " atoms\n",
+              timer->get_wall(Timer::TOTAL),nprocs_universe,
+              nsteps,atom->natoms);
   }
 
   if (me == 0) utils::logmesg(lmp,"\nPRD done\n");
@@ -692,7 +701,7 @@ void PRD::share_event(int ireplica, int flag, int decrement)
   // dump snapshot of quenched coords, only on replica 0
   // must reneighbor and compute forces before dumping
   // since replica 0 possibly has new state from another replica
-  // addstep_compute_all ensures eng/virial are calculated if needed
+  // addstep_compute_all insures eng/virial are calculated if needed
 
   if (output->ndump && universe->iworld == 0) {
     timer->barrier_start();
@@ -720,13 +729,24 @@ void PRD::log_event()
 {
   timer->set_wall(Timer::TOTAL, time_start);
   if (universe->me == 0) {
-    auto mesg = fmt::format("{} {:.3f} {} {} {} {} {}\n", fix_event->event_timestep,
-                            timer->elapsed(Timer::TOTAL), fix_event->clock,
-                            fix_event->event_number, fix_event->correlated_event,
-                            fix_event->ncoincident, fix_event->replica_number);
-
-    if (universe->uscreen) fmt::print(universe->uscreen, mesg);
-    if (universe->ulogfile) fmt::print(universe->ulogfile, mesg);
+    if (universe->uscreen)
+      fprintf(universe->uscreen,
+              BIGINT_FORMAT " %.3f " BIGINT_FORMAT " %d %d %d %d\n",
+              fix_event->event_timestep,
+              timer->elapsed(Timer::TOTAL),
+              fix_event->clock,
+              fix_event->event_number,fix_event->correlated_event,
+              fix_event->ncoincident,
+              fix_event->replica_number);
+    if (universe->ulogfile)
+      fprintf(universe->ulogfile,
+              BIGINT_FORMAT " %.3f " BIGINT_FORMAT " %d %d %d %d\n",
+              fix_event->event_timestep,
+              timer->elapsed(Timer::TOTAL),
+              fix_event->clock,
+              fix_event->event_number,fix_event->correlated_event,
+              fix_event->ncoincident,
+              fix_event->replica_number);
   }
 }
 

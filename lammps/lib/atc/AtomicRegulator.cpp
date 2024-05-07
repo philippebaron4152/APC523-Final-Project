@@ -688,7 +688,7 @@ namespace ATC {
   //  compute_sparsity
   //  - creates sparsity template
   //--------------------------------------------------------
-  void RegulatorShapeFunction::compute_sparsity()
+  void RegulatorShapeFunction::compute_sparsity(void)
   {
 
     // first get local pattern from N N^T

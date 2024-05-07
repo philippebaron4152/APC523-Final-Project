@@ -38,9 +38,13 @@ public:
 
   friend class colvarproxy;
 
-  colvarscript(colvarproxy *p, colvarmodule *m);
+  colvarscript(colvarproxy *p);
 
   ~colvarscript();
+
+  /// If an error is caught by the proxy through fatal_error(), this is set to
+  /// COLVARSCRIPT_ERROR
+  int proxy_error;
 
   /// String representation of the result of a script call
   std::string str_result_;

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,15 +27,14 @@ namespace LAMMPS_NS {
 class BondMM3 : public Bond {
  public:
   BondMM3(class LAMMPS *);
-  ~BondMM3() override;
-  void compute(int, int) override;
-  void coeff(int, char **) override;
-  double equilibrium_distance(int) override;
-  void write_restart(FILE *) override;
-  void read_restart(FILE *) override;
-  void write_data(FILE *) override;
-  double single(int, double, int, int, double &) override;
-  void born_matrix(int, double, int, int, double &, double &) override;
+  virtual ~BondMM3();
+  virtual void compute(int, int);
+  void coeff(int, char **);
+  double equilibrium_distance(int);
+  void write_restart(FILE *);
+  void read_restart(FILE *);
+  void write_data(FILE *);
+  double single(int, double, int, int, double &);
 
  protected:
   double *r0, *k2;
@@ -47,3 +46,11 @@ class BondMM3 : public Bond {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Incorrect args for bond coefficients
+
+Self-explanatory.  Check the input script or data file.
+
+*/

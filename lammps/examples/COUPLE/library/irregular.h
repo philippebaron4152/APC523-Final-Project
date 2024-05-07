@@ -46,8 +46,8 @@ class Irregular {
   MPI_Status *status;        // MPI statuses for Waitall
   MPI_Comm comm;             // MPI communicator for all communication
 
-  class MemoryLib *memory;
-  class ErrorLib *error;
+  class Memory *memory;
+  class Error *error;
 
   void exchange_same(char *, char *);
   void exchange_varying(char *, char *);

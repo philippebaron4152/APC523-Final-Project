@@ -702,11 +702,10 @@ static const double fm_exp2_p[] = {
 };
 
 /* double precision constants */
-static constexpr double FM_DOUBLE_LOG2OFE = 1.4426950408889634074;
+#define FM_DOUBLE_LOG2OFE  1.4426950408889634074
 
 double MathSpecial::exp2_x86(double x)
 {
-#if defined(__BYTE_ORDER__) && (__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__)
     double   ipart, fpart, px, qx;
     udi_t    epart;
 
@@ -727,9 +726,6 @@ double MathSpecial::exp2_x86(double x)
 
     x = 1.0 + 2.0*(px/(qx-px));
     return epart.f*x;
-#else
-    return pow(2.0, x);
-#endif
 }
 
 double MathSpecial::fm_exp(double x)

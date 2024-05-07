@@ -1,7 +1,8 @@
+// clang-format off
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,10 +22,13 @@ using namespace FixConst;
 
 /* ---------------------------------------------------------------------- */
 
-FixNPTSphere::FixNPTSphere(LAMMPS *lmp, int narg, char **arg) : FixNHSphere(lmp, narg, arg)
+FixNPTSphere::FixNPTSphere(LAMMPS *lmp, int narg, char **arg) :
+  FixNHSphere(lmp, narg, arg)
 {
-  if (!tstat_flag) error->all(FLERR, "Temperature control must be used with fix npt/sphere");
-  if (!pstat_flag) error->all(FLERR, "Pressure control must be used with fix npt/sphere");
+  if (!tstat_flag)
+    error->all(FLERR,"Temperature control must be used with fix npt/sphere");
+  if (!pstat_flag)
+    error->all(FLERR,"Pressure control must be used with fix npt/sphere");
 
   // create a new compute temp style
   // id = fix-ID + temp
@@ -32,7 +36,7 @@ FixNPTSphere::FixNPTSphere(LAMMPS *lmp, int narg, char **arg) : FixNHSphere(lmp,
   // and thus its KE/temperature contribution should use group all
 
   id_temp = utils::strdup(std::string(id) + "_temp");
-  modify->add_compute(fmt::format("{} all temp/sphere", id_temp));
+  modify->add_compute(fmt::format("{} all temp/sphere",id_temp));
   tcomputeflag = 1;
 
   // create a new compute pressure style
@@ -40,6 +44,6 @@ FixNPTSphere::FixNPTSphere(LAMMPS *lmp, int narg, char **arg) : FixNHSphere(lmp,
   // pass id_temp as 4th arg to pressure constructor
 
   id_press = utils::strdup(std::string(id) + "_press");
-  modify->add_compute(fmt::format("{} all pressure {}", id_press, id_temp));
+  modify->add_compute(fmt::format("{} all pressure {}",id_press, id_temp));
   pcomputeflag = 1;
 }

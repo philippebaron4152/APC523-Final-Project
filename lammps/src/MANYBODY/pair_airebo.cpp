@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -31,9 +31,11 @@
 #include "memory.h"
 #include "my_page.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "neighbor.h"
 #include "potential_file_reader.h"
 #include "text_file_reader.h"
+#include "tokenizer.h"
 
 #include <cmath>
 #include <cstring>
@@ -41,10 +43,8 @@
 using namespace LAMMPS_NS;
 using namespace MathSpecial;
 
-static constexpr double TOL = 1.0e-9;
-static constexpr int PGDELTA = 1;
-
-static const char *style[3] = {"airebo", "rebo", "airebo/morse"};
+#define TOL 1.0e-9
+#define PGDELTA 1
 
 /* ---------------------------------------------------------------------- */
 
@@ -68,6 +68,7 @@ PairAIREBO::PairAIREBO(LAMMPS *lmp)
   pgsize = oneatom = 0;
 
   nC = nH = nullptr;
+  map = nullptr;
   manybody_flag = 1;
   centroidstressflag = CENTROID_NOTAVAIL;
 
@@ -99,6 +100,7 @@ PairAIREBO::~PairAIREBO()
     memory->destroy(lj2);
     memory->destroy(lj3);
     memory->destroy(lj4);
+    delete[] map;
   }
 }
 
@@ -152,7 +154,7 @@ void PairAIREBO::allocate()
 void PairAIREBO::settings(int narg, char **arg)
 {
   if (narg != 1 && narg != 3 && narg != 4)
-    error->all(FLERR,"Illegal pair_style {} command", style[variant]);
+    error->all(FLERR,"Illegal pair_style command");
 
   cutlj = utils::numeric(FLERR,arg[0],false,lmp);
 
@@ -177,7 +179,12 @@ void PairAIREBO::coeff(int narg, char **arg)
   if (!allocated) allocate();
 
   if (narg != 3 + atom->ntypes)
-    error->all(FLERR,"Incorrect number of args for pair coefficient.");
+    error->all(FLERR,"Incorrect args for pair coefficients");
+
+  // insure I,J args are * *
+
+  if (strcmp(arg[0],"*") != 0 || strcmp(arg[1],"*") != 0)
+    error->all(FLERR,"Incorrect args for pair coefficients");
 
   // read args that map atom types to C and H
   // map[i] = which element (0,1) the Ith atom type is, -1 if "NULL"
@@ -190,7 +197,7 @@ void PairAIREBO::coeff(int narg, char **arg)
       map[i-2] = 0;
     } else if (strcmp(arg[i],"H") == 0) {
       map[i-2] = 1;
-    } else error->all(FLERR,"Element {} not supported by pair style {}", arg[i], style[variant]);
+    } else error->all(FLERR,"Incorrect args for pair coefficients");
   }
 
   // read potential file and initialize fitting splines
@@ -225,13 +232,16 @@ void PairAIREBO::coeff(int narg, char **arg)
 void PairAIREBO::init_style()
 {
   if (atom->tag_enable == 0)
-    error->all(FLERR,"Pair style {} requires atom IDs", style[variant]);
+    error->all(FLERR,"Pair style AIREBO requires atom IDs");
   if (force->newton_pair == 0)
-    error->all(FLERR,"Pair style {} requires newton pair on", style[variant]);
+    error->all(FLERR,"Pair style AIREBO requires newton pair on");
 
   // need a full neighbor list, including neighbors of ghosts
 
-  neighbor->add_request(this, NeighConst::REQ_FULL | NeighConst::REQ_GHOST);
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
+  neighbor->requests[irequest]->ghost = 1;
 
   // local REBO neighbor list
   // create pages if first time or if neighbor pgsize/oneatom has changed
@@ -275,7 +285,7 @@ double PairAIREBO::init_one(int i, int j)
   // cutljrebosq = furthest distance from an owned atom a ghost atom can be
   //               to need its REBO neighs computed
   // interaction = M-K-I-J-L-N with I = owned and J = ghost
-  //   this ensures N is in the REBO neigh list of L
+  //   this insures N is in the REBO neigh list of L
   //   since I-J < rcLJmax and J-L < rmax
 
   double cutljrebo = rcLJmax[0][0] + rcmax[0][0];
@@ -313,10 +323,10 @@ double PairAIREBO::init_one(int i, int j)
 
   } else {
 
-    lj1[ii][jj] = 48.0 * epsilon[ii][jj] * powint(sigma[ii][jj],12);
-    lj2[ii][jj] = 24.0 * epsilon[ii][jj] * powint(sigma[ii][jj],6);
-    lj3[ii][jj] = 4.0 * epsilon[ii][jj] * powint(sigma[ii][jj],12);
-    lj4[ii][jj] = 4.0 * epsilon[ii][jj] * powint(sigma[ii][jj],6);
+    lj1[ii][jj] = 48.0 * epsilon[ii][jj] * pow(sigma[ii][jj],12.0);
+    lj2[ii][jj] = 24.0 * epsilon[ii][jj] * pow(sigma[ii][jj],6.0);
+    lj3[ii][jj] = 4.0 * epsilon[ii][jj] * pow(sigma[ii][jj],12.0);
+    lj4[ii][jj] = 4.0 * epsilon[ii][jj] * pow(sigma[ii][jj],6.0);
   }
 
   cutghost[j][i] = cutghost[i][j];
@@ -1772,7 +1782,7 @@ double PairAIREBO::bondorder(int i, int j, double rij[3], double rijmag, double 
             atoml = REBO_neighs_j[l];
             atom4 = atoml;
             ltype = map[type[atoml]];
-            if (atoml != atomi && atoml != atomk) {
+            if (!(atoml == atomi || atoml == atomk)) {
               r34[0] = x[atom3][0]-x[atom4][0];
               r34[1] = x[atom3][1]-x[atom4][1];
               r34[2] = x[atom3][2]-x[atom4][2];
@@ -2281,7 +2291,7 @@ double PairAIREBO::bondorderLJ(int i, int j, double /* rij_mod */[3], double rij
             atoml = REBO_neighs_j[l];
             atom4 = atoml;
             ltype = map[type[atoml]];
-            if (atoml != atomi && atoml != atomk) {
+            if (!(atoml == atomi || atoml == atomk)) {
               r34[0] = x[atom3][0]-x[atom4][0];
               r34[1] = x[atom3][1]-x[atom4][1];
               r34[2] = x[atom3][2]-x[atom4][2];
@@ -2729,7 +2739,7 @@ double PairAIREBO::bondorderLJ(int i, int j, double /* rij_mod */[3], double rij
               atoml = REBO_neighs_j[l];
               atom4 = atoml;
               ltype = map[type[atoml]];
-              if (atoml != atomi && atoml != atomk) {
+              if (!(atoml == atomi || atoml == atomk)) {
                 r34[0] = x[atom3][0]-x[atom4][0];
                 r34[1] = x[atom3][1]-x[atom4][1];
                 r34[2] = x[atom3][2]-x[atom4][2];
@@ -3476,8 +3486,8 @@ void PairAIREBO::read_file(char *filename)
       // global parameters
       current_section = "global parameters";
 
-      for (auto & param : params) {
-        *param = reader.next_double();
+      for (int i = 0; i < (int)params.size(); i++) {
+        *params[i] = reader.next_double();
       }
 
 
@@ -3623,12 +3633,16 @@ void PairAIREBO::read_file(char *filename)
         }
       }
     } catch (TokenizerException &e) {
-      error->one(FLERR, "reading {} section in {} file\nREASON: {}\n",
-                 current_section, potential_name, e.what());
-
+      std::string msg = fmt::format("ERROR reading {} section in {} file\n"
+                                    "REASON: {}\n",
+                                    current_section, potential_name, e.what());
+      error->one(FLERR, msg);
     } catch (FileReaderException &fre) {
-      error->one(FLERR, "reading {} section in {} file\nREASON: {}\n",
+      error->one(FLERR, fre.what());
+      std::string msg = fmt::format("ERROR reading {} section in {} file\n"
+                                    "REASON: {}\n",
                                     current_section, potential_name, fre.what());
+      error->one(FLERR, msg);
     }
 
     // store read-in values in arrays
@@ -3840,6 +3854,32 @@ void PairAIREBO::read_file(char *filename)
 // ----------------------------------------------------------------------
 
 /* ----------------------------------------------------------------------
+   fifth order spline evaluation
+------------------------------------------------------------------------- */
+
+double PairAIREBO::Sp5th(double x, double coeffs[6], double *df)
+{
+  double f, d;
+  const double x2 = x*x;
+  const double x3 = x2*x;
+
+  f  = coeffs[0];
+  f += coeffs[1]*x;
+  d  = coeffs[1];
+  f += coeffs[2]*x2;
+  d += 2.0*coeffs[2]*x;
+  f += coeffs[3]*x3;
+  d += 3.0*coeffs[3]*x2;
+  f += coeffs[4]*x2*x2;
+  d += 4.0*coeffs[4]*x3;
+  f += coeffs[5]*x2*x3;
+  d += 5.0*coeffs[5]*x2*x2;
+
+  *df = d;
+  return f;
+}
+
+/* ----------------------------------------------------------------------
    bicubic spline evaluation
 ------------------------------------------------------------------------- */
 
@@ -4003,7 +4043,8 @@ def output_matrix(n, k, A):
    tricubic spline coefficient calculation
 ------------------------------------------------------------------------- */
 
-void PairAIREBO::Sptricubic_patch_adjust(double *dl, double wid, double lo, char dir) {
+void PairAIREBO::Sptricubic_patch_adjust(double * dl, double wid, double lo,
+                                         char dir) {
   int rowOuterL = 16, rowInnerL = 1, colL = 4;
   if (dir == 'R') {
     rowOuterL = 4;
@@ -4021,7 +4062,7 @@ void PairAIREBO::Sptricubic_patch_adjust(double *dl, double wid, double lo, char
         double acc = 0;
         for (int k = col; k < 4; k++) {
           acc += dl[rowOuterL * rowOuter + rowInnerL * rowInner + colL * k]
-               * powint(wid, -k) * powint(-lo, k - col) * binomial[k] / binomial[col]
+               * pow(wid, -k) * pow(-lo, k - col) * binomial[k] / binomial[col]
                / binomial[k - col];
         }
         dl[rowOuterL * rowOuter + rowInnerL * rowInner + colL * col] = acc;
@@ -4126,7 +4167,8 @@ void PairAIREBO::Sptricubic_patch_coeffs(
    bicubic spline coefficient calculation
 ------------------------------------------------------------------------- */
 
-void PairAIREBO::Spbicubic_patch_adjust(double *dl, double wid, double lo, char dir) {
+void PairAIREBO::Spbicubic_patch_adjust(double * dl, double wid, double lo,
+                                        char dir) {
   int rowL = dir == 'R' ? 1 : 4;
   int colL = dir == 'L' ? 1 : 4;
   double binomial[5] = {1, 1, 2, 6};
@@ -4134,7 +4176,7 @@ void PairAIREBO::Spbicubic_patch_adjust(double *dl, double wid, double lo, char 
     for (int col = 0; col < 4; col++) {
       double acc = 0;
       for (int k = col; k < 4; k++) {
-        acc += dl[rowL * row + colL * k] * powint(wid, -k) * powint(-lo, k - col)
+        acc += dl[rowL * row + colL * k] * pow(wid, -k) * pow(-lo, k - col)
              * binomial[k] / binomial[col] / binomial[k - col];
       }
       dl[rowL * row + colL * col] = acc;
@@ -4458,6 +4500,6 @@ double PairAIREBO::memory_usage()
   for (int i = 0; i < comm->nthreads; i++)
     bytes += ipage[i].size();
 
-  bytes += 2.0 * maxlocal * sizeof(double);
+  bytes += (double)2*maxlocal * sizeof(double);
   return bytes;
 }

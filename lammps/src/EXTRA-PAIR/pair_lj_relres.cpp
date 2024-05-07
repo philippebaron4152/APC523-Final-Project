@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -31,18 +31,18 @@
 using namespace LAMMPS_NS;
 
 static const char cite_relres[] =
-  "Pair style lj/relres: doi:10.1021/acs.jctc.0c01003, doi:10.1021/acs.jctc.0c01003\n\n"
+  "Pair style lj/relres: doi:10.1021/acs.jctc.0c01003\n\n"
   "@Article{Chaimovich1,\n"
   " author = {A. Chaimovich, C. Peter, K. Kremer},\n"
-  " title = {Relative Resolution: {A} Hybrid Formalism for Fluid Mixtures},\n"
-  " journal = {J.~Chem.\\ Phys.},\n"
+  " title = {Relative resolution: A hybrid formalism for fluid mixtures},\n"
+  " journal = {J.~Chem.~Phys.},\n"
   " year =    2015,\n"
   " volume =  143,\n"
   " pages =   {243107}\n"
   "@Article{Chaimovich2,\n"
-  " author = {M. Chaimovich and A. Chaimovich},\n"
+  " author = {M. Chaimovich, A. Chaimovich},\n"
   " title = {Relative Resolution: A Computationally Efficient Implementation in LAMMPS},\n"
-  " journal = {J.~Chem.\\ Theory Comput.},\n"
+  " journal = {J.~Chem.~Theory~Comput.},\n"
   " year =    2021,\n"
   " volume =  17,\n"
   " pages =   {1045--1059}\n"
@@ -183,13 +183,15 @@ void PairLJRelRes::compute(int eflag, int vflag)
 
         if (eflag) {
           if (rsq < cutf_inner_sq[itype][jtype]) {
-            evdwl = r6inv*(ljf3[itype][jtype]*r6inv-ljf4[itype][jtype])-offsetsm[itype][jtype];
+            evdwl = r6inv*(ljf3[itype][jtype]*r6inv-
+                           ljf4[itype][jtype])-offsetsm[itype][jtype];
           } else if (rsq < cutfsq[itype][jtype]) {
             evdwl = ljswf0[itype][jtype]-ljswf1[itype][jtype]*t-
               ljswf2[itype][jtype]*tsq/2.0-ljswf3[itype][jtype]*tsq*t/3.0-
               ljswf4[itype][jtype]*tsq*tsq/4.0-offsetsp[itype][jtype];
           } else if (rsq < cut_inner_sq[itype][jtype]) {
-            evdwl = r6inv*(lj3[itype][jtype]*r6inv-lj4[itype][jtype])-offset[itype][jtype];
+            evdwl = r6inv*(lj3[itype][jtype]*r6inv-
+                           lj4[itype][jtype])-offset[itype][jtype];
           } else {
             evdwl = ljsw0[itype][jtype]-ljsw1[itype][jtype]*t-
               ljsw2[itype][jtype]*tsq/2.0-ljsw3[itype][jtype]*tsq*t/3.0-
@@ -198,7 +200,8 @@ void PairLJRelRes::compute(int eflag, int vflag)
           evdwl *= factor_lj;
         }
 
-        if (evflag) ev_tally(i,j,nlocal,newton_pair,evdwl,0.0,fpair,delx,dely,delz);
+        if (evflag) ev_tally(i,j,nlocal,newton_pair,
+                             evdwl,0.0,fpair,delx,dely,delz);
       }
     }
   }
@@ -453,7 +456,7 @@ double PairLJRelRes::init_one(int i, int j)
     offset[i][j] = 0.0;
   }
 
-  if (epsilonf[i][j] != 0) {  // fg (cut=cutf coefficients)
+  if (epsilonf[i][j] != 0 ) {  // fg (cut=cutf coefficients)
     ljf1[i][j] = 48.0 * epsilonf[i][j] * pow(sigmaf[i][j],12.0);
     ljf2[i][j] = 24.0 * epsilonf[i][j] * pow(sigmaf[i][j],6.0);
     ljf3[i][j] = 4.0 * epsilonf[i][j] * pow(sigmaf[i][j],12.0);
@@ -723,13 +726,15 @@ double PairLJRelRes::single(int /*i*/, int /*j*/, int itype, int jtype,
   fforce = factor_lj*forcelj*r2inv;
 
   if (rsq < cutf_inner_sq[itype][jtype]) {
-    philj = r6inv*(ljf3[itype][jtype]*r6inv-ljf4[itype][jtype])-offsetsm[itype][jtype];
+    philj = r6inv*(ljf3[itype][jtype]*r6inv-
+                   ljf4[itype][jtype])-offsetsm[itype][jtype];
   } else if (rsq < cutfsq[itype][jtype]) {
     philj = ljswf0[itype][jtype]-ljswf1[itype][jtype]*t-
       ljswf2[itype][jtype]*tsq/2.0-ljswf3[itype][jtype]*tsq*t/3.0-
       ljswf4[itype][jtype]*tsq*tsq/4.0-offsetsp[itype][jtype];
   } else if (rsq < cut_inner_sq[itype][jtype]) {
-    philj = r6inv * (lj3[itype][jtype]*r6inv - lj4[itype][jtype]) - offset[itype][jtype];
+    philj = r6inv * (lj3[itype][jtype]*r6inv - lj4[itype][jtype]) -
+      offset[itype][jtype];
   } else {
     philj = ljsw0[itype][jtype] - ljsw1[itype][jtype]*t -
       ljsw2[itype][jtype]*tsq/2.0 - ljsw3[itype][jtype]*tsq*t/3.0 -

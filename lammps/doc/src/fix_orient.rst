@@ -10,7 +10,7 @@ fix orient/bcc command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID orient/fcc nstats dir alat dE cutlo cuthi file0 file1
    fix ID group-ID orient/bcc nstats dir alat dE cutlo cuthi file0 file1

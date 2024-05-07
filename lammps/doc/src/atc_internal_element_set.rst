@@ -6,7 +6,7 @@ fix_modify AtC internal_element_set command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> internal_element_set <element_set_name>
 

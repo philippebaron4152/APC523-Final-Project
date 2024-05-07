@@ -30,7 +30,8 @@
 Body23Joint::Body23Joint(){
   DimQandU(4,2);
 }
-Body23Joint::~Body23Joint() = default;
+Body23Joint::~Body23Joint(){
+}
 
 JointType Body23Joint::GetType(){
   return BODY23JOINT;

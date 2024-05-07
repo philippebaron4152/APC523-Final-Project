@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -17,10 +17,12 @@
 #include "atom_kokkos.h"
 #include "atom_masks.h"
 #include "comm.h"
-#include "memory_kokkos.h"
 #include "update.h"
 
 using namespace LAMMPS_NS;
+
+#define SMALL 1.0e-6
+#define CUT2BIN_RATIO 100
 
 /* ---------------------------------------------------------------------- */
 
@@ -60,14 +62,14 @@ template<class DeviceType>
 void NBinKokkos<DeviceType>::bin_atoms_setup(int nall)
 {
   if (mbins > (int)k_bins.d_view.extent(0)) {
-    MemoryKokkos::realloc_kokkos(k_bins,"Neighbor::d_bins",mbins,atoms_per_bin);
+    k_bins = DAT::tdual_int_2d("Neighbor::d_bins",mbins,atoms_per_bin);
     bins = k_bins.view<DeviceType>();
 
-    MemoryKokkos::realloc_kokkos(k_bincount,"Neighbor::d_bincount",mbins);
+    k_bincount = DAT::tdual_int_1d("Neighbor::d_bincount",mbins);
     bincount = k_bincount.view<DeviceType>();
   }
   if (nall > (int)k_atom2bin.d_view.extent(0)) {
-    MemoryKokkos::realloc_kokkos(k_atom2bin,"Neighbor::d_atom2bin",nall);
+    k_atom2bin = DAT::tdual_int_1d("Neighbor::d_atom2bin",nall);
     atom2bin = k_atom2bin.view<DeviceType>();
   }
 }
@@ -89,7 +91,7 @@ void NBinKokkos<DeviceType>::bin_atoms()
 
   while (h_resize() > 0) {
     h_resize() = 0;
-    Kokkos::deep_copy(d_resize, h_resize);
+    deep_copy(d_resize, h_resize);
 
     MemsetZeroFunctor<DeviceType> f_zero;
     f_zero.ptr = (void*) k_bincount.view<DeviceType>().data();
@@ -105,7 +107,7 @@ void NBinKokkos<DeviceType>::bin_atoms()
 
     Kokkos::parallel_for(atom->nlocal+atom->nghost, f);
 
-    Kokkos::deep_copy(h_resize, d_resize);
+    deep_copy(h_resize, d_resize);
     if (h_resize()) {
 
       atoms_per_bin += 16;

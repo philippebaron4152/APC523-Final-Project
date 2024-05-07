@@ -27,13 +27,14 @@
 using namespace std;
 
 Joint::Joint(){
-  body1 = body2 = nullptr;
-  point1 = point2 = nullptr;
+  body1 = body2 = 0;
+  point1 = point2 = 0;
   pk_C_ko.Identity();
   pk_C_k.Identity();
 }
 
-Joint::~Joint() = default;
+Joint::~Joint(){
+}
 
 void Joint::SetBodies(Body* b1, Body* b2){
   body1 = b1;
@@ -164,7 +165,7 @@ Body* Joint::GetBody2(){
 Body* Joint::OtherBody(Body* body){
   if(body1 == body) return body2;
   if(body2 == body) return body1;
-  return nullptr;
+  return 0;
 }
 
 Vect3* Joint::GetR12(){
@@ -242,6 +243,6 @@ Joint* NewJoint(int type){
     case SPHERICALJOINT : return new SphericalJoint;
    case BODY23JOINT : return new Body23Joint;
    case MIXEDJOINT : return new MixedJoint;
-    default : return nullptr; // error
+    default : return 0; // error
   }
 }

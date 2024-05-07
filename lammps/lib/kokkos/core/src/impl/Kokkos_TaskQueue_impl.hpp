@@ -1,18 +1,46 @@
+/*
 //@HEADER
 // ************************************************************************
 //
-//                        Kokkos v. 4.0
-//       Copyright (2022) National Technology & Engineering
+//                        Kokkos v. 3.0
+//       Copyright (2020) National Technology & Engineering
 //               Solutions of Sandia, LLC (NTESS).
 //
 // Under the terms of Contract DE-NA0003525 with NTESS,
 // the U.S. Government retains certain rights in this software.
 //
-// Part of Kokkos, under the Apache License v2.0 with LLVM Exceptions.
-// See https://kokkos.org/LICENSE for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
 //
+// 1. Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright
+// notice, this list of conditions and the following disclaimer in the
+// documentation and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the Corporation nor the names of the
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY NTESS "AS IS" AND ANY
+// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NTESS OR THE
+// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+// Questions? Contact Christian R. Trott (crtrott@sandia.gov)
+//
+// ************************************************************************
 //@HEADER
+*/
 
 #ifndef KOKKOS_IMPL_TASKQUEUE_IMPL_HPP
 #define KOKKOS_IMPL_TASKQUEUE_IMPL_HPP
@@ -77,7 +105,6 @@ KOKKOS_FUNCTION void TaskQueue<ExecSpace, MemorySpace>::decrement(
   task_root_type volatile &t = *task;
 
   const int count = Kokkos::atomic_fetch_add(&(t.m_ref_count), -1);
-  Kokkos::memory_fence();
 
 #if KOKKOS_IMPL_DEBUG_TASKDAG_SCHEDULING
   if (1 == count) {
@@ -119,9 +146,8 @@ KOKKOS_FUNCTION void *TaskQueue<ExecSpace, MemorySpace>::allocate(size_t n) {
   void *const p = m_memory.allocate(n);
 
   if (p) {
-    desul::atomic_inc(
-        &m_count_alloc, desul::MemoryOrderSeqCst(),
-        desul::MemoryScopeDevice());  // TODO? memory_order_relaxed
+    // Kokkos::atomic_increment( & m_accum_alloc );
+    Kokkos::atomic_increment(&m_count_alloc);
 
     // if ( m_max_alloc < m_count_alloc ) m_max_alloc = m_count_alloc ;
   }
@@ -133,8 +159,7 @@ template <typename ExecSpace, typename MemorySpace>
 KOKKOS_FUNCTION void TaskQueue<ExecSpace, MemorySpace>::deallocate(void *p,
                                                                    size_t n) {
   m_memory.deallocate(p, n);
-  desul::atomic_dec(&m_count_alloc, desul::MemoryOrderSeqCst(),
-                    desul::MemoryScopeDevice());  // TODO? memory_order_relaxed
+  Kokkos::atomic_decrement(&m_count_alloc);
 }
 
 //----------------------------------------------------------------------------
@@ -185,9 +210,7 @@ KOKKOS_FUNCTION bool TaskQueue<ExecSpace, MemorySpace>::push_task(
     //     *queue = task;
     //   }
     //   old_head = *queue;
-    old_head = desul::atomic_compare_exchange(
-        const_cast<task_root_type **>(queue), old_head, task,
-        desul::MemoryOrderSeqCst(), desul::MemoryScopeDevice());
+    old_head = Kokkos::atomic_compare_exchange(queue, old_head, task);
 
     if (old_head_tmp == old_head) return true;
   }
@@ -235,10 +258,7 @@ TaskQueue<ExecSpace, MemorySpace>::pop_ready_task(
 
     task_root_type *const x = task;
 
-    //    task = Kokkos::atomic_compare_exchange(queue, x, lock);
-    task = desul::atomic_compare_exchange(const_cast<task_root_type **>(queue),
-                                          x, lock, desul::MemoryOrderSeqCst(),
-                                          desul::MemoryScopeDevice());
+    task = Kokkos::atomic_compare_exchange(queue, x, lock);
 
     if (x == task) {
       // CAS succeeded and queue is locked
@@ -253,8 +273,6 @@ TaskQueue<ExecSpace, MemorySpace>::pop_ready_task(
       //
       // This thread has exclusive access to
       // the queue and the popped task's m_next.
-
-      Kokkos::memory_fence();
 
       task_root_type *volatile &next = task->m_next;
 
@@ -382,9 +400,7 @@ KOKKOS_FUNCTION void TaskQueue<ExecSpace, MemorySpace>::schedule_runnable(
     // to track number of ready + executing tasks.
     // The ready count will be decremented when the task is complete.
 
-    desul::atomic_inc(
-        &m_ready_count, desul::MemoryOrderSeqCst(),
-        desul::MemoryScopeDevice());  // TODO? memory_order_relaxed
+    Kokkos::atomic_increment(&m_ready_count);
 
     task_root_type *volatile *const ready_queue =
         &m_ready[t.m_priority][t.m_task_type];
@@ -537,9 +553,8 @@ KOKKOS_FUNCTION void TaskQueue<ExecSpace, MemorySpace>::reschedule(
 
   task_root_type *const zero = nullptr;
   task_root_type *const lock = (task_root_type *)task_root_type::LockTag;
-  if (lock != desul::atomic_exchange(&task->m_next, zero,
-                                     desul::MemoryOrderSeqCst(),
-                                     desul::MemoryScopeDevice())) {
+
+  if (lock != Kokkos::atomic_exchange(&task->m_next, zero)) {
     Kokkos::abort("TaskScheduler::respawn ERROR: already respawned");
   }
 }
@@ -586,9 +601,8 @@ KOKKOS_FUNCTION void TaskQueue<ExecSpace, MemorySpace>::complete(
 
     // Stop other tasks from adding themselves to this task's wait queue
     // by locking the head of this task's wait queue.
-    task_root_type *x = desul::atomic_exchange(
-        const_cast<task_root_type **>(&t.m_wait), lock,
-        desul::MemoryOrderSeqCst(), desul::MemoryScopeDevice());
+
+    task_root_type *x = Kokkos::atomic_exchange(&t.m_wait, lock);
 
     if (x != (task_root_type *)lock) {
       // This thread has transitioned this 'task' to complete.
@@ -631,9 +645,7 @@ KOKKOS_FUNCTION void TaskQueue<ExecSpace, MemorySpace>::complete(
     // A runnable task was popped from a ready queue and executed.
     // If respawned into a ready queue then the ready count was incremented
     // so decrement whether respawned or not.
-    desul::atomic_dec(
-        &m_ready_count, desul::MemoryOrderSeqCst(),
-        desul::MemoryScopeDevice());  // TODO? memory_order_relaxed
+    Kokkos::atomic_decrement(&m_ready_count);
   }
 }
 

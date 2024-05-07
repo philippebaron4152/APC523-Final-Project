@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -131,7 +131,7 @@ static void getparmindata(const char *potin_file,int nvol[1],double vol0[1],doub
     exit(1);
   }
 
-  if (false) {
+  if (0) {
     printf("Before sort:\n");
     for (int i = 0; i<n; i++)
       printf("%3d :: %.3f%s",i,volarr[i], (i%5==4) ? "\n" : "  ");
@@ -139,7 +139,7 @@ static void getparmindata(const char *potin_file,int nvol[1],double vol0[1],doub
   }
   qsort(volarr,n,sizeof(double),cmp_double);
 
-  if (false) {
+  if (0) {
     printf("After sort:\n");
     for (int i = 0; i<n; i++)
       printf("%3d :: %.3f%s",i,volarr[i], (i%5==4) ? "\n" : "  ");
@@ -156,7 +156,7 @@ static void getparmindata(const char *potin_file,int nvol[1],double vol0[1],doub
 
 void potdata::readpot(const char *parmin_file,const char *potin_file,const double vol) {
   FILE *in;
-  double x0,x1,dx;
+  double x0,x1,dx,dr;
   int nx;
 
   double r0x,r1x,drx;
@@ -166,7 +166,7 @@ void potdata::readpot(const char *parmin_file,const char *potin_file,const doubl
   int ipotx,modex; double pnx;
   double vol0;
 
-  double *vatab,*vbtab,*vctab,*vdtab,*vetab,*p1tab,*altab,*vpairtab = nullptr;
+  double *vatab,*vbtab,*vctab,*vdtab,*vetab,*p1tab,*altab,*vpairtab = 0;
   double *r0rwstab,*evol0tab;
   double (*C)[4];
   double *y,*dy;
@@ -194,7 +194,7 @@ void potdata::readpot(const char *parmin_file,const char *potin_file,const doubl
     int nvol;
     getparmindata(potin_file,&nvol,&vol0,&x0,&x1);
     dx = (x1-x0)/(nvol-1);
-    if (false) {
+    if (0) {
       printf("getparmindata() ==> nvol = %d, vol0 = %.6f, x0= %.6f, x1 = %.6f, dx = %.6f\n",
              nvol,vol0,x0,x1,dx);
     }
@@ -348,7 +348,7 @@ void potdata::readpot(const char *parmin_file,const char *potin_file,const doubl
     nrx = (int) ((r1x-r0x)/drx + 1.1); /* Really: 1+round((r1-r0)/dr) */
 
     if (ii == 0) {
-      r0 = r0x; r1 = r1x; nr = nrx;
+      r0 = r0x; r1 = r1x; dr = drx; nr = nrx;
       vpairtab = new double[nx*nr];
     } else {
       /* Check that {r0,r1,dr,nr}x == {r0,r1,dr,nr} */
@@ -373,12 +373,15 @@ void potdata::readpot(const char *parmin_file,const char *potin_file,const doubl
         double r0rws = r0rwstab[i];
         double r00 = r0rws*rws,rp = 1.8*rws;
         if (bscreen == 0) r0rws = 10.0;
-        double alp = al;
+        double alp = al,alm = al;
+        if (mode == 2 || mode == 4 || mode == 6) alm = 125.0;
         al = alp;
 
         double r = r0 + j*(r1-r0)/(nr-1);
 
         double rrws = r/rws;
+        //double rsqr = r*r;
+        // double fl(double r,int mode,double rp,double p1,double al,double r0)
         double flr = fl(r,mode,rp,p1,al,r00,pn);
         double fl2 = flr*flr;
         double v2a = vatab[i]*fl2*fl2;
@@ -387,11 +390,17 @@ void potdata::readpot(const char *parmin_file,const char *potin_file,const doubl
 
         if (bscreen == 1 && rrws >= r0rws) {
           double arg = rrws/r0rwstab[i];
-          double f;
+          double arg1 = arg - 1.0;
+          double arg12 = arg1*arg1;
+          double f,dp;
           if (mode <= 2) {
             f = fgauss(arg,al);
-          } else {
+            dp=2.*al*arg*arg1;
+          }
+          else {
             f = hgauss(arg,al);
+            double arg13 = arg1*arg12;
+            dp=2.0*al*al*arg*arg13/(1.+al*arg12);
           }
           fscr = f*f;
         }
@@ -399,7 +408,7 @@ void potdata::readpot(const char *parmin_file,const char *potin_file,const doubl
         double vpair_tmp = vpairtab[i*nr+j];
         vpairtab[i*nr+j] = vpairtab[i*nr+j]*fscr + v2a - v2b;
 
-        if (false) if (fabs(vol-ivol) < 0.01) {
+        if (0) if (fabs(vol-ivol) < 0.01) {
           static FILE *xfile = nullptr;
           if (j == 0) {
             xfile = fopen("mgpt5-pot.dat","w");
@@ -478,7 +487,7 @@ void potdata::readpot(const char *parmin_file,const char *potin_file,const doubl
   evalspline(nx-1,x0,x1,C,x,&evol0,&devol0,&unused);
   devol0 *= dxdv;
 
-  if (true) {
+  if (1) {
     printf("%% READPOT PARAMETERS:\n");
 
     printf("%% ddl = %15.5e  %15.5e  %15.5e  %15.5e\n",ddl[1],ddl[2],ddl[3],ddl[4]);

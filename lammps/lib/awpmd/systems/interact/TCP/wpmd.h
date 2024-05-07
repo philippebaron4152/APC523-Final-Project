@@ -149,7 +149,9 @@
 # include "pairhash.h"
 # include "TCP/tcpdefs.h"
 # include "wavepacket.h"
+# include "erf.h"
 # include "cerf.h"
+
 
 using namespace std;
 

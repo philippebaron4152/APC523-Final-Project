@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -34,8 +34,11 @@
 using namespace LAMMPS_NS;
 using namespace FixConst;
 
-enum { NOBIAS, BIAS };
-enum { CONSTANT, EQUAL, ATOM };
+enum{NOBIAS,BIAS};
+enum{CONSTANT,EQUAL,ATOM};
+
+#define SINERTIA 0.4          // moment of inertia prefactor for sphere
+#define EINERTIA 0.2          // moment of inertia prefactor for ellipsoid
 
 /* ---------------------------------------------------------------------- */
 
@@ -134,7 +137,7 @@ void FixLangevinEff::post_force_no_tally()
   dof = domain->dimension * particles;
   fix_dof = 0;
   for (int i = 0; i < modify->nfix; i++)
-    fix_dof += (int)modify->fix[i]->dof(igroup);
+    fix_dof += modify->fix[i]->dof(igroup);
 
   // extra_dof = domain->dimension
   dof -= domain->dimension + fix_dof;
@@ -303,7 +306,7 @@ void FixLangevinEff::post_force_tally()
   dof = domain->dimension * particles;
   fix_dof = 0;
   for (int i = 0; i < modify->nfix; i++)
-    fix_dof += (int)modify->fix[i]->dof(igroup);
+    fix_dof += modify->fix[i]->dof(igroup);
 
   // extra_dof = domain->dimension
   dof -= domain->dimension + fix_dof;

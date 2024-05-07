@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -33,10 +33,10 @@ class PairHbondDreidingMorseOMP : public PairHbondDreidingMorse, public ThrOMP {
 
  public:
   PairHbondDreidingMorseOMP(class LAMMPS *);
-  ~PairHbondDreidingMorseOMP() override;
+  virtual ~PairHbondDreidingMorseOMP();
 
-  void compute(int, int) override;
-  double memory_usage() override;
+  virtual void compute(int, int);
+  virtual double memory_usage();
 
  protected:
   double *hbcount_thr, *hbeng_thr;

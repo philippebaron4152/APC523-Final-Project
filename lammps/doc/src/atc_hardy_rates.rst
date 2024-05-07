@@ -6,7 +6,7 @@ fix_modify AtC rates command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> rates <add|delete> <list_of_fields>
 

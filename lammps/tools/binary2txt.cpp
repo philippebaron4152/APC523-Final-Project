@@ -1,7 +1,7 @@
 /* -----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/
-   LAMMPS development team: developers@lammps.org, Sandia National Laboratories
+   Steve Plimpton, sjplimp@sandia.gov, Sandia National Laboratories
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -29,8 +29,9 @@
 //   g++ -g -DLAMMPS_BIGBIG binarytxt.o -o binary2txt
 //   again -DLAMMPS_SMALLBIG is the default
 
+#include "stdint.h"
 #define __STDC_FORMAT_MACROS
-#include <cinttypes>
+#include "inttypes.h"
 
 #ifndef PRId64
 #define PRId64 "ld"
@@ -60,12 +61,11 @@ int main(int narg, char **arg)
   bigint ntimestep, natoms;
   int size_one, nchunk, triclinic;
   double xlo, xhi, ylo, yhi, zlo, zhi, xy, xz, yz;
-  double ax, ay, az, bx, by, bz, cx, cy, cz, abcx, abcy, abcz;
   int boundary[3][2];
   char boundstr[9];
 
   int maxbuf = 0;
-  double *buf = nullptr;
+  double *buf = NULL;
 
   if (narg == 1) {
     printf("Syntax: binary2txt file1 file2 ...\n");
@@ -84,7 +84,7 @@ int main(int narg, char **arg)
     }
 
     n = strlen(arg[iarg]) + 1 + 4;
-    auto filetxt = new char[n];
+    char *filetxt = new char[n];
     strcpy(filetxt, arg[iarg]);
     strcat(filetxt, ".txt");
     FILE *fptxt = fopen(filetxt, "w");
@@ -97,7 +97,7 @@ int main(int narg, char **arg)
 
     // loop over snapshots in file
 
-    while (true) {
+    while (1) {
       int endian = 0x0001;
       int revision = 0x0001;
 
@@ -134,39 +134,17 @@ int main(int narg, char **arg)
       fread(&natoms, sizeof(bigint), 1, fp);
       fread(&triclinic, sizeof(int), 1, fp);
       fread(&boundary[0][0], 6 * sizeof(int), 1, fp);
-
-      if (triclinic == 0) {
-        fread(&xlo, sizeof(double), 1, fp);
-        fread(&xhi, sizeof(double), 1, fp);
-        fread(&ylo, sizeof(double), 1, fp);
-        fread(&yhi, sizeof(double), 1, fp);
-        fread(&zlo, sizeof(double), 1, fp);
-        fread(&zhi, sizeof(double), 1, fp);
-      } else if (triclinic == 1) {
-        fread(&xlo, sizeof(double), 1, fp);
-        fread(&xhi, sizeof(double), 1, fp);
-        fread(&ylo, sizeof(double), 1, fp);
-        fread(&yhi, sizeof(double), 1, fp);
-        fread(&zlo, sizeof(double), 1, fp);
-        fread(&zhi, sizeof(double), 1, fp);
+      fread(&xlo, sizeof(double), 1, fp);
+      fread(&xhi, sizeof(double), 1, fp);
+      fread(&ylo, sizeof(double), 1, fp);
+      fread(&yhi, sizeof(double), 1, fp);
+      fread(&zlo, sizeof(double), 1, fp);
+      fread(&zhi, sizeof(double), 1, fp);
+      if (triclinic) {
         fread(&xy, sizeof(double), 1, fp);
         fread(&xz, sizeof(double), 1, fp);
         fread(&yz, sizeof(double), 1, fp);
-      } else if (triclinic == 2) {
-        fread(&ax, sizeof(double), 1, fp);
-        fread(&ay, sizeof(double), 1, fp);
-        fread(&az, sizeof(double), 1, fp);
-        fread(&bx, sizeof(double), 1, fp);
-        fread(&by, sizeof(double), 1, fp);
-        fread(&bz, sizeof(double), 1, fp);
-        fread(&cx, sizeof(double), 1, fp);
-        fread(&cy, sizeof(double), 1, fp);
-        fread(&cz, sizeof(double), 1, fp);
-        fread(&abcx, sizeof(double), 1, fp);
-        fread(&abcy, sizeof(double), 1, fp);
-        fread(&abcz, sizeof(double), 1, fp);
       }
-      
       fread(&size_one, sizeof(int), 1, fp);
 
       if (magic_string && revision > 0x0001) {
@@ -224,21 +202,16 @@ int main(int narg, char **arg)
       }
       boundstr[8] = '\0';
 
-      if (triclinic == 0) {
+      if (!triclinic) {
         fprintf(fptxt, "ITEM: BOX BOUNDS %s\n", boundstr);
         fprintf(fptxt, "%-1.16e %-1.16e\n", xlo, xhi);
         fprintf(fptxt, "%-1.16e %-1.16e\n", ylo, yhi);
         fprintf(fptxt, "%-1.16e %-1.16e\n", zlo, zhi);
-      } else if (triclinic == 1) {
+      } else {
         fprintf(fptxt, "ITEM: BOX BOUNDS xy xz yz %s\n", boundstr);
         fprintf(fptxt, "%-1.16e %-1.16e %-1.16e\n", xlo, xhi, xy);
         fprintf(fptxt, "%-1.16e %-1.16e %-1.16e\n", ylo, yhi, xz);
         fprintf(fptxt, "%-1.16e %-1.16e %-1.16e\n", zlo, zhi, yz);
-      } else if (triclinic == 2) {
-        fprintf(fptxt, "ITEM: BOX BOUNDS abc origin %s\n", boundstr);
-        fprintf(fptxt, "%-1.16e %-1.16e %-1.16e %-1.16e\n", ax, ay, az, abcx);
-        fprintf(fptxt, "%-1.16e %-1.16e %-1.16e %-1.16e\n", bx, by, bz, abcy);
-        fprintf(fptxt, "%-1.16e %-1.16e %-1.16e %-1.16e\n", cx, cy, cz, abcz);
       }
 
       if (columns)
@@ -254,7 +227,7 @@ int main(int narg, char **arg)
         // extend buffer to fit chunk size
 
         if (n > maxbuf) {
-          delete[] buf;
+          if (buf) delete[] buf;
           buf = new double[n];
           maxbuf = n;
         }
@@ -288,6 +261,6 @@ int main(int narg, char **arg)
     unit_style = nullptr;
   }
 
-  delete[] buf;
+  if (buf) delete[] buf;
   return 0;
 }

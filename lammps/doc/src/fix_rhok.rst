@@ -6,7 +6,7 @@ fix rhok command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID rhok nx ny nz K a
 

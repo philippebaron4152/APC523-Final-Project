@@ -6,7 +6,7 @@ newton command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    newton flag
    newton flag1 flag2

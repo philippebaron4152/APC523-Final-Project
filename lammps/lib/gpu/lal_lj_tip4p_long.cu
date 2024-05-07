@@ -57,26 +57,16 @@ _texture( q_tex,int2);
 #define q_tex q_
 #endif
 
-/* ----------------------------------------------------------------------
-   GPU analogue of Atom::map inline method,
-   but now limited to map_array mapping style.
-   Map global ID to local index of atom.
----------------------------------------------------------------------- */
 ucl_inline int atom_mapping(const __global int *map, tagint glob) {
   return map[glob];
 }
 
-/* ----------------------------------------------------------------------
-   GPU version of Domain::closest_image(int, int) method.
-   Return local index of atom J or any of its images that is closest to atom I
-   if J is not a valid index like -1, just return it.
----------------------------------------------------------------------- */
 ucl_inline int closest_image(int i, int j, const __global int* sametag,
                              const __global numtyp4 *restrict x_)
 {
   if (j < 0) return j;
 
-  numtyp4 xi; fetch4(xi,i,pos_tex);
+  numtyp4 xi; fetch4(xi,i,pos_tex); // = x[i];
   numtyp4 xj; fetch4(xj,j,pos_tex);
 
   int closest = j;
@@ -102,10 +92,6 @@ ucl_inline int closest_image(int i, int j, const __global int* sametag,
   return closest;
 }
 
-/* ----------------------------------------------------------------------
-   For molecule that consists of atoms O, H1 and H2 compute position
-   of virtual charge site xM (return parameter)
----------------------------------------------------------------------- */
 ucl_inline void compute_newsite(int iO, int  iH1, int  iH2,
     __global numtyp4 *xM, numtyp q,
     numtyp alpha, const __global numtyp4 *restrict x_) {
@@ -132,34 +118,23 @@ ucl_inline void compute_newsite(int iO, int  iH1, int  iH2,
   *xM = M;
 }
 
-/* ----------------------------------------------------------------------
-   Compute resulting forces (ans), energies and virial (engv).
-   An additional term is calculated based on the previously
-   calculated values on the virlual sites (ansO),
-   which should be distributed over the real atoms.
-   For some hydrogens, the corresponding oxygens are
-   not local atoms and the ansO value is not calculated.
-   The required increase is calculated directly in the main function.
----------------------------------------------------------------------- */
-__kernel void k_lj_tip4p_long_distrib(
-    const __global numtyp4 *restrict x_,
-    __global acctyp3 *restrict ans,
+__kernel void k_lj_tip4p_long_distrib(const __global numtyp4 *restrict x_,
+    __global acctyp4 *restrict ans,
     __global acctyp *restrict engv,
     const int eflag, const int vflag, const int inum,
     const int nbor_pitch, const int t_per_atom,
-    const __global int *restrict hneigh,
-    const __global numtyp4 *restrict m,
+    __global int *restrict hneigh,
+    __global numtyp4 *restrict m,
     const int typeO, const int typeH,
     const numtyp alpha,
-    const __global numtyp *restrict q_,
-    const __global acctyp4 *restrict ansO) {
+    const __global numtyp *restrict q_, const __global acctyp4 *restrict ansO) {
 
   int i = BLOCK_ID_X*(BLOCK_SIZE_X)+THREAD_ID_X;
-  acctyp3 f;
+  acctyp4 f;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
 
   if (i<inum) {
-    numtyp4 ix; fetch4(ix,i,pos_tex);
+    numtyp4 ix; fetch4(ix,i,pos_tex);// = x_[i];
     int itype = ix.w;
     acctyp4 fM, vM;
     acctyp eM;
@@ -208,7 +183,7 @@ __kernel void k_lj_tip4p_long_distrib(
         engv[inum*engv_iter + i] += vM.z * (acctyp)(1 - alpha);
       }
     }
-    acctyp3 old=ans[i];
+    acctyp4 old=ans[i];
     old.x+=f.x;
     old.y+=f.y;
     old.z+=f.z;
@@ -216,28 +191,21 @@ __kernel void k_lj_tip4p_long_distrib(
   } // if ii
 }
 
-/* ----------------------------------------------------------------------
-   Rebuild hneigh after the neighbor build.
-   hneight stores local IDs of H1 and H2 for each local and ghost O
-   and local ID of O for each local H.
----------------------------------------------------------------------- */
-__kernel void k_lj_tip4p_reneigh(
-    const __global numtyp4 *restrict x_,
-    const __global int *dev_nbor,
-    const __global int *dev_packed,
+__kernel void k_lj_tip4p_reneigh(const __global numtyp4 *restrict x_,
+    const __global int * dev_nbor,
+    const __global int * dev_packed,
     const int nall, const int inum,
     const int nbor_pitch, const int t_per_atom,
     __global int *restrict hneigh,
     __global numtyp4 *restrict m,
     const int typeO, const int typeH,
-    const __global tagint *restrict tag,
-    const __global int *restrict map,
+    const __global tagint *restrict tag, const __global int *restrict map,
     const __global int *restrict sametag) {
 
   int i = BLOCK_ID_X*(BLOCK_SIZE_X)+THREAD_ID_X;
 
   if (i<nall) {
-    numtyp4 ix; fetch4(ix,i,pos_tex);
+    numtyp4 ix; fetch4(ix,i,pos_tex); //x_[i];
 
     int iH1, iH2, iO;
     int itype = ix.w;
@@ -249,33 +217,36 @@ __kernel void k_lj_tip4p_reneigh(
         // set iH1,iH2 to closest image to O
         iH1 = closest_image(i, iH1, sametag, x_);
         iH2 = closest_image(i, iH2, sametag, x_);
-
         hneigh[i*4  ] = iH1;
         hneigh[i*4+1] = iH2;
         hneigh[i*4+2] = -1;
       }
     }
-    if (i<inum && itype == typeH) {
+    if (itype == typeH) {
       if (hneigh[i*4+2] != -1) {
-        int iI;
+        int iI, iH;
         iI = atom_mapping(map,tag[i] - 1);
-        iO  = closest_image(i,iI,sametag, x_);
-        numtyp4 iIx; fetch4(iIx,iO,pos_tex); //x_[iI];
+        numtyp4 iIx; fetch4(iIx,iI,pos_tex); //x_[iI];
         if ((int)iIx.w == typeH) {
           iO = atom_mapping(map,tag[i] - 2);
           iO  = closest_image(i, iO, sametag, x_);
+          iH1 = closest_image(i, iI, sametag, x_);
+          iH2 = i;
+        } else { //if ((int)iIx.w == typeO)
+          iH = atom_mapping(map, tag[i] + 1);
+          iO  = closest_image(i,iI,sametag, x_);
+          iH1 = i;
+          iH2 = closest_image(i,iH,sametag, x_);
         }
         hneigh[i*4+0] = iO;
-        hneigh[i*4+1] = -1;
+        hneigh[i*4+1] += -1;
         hneigh[i*4+2] = -1;
       }
     }
   }
 }
 
-/* ----------------------------------------------------------------------
-   On each timestep update virual charge coordinates (m output parameter).
----------------------------------------------------------------------- */
+
 __kernel void k_lj_tip4p_newsite(const __global numtyp4 *restrict x_,
     const __global int * dev_nbor,
     const __global int * dev_packed,
@@ -297,27 +268,11 @@ __kernel void k_lj_tip4p_newsite(const __global numtyp4 *restrict x_,
       iH2 = hneigh[i*4+1];
       iO  = i;
       numtyp qO; fetch(qO,iO,q_tex);
-      if (iH1>=0 && iH2>=0) {
-        compute_newsite(iO,iH1,iH2, &m[iO], qO, alpha, x_);
-      } else {
-        m[iO] = ix;
-        m[iO].w = qO;
-        hneigh[i*4] = iO;
-        hneigh[i*4+1] = iO;
-      }
+      compute_newsite(iO,iH1,iH2, &m[iO], qO, alpha, x_);
     }
   }
 }
 
-
-/* ----------------------------------------------------------------------
-   Compute initial value of force, energy and virial for each local particle.
-   The values calculated on oxygens use the virtual charge position (m) and
-   they are stored in a separate  array (ansO) for further distribution
-   in a separate kernel. For some hydrogens located on the boundary
-   of the local region, oxygens are non-local and the contribution
-   of oxygen is calculated separately in this kernel for them .
----------------------------------------------------------------------- */
 __kernel void k_lj_tip4p_long(const __global numtyp4 *restrict x_,
     const __global numtyp4 *restrict lj1,
     const __global numtyp4 *restrict lj3,
@@ -325,7 +280,7 @@ __kernel void k_lj_tip4p_long(const __global numtyp4 *restrict x_,
     const __global numtyp *restrict sp_lj,
     const __global int * dev_nbor,
     const __global int * dev_packed,
-    __global acctyp3 *restrict ans,
+    __global acctyp4 *restrict ans,
     __global acctyp *restrict engv,
     const int eflag, const int vflag, const int inum,
     const int nbor_pitch, const int t_per_atom,
@@ -344,8 +299,7 @@ __kernel void k_lj_tip4p_long(const __global numtyp4 *restrict x_,
   int n_stride;
   local_allocate_store_charge();
 
-  acctyp3 f;
-  acctyp4 fO;
+  acctyp4 f, fO;
   f.x=(acctyp)0;  f.y=(acctyp)0;  f.z=(acctyp)0;
   fO.x=(acctyp)0; fO.y=(acctyp)0; fO.z=(acctyp)0;
   acctyp energy, e_coul, virial[6], vO[6];
@@ -377,7 +331,8 @@ __kernel void k_lj_tip4p_long(const __global numtyp4 *restrict x_,
       iH1 = hneigh[i*4  ];
       iH2 = hneigh[i*4+1];
       x1 = m[iO];
-    } else if (itype == typeH) {
+    }
+    if (itype == typeH) {
       iO  = hneigh[i *4  ];
       iH1 = hneigh[iO*4  ];
       iH2 = hneigh[iO*4+1];
@@ -387,7 +342,6 @@ __kernel void k_lj_tip4p_long(const __global numtyp4 *restrict x_,
     }
 
     for ( ; nbor<nbor_end; nbor+=n_stride) {
-      ucl_prefetch(dev_packed+nbor+n_stride);
       int j=dev_packed[nbor];
 
       numtyp factor_lj,factor_coul;
@@ -461,23 +415,23 @@ __kernel void k_lj_tip4p_long(const __global numtyp4 *restrict x_,
             fO.x += delx * force_coul;
             fO.y += dely * force_coul;
             fO.z += delz * force_coul;
-            //fO.w += 0;
+            fO.w += 0;
           } else {
             f.x += delx * force_coul;
             f.y += dely * force_coul;
             f.z += delz * force_coul;
-            //f.w += 0;
+            f.w += 0;
           }
           if (EVFLAG && eflag) {
             e_coul += prefactor*(_erfc-factor_coul);
           }
           if (EVFLAG && vflag) {
-            acctyp3 fd;
+            acctyp4 fd;
             fd.x = delx*force_coul;
             fd.y = dely*force_coul;
             fd.z = delz*force_coul;
             if (itype == typeO) {
-              numtyp cO = (numtyp)1.0 - alpha, cH = (numtyp)0.5*alpha;
+              numtyp cO = 1 - alpha, cH = 0.5*alpha;
               numtyp4 vdi, vdj;
               numtyp4 xH1; fetch4(xH1,iH1,pos_tex);
               numtyp4 xH2; fetch4(xH2,iH2,pos_tex);
@@ -495,15 +449,15 @@ __kernel void k_lj_tip4p_long(const __global numtyp4 *restrict x_,
                 vdj.z = xjO.z*cO + xjH1.z*cH + xjH2.z*cH;
                 //vdj.w = vdj.w;
               } else vdj = jx;
-              vO[0] += (numtyp)0.5*(vdi.x - vdj.x)*fd.x;
-              vO[1] += (numtyp)0.5*(vdi.y - vdj.y)*fd.y;
-              vO[2] += (numtyp)0.5*(vdi.z - vdj.z)*fd.z;
-              vO[3] += (numtyp)0.5*(vdi.x - vdj.x)*fd.y;
-              vO[4] += (numtyp)0.5*(vdi.x - vdj.x)*fd.z;
-              vO[5] += (numtyp)0.5*(vdi.y - vdj.y)*fd.z;
+              vO[0] += 0.5*(vdi.x - vdj.x)*fd.x;
+              vO[1] += 0.5*(vdi.y - vdj.y)*fd.y;
+              vO[2] += 0.5*(vdi.z - vdj.z)*fd.z;
+              vO[3] += 0.5*(vdi.x - vdj.x)*fd.y;
+              vO[4] += 0.5*(vdi.x - vdj.x)*fd.z;
+              vO[5] += 0.5*(vdi.y - vdj.y)*fd.z;
             } else {
               if (jtype == typeO) {
-                numtyp cO = (numtyp)1.0 - alpha, cH = (numtyp)0.5*alpha;
+                numtyp cO = 1 - alpha, cH = 0.5*alpha;
                 numtyp4 vdj;
                 numtyp4 xjH1; fetch4(xjH1,jH1,pos_tex);
                 numtyp4 xjH2; fetch4(xjH2,jH2,pos_tex);
@@ -551,7 +505,7 @@ __kernel void k_lj_tip4p_long(const __global numtyp4 *restrict x_,
             prefactor *= qqrd2e*x1m.w/r;
             numtyp force_coul = r2inv*prefactor * (_erfc + EWALD_F*grij*expm2 - factor_coul);
 
-            numtyp cO = (numtyp)1 - alpha, cH = (numtyp)0.5*alpha;
+            numtyp cO = 1 - alpha, cH = 0.5*alpha;
             numtyp4 fd;
             fd.x = delx * force_coul * cH;
             fd.y = dely * force_coul * cH;
@@ -562,7 +516,7 @@ __kernel void k_lj_tip4p_long(const __global numtyp4 *restrict x_,
             f.z += fd.z;
 
             if (EVFLAG && eflag) {
-              e_coul += prefactor*(_erfc-factor_coul) * (numtyp)0.5 * alpha;
+              e_coul += prefactor*(_erfc-factor_coul) * (acctyp)0.5 * alpha;
             }
             if (EVFLAG && vflag) {
               numtyp4 xH1; fetch4(xH1,iH1,pos_tex);
@@ -647,7 +601,7 @@ __kernel void k_lj_tip4p_long_fast(const __global numtyp4 *restrict x_,
     const __global numtyp *restrict sp_lj_in,
     const __global int * dev_nbor,
     const __global int * dev_packed,
-    __global acctyp3 *restrict ans,
+    __global acctyp4 *restrict ans,
     __global acctyp *restrict engv,
     const int eflag, const int vflag, const int inum,
     const int nbor_pitch, const int t_per_atom,
@@ -676,8 +630,7 @@ __kernel void k_lj_tip4p_long_fast(const __global numtyp4 *restrict x_,
     if (EVFLAG && eflag)
       lj3[tid]=lj3_in[tid];
   }
-  acctyp3 f;
-  acctyp4 fO;
+  acctyp4 f, fO;
   f.x=(acctyp)0;  f.y=(acctyp)0;  f.z=(acctyp)0;
   fO.x=(acctyp)0; fO.y=(acctyp)0; fO.z=(acctyp)0;
   acctyp energy, e_coul, virial[6], vO[6];
@@ -720,7 +673,6 @@ __kernel void k_lj_tip4p_long_fast(const __global numtyp4 *restrict x_,
     }
 
     for ( ; nbor<nbor_end; nbor+=n_stride) {
-      ucl_prefetch(dev_packed+nbor+n_stride);
       int j=dev_packed[nbor];
 
       numtyp factor_lj,factor_coul;
@@ -794,23 +746,23 @@ __kernel void k_lj_tip4p_long_fast(const __global numtyp4 *restrict x_,
             fO.x += delx * force_coul;
             fO.y += dely * force_coul;
             fO.z += delz * force_coul;
-            //fO.w += 0;
+            fO.w += 0;
           } else {
             f.x += delx * force_coul;
             f.y += dely * force_coul;
             f.z += delz * force_coul;
-            //f.w += 0;
+            f.w += 0;
           }
           if (EVFLAG && eflag) {
             e_coul += prefactor*(_erfc-factor_coul);
           }
           if (EVFLAG && vflag) {
-            acctyp3 fd;
+            acctyp4 fd;
             fd.x = delx*force_coul;
             fd.y = dely*force_coul;
             fd.z = delz*force_coul;
             if (itype == typeO) {
-              numtyp cO = (numtyp)1.0 - alpha, cH = (numtyp)0.5*alpha;
+              numtyp cO = 1 - alpha, cH = 0.5*alpha;
               numtyp4 vdi, vdj;
               numtyp4 xH1; fetch4(xH1,iH1,pos_tex);
               numtyp4 xH2; fetch4(xH2,iH2,pos_tex);
@@ -828,15 +780,15 @@ __kernel void k_lj_tip4p_long_fast(const __global numtyp4 *restrict x_,
                 vdj.z = xjO.z*cO + xjH1.z*cH + xjH2.z*cH;
                 //vdj.w = vdj.w;
               } else vdj = jx;
-              vO[0] += (numtyp)0.5*(vdi.x - vdj.x)*fd.x;
-              vO[1] += (numtyp)0.5*(vdi.y - vdj.y)*fd.y;
-              vO[2] += (numtyp)0.5*(vdi.z - vdj.z)*fd.z;
-              vO[3] += (numtyp)0.5*(vdi.x - vdj.x)*fd.y;
-              vO[4] += (numtyp)0.5*(vdi.x - vdj.x)*fd.z;
-              vO[5] += (numtyp)0.5*(vdi.y - vdj.y)*fd.z;
+              vO[0] += 0.5*(vdi.x - vdj.x)*fd.x;
+              vO[1] += 0.5*(vdi.y - vdj.y)*fd.y;
+              vO[2] += 0.5*(vdi.z - vdj.z)*fd.z;
+              vO[3] += 0.5*(vdi.x - vdj.x)*fd.y;
+              vO[4] += 0.5*(vdi.x - vdj.x)*fd.z;
+              vO[5] += 0.5*(vdi.y - vdj.y)*fd.z;
             } else {
               if (jtype == typeO) {
-                numtyp cO = (numtyp)1.0 - alpha, cH = (numtyp)0.5*alpha;
+                numtyp cO = 1 - alpha, cH = 0.5*alpha;
                 numtyp4 vdj;
                 numtyp4 xjH1; fetch4(xjH1,jH1,pos_tex);
                 numtyp4 xjH2; fetch4(xjH2,jH2,pos_tex);
@@ -884,7 +836,7 @@ __kernel void k_lj_tip4p_long_fast(const __global numtyp4 *restrict x_,
             prefactor *= qqrd2e*x1m.w/r;
             numtyp force_coul = r2inv*prefactor * (_erfc + EWALD_F*grij*expm2 - factor_coul);
 
-            numtyp cO = (numtyp)1.0 - alpha, cH = (numtyp)0.5*alpha;
+            numtyp cO = 1 - alpha, cH = 0.5*alpha;
             numtyp4 fd;
             fd.x = delx * force_coul * cH;
             fd.y = dely * force_coul * cH;

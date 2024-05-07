@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -14,17 +14,17 @@
 
 #include "pair_lj_cut_dipole_cut.h"
 
-#include "atom.h"
-#include "comm.h"
-#include "error.h"
-#include "force.h"
-#include "memory.h"
-#include "neigh_list.h"
-#include "neighbor.h"
-#include "update.h"
-
 #include <cmath>
 #include <cstring>
+#include "atom.h"
+#include "neighbor.h"
+#include "neigh_list.h"
+#include "comm.h"
+#include "force.h"
+#include "memory.h"
+#include "error.h"
+#include "update.h"
+
 
 using namespace LAMMPS_NS;
 
@@ -39,8 +39,6 @@ PairLJCutDipoleCut::PairLJCutDipoleCut(LAMMPS *lmp) : Pair(lmp)
 
 PairLJCutDipoleCut::~PairLJCutDipoleCut()
 {
-  if (copymode) return;
-
   if (allocated) {
     memory->destroy(setflag);
     memory->destroy(cutsq);
@@ -364,7 +362,7 @@ void PairLJCutDipoleCut::init_style()
   if (!atom->q_flag || !atom->mu_flag || !atom->torque_flag)
     error->all(FLERR,"Pair dipole/cut requires atom attributes q, mu, torque");
 
-  neighbor->add_request(this);
+  neighbor->request(this,instance_me);
 }
 
 /* ----------------------------------------------------------------------

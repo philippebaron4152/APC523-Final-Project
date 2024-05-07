@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -18,33 +18,26 @@
 #ifndef LMP_TEXT_FILE_READER_H
 #define LMP_TEXT_FILE_READER_H
 
-#include "tokenizer.h"    // IWYU pragma: export
+#include "tokenizer.h"
 
 #include <cstdio>
-#include <exception>
-#include <string>
 
 namespace LAMMPS_NS {
 class TextFileReader {
   std::string filetype;
   bool closefp;
-  int bufsize;
-  char *line;
+  static constexpr int MAXLINE = 1024;
+  char line[MAXLINE];
   FILE *fp;
 
  public:
   bool ignore_comments;    //!< Controls whether comments are ignored
 
   TextFileReader(const std::string &filename, const std::string &filetype);
-  TextFileReader(FILE *fp, std::string filetype);
-  TextFileReader() = delete;
-  TextFileReader(const TextFileReader &) = delete;
-  TextFileReader(const TextFileReader &&) = delete;
-  TextFileReader &operator=(const TextFileReader &) = delete;
-  virtual ~TextFileReader();
+  TextFileReader(FILE *fp, const std::string &filetype);
 
-  void set_bufsize(int);
-  void rewind();
+  ~TextFileReader();
+
   void skip_line();
   char *next_line(int nparams = 0);
 
@@ -59,7 +52,9 @@ class FileReaderException : public std::exception {
  public:
   FileReaderException(const std::string &msg) : message(msg) {}
 
-  const char *what() const noexcept override { return message.c_str(); }
+  ~FileReaderException() throw() {}
+
+  virtual const char *what() const throw() { return message.c_str(); }
 };
 
 class EOFException : public FileReaderException {

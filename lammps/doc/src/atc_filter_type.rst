@@ -6,7 +6,7 @@ fix_modify AtC filter type command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> filter type <exponential|step|no_filter>
 

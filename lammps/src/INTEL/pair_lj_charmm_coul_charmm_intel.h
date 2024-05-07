@@ -1,7 +1,8 @@
+// clang-format off
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -33,9 +34,10 @@ class PairLJCharmmCoulCharmmIntel : public PairLJCharmmCoulCharmm {
 
  public:
   PairLJCharmmCoulCharmmIntel(class LAMMPS *);
+  virtual ~PairLJCharmmCoulCharmmIntel();
 
-  void compute(int, int) override;
-  void init_style() override;
+  virtual void compute(int, int);
+  void init_style();
 
   typedef struct {
     float x, y, z;
@@ -68,7 +70,7 @@ class PairLJCharmmCoulCharmmIntel : public PairLJCharmmCoulCharmm {
     typename IntelBuffers<flt_t, flt_t>::vec4_t **lj;
 
     ForceConst() : _ntypes(0) {}
-    ~ForceConst() noexcept(false) { set_ntypes(0, nullptr, _cop); }
+    ~ForceConst() { set_ntypes(0, nullptr, _cop); }
 
     void set_ntypes(const int ntypes, Memory *memory, const int cop);
 
@@ -84,3 +86,16 @@ class PairLJCharmmCoulCharmmIntel : public PairLJCharmmCoulCharmm {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: The 'package intel' command is required for /intel styles
+
+Self-explanatory.
+
+E: Intel variant of lj/charmm/coul/charmm expects lj cutoff<=coulombic
+
+The intel accelerated version of the CHARMM style requires that the
+Lennard-Jones cutoff is not greater than the coulombic cutoff.
+
+*/

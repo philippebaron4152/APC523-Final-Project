@@ -1,10 +1,7 @@
 .. index:: pair_style sph/heatconduction
-.. index:: pair_style sph/heatconduction/gpu
 
 pair_style sph/heatconduction command
 =====================================
-
-Accelerator Variants: *sph/heatconduction/gpu*
 
 Syntax
 """"""

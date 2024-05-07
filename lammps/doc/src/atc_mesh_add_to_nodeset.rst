@@ -6,7 +6,7 @@ fix_modify AtC mesh add_to_nodeset command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> mesh add_to_nodeset <id> <xmin> <xmax> <ymin> <ymax> <zmin> <zmax>
 

@@ -1,8 +1,7 @@
 ---
 lammps_version: 30 Jul 2021
-tags: slow, unstable
 date_generated: Tue Aug 24 15:36:41 2021
-epsilon: 8e-9
+epsilon: 5e-13
 skip_tests: single
 prerequisites: ! |
   pair drip

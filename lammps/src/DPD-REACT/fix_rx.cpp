@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -25,6 +25,7 @@
 #include "memory.h"
 #include "modify.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "neighbor.h"
 #include "pair_dpd_fdt_energy.h"
 #include "update.h"
@@ -33,20 +34,22 @@
 #include <cfloat> // DBL_EPSILON
 #include <cmath>
 #include <cstring>
+#include <vector> // std::vector<>
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
 using namespace MathSpecial;
 
-enum { NONE, HARMONIC };
-enum { LUCY };
+enum{NONE,HARMONIC};
+enum{LUCY};
 
-static constexpr int MAXLINE = 1024;
+#define MAXLINE 1024
+#define DELTA 4
 
 #ifdef DBL_EPSILON
-static constexpr double MY_EPSILON = 10.0*DBL_EPSILON;
+  #define MY_EPSILON (10.0*DBL_EPSILON)
 #else
-static constexpr double MY_EPSILON = 10.0*2.220446049250313e-16;
+  #define MY_EPSILON (10.0*2.220446049250313e-16)
 #endif
 
 #define SparseKinetics_enableIntegralReactions (true)
@@ -56,7 +59,7 @@ namespace /* anonymous */
 {
 
 typedef double TimerType;
-TimerType getTimeStamp() { return platform::walltime(); }
+TimerType getTimeStamp(void) { return MPI_Wtime(); }
 double getElapsedTime( const TimerType &t0, const TimerType &t1) { return t1-t0; }
 
 } // end namespace
@@ -82,7 +85,7 @@ FixRX::FixRX(LAMMPS *lmp, int narg, char **arg) :
   id_fix_species = nullptr;
   id_fix_species_old = nullptr;
 
-  constexpr int Verbosity = 1;
+  const int Verbosity = 1;
 
   // Keep track of the argument list.
   int iarg = 3;
@@ -99,10 +102,13 @@ FixRX::FixRX(LAMMPS *lmp, int narg, char **arg) :
     if (strcmp(word,"none") == 0) {
       wtFlag = 0;
       localTempFlag = NONE;
-    } else if (strcmp(word,"lucy") == 0) {
+    }
+    else if (strcmp(word,"lucy") == 0) {
       wtFlag = LUCY;
       localTempFlag = HARMONIC;
-    } else error->all(FLERR,"Illegal fix rx local temperature weighting technique");
+    }
+    else
+      error->all(FLERR,"Illegal fix rx local temperature weighting technique");
   }
 
   // Select either sparse and dense matrix
@@ -115,11 +121,21 @@ FixRX::FixRX(LAMMPS *lmp, int narg, char **arg) :
       useSparseKinetics = true;
     else if (strcmp(word,"dense") == 0)
       useSparseKinetics = false;
-    else error->all(FLERR, "Illegal command " + std::string(word)
-                    + " expected \"sparse\" or \"dense\"\n");
+    else {
+      std::string errmsg = "Illegal command " + std::string(word)
+                             + " expected \"sparse\" or \"dense\"\n";
+      error->all(FLERR, errmsg);
+    }
 
-    if (comm->me == 0 && Verbosity > 1)
-      error->message(FLERR, fmt::format("FixRX: matrix format is {}",word));
+    if (comm->me == 0 and Verbosity > 1) {
+      std::string msg = "FixRX: matrix format is ";
+      if (useSparseKinetics)
+         msg += std::string("sparse");
+      else
+         msg += std::string("dense");
+
+      error->message(FLERR, msg);
+    }
   }
 
   // Determine the ODE solver/stepper strategy in arg[6].
@@ -154,32 +170,40 @@ FixRX::FixRX(LAMMPS *lmp, int narg, char **arg) :
   }
 
   if (odeIntegrationFlag == ODE_LAMMPS_RK4 && narg==8) {
-    minSteps = utils::inumeric(FLERR,arg[iarg++],false,lmp);
+    char *word = arg[iarg++];
+    minSteps = atoi( word );
 
-    if (comm->me == 0 && Verbosity > 1)
-      error->message(FLERR,fmt::format("FixRX: RK4 numSteps= {}", minSteps));
-  } else if (odeIntegrationFlag == ODE_LAMMPS_RK4 && narg>8) {
+    if (comm->me == 0 and Verbosity > 1) {
+      char msg[128];
+      sprintf(msg, "FixRX: RK4 numSteps= %d", minSteps);
+      error->message(FLERR, msg);
+    }
+  }
+  else if (odeIntegrationFlag == ODE_LAMMPS_RK4 && narg>8) {
     error->all(FLERR,"Illegal fix rx command.  Too many arguments for RK4 solver.");
-  } else if (odeIntegrationFlag == ODE_LAMMPS_RKF45) {
+  }
+  else if (odeIntegrationFlag == ODE_LAMMPS_RKF45) {
     // Must have four options.
     if (narg < 11)
       error->all(FLERR,"Illegal fix rx command.  Too few arguments for RKF45 solver.");
 
-    minSteps = utils::inumeric(FLERR,arg[iarg++],false,lmp);
-    maxIters = utils::inumeric(FLERR,arg[iarg++],false,lmp);
-    relTol   = utils::numeric(FLERR,arg[iarg++],false,lmp);
-    absTol   = utils::numeric(FLERR,arg[iarg++],false,lmp);
+    minSteps = atoi( arg[iarg++] );
+    maxIters = atoi( arg[iarg++] );
+    relTol   = strtod( arg[iarg++], nullptr);
+    absTol   = strtod( arg[iarg++], nullptr);
 
     if (iarg < narg)
-      diagnosticFrequency = utils::inumeric(FLERR,arg[iarg++],false,lmp);
+      diagnosticFrequency = atoi( arg[iarg++] );
 
     // maxIters must be at least minSteps.
     maxIters = std::max( minSteps, maxIters );
 
-    if (comm->me == 0 && Verbosity > 1)
-      error->message(FLERR, fmt::format("FixRX: RKF45 minSteps= {} maxIters= {} "
-                                        "relTol= {:.1e} absTol= {:.1e} diagnosticFrequency= {}",
-                                        minSteps, maxIters, relTol, absTol, diagnosticFrequency));
+    if (comm->me == 0 and Verbosity > 1) {
+      //printf("FixRX: RKF45 minSteps= %d maxIters= %d absTol= %e relTol= %e\n", minSteps, maxIters, absTol, relTol);
+      char msg[128];
+      sprintf(msg, "FixRX: RKF45 minSteps= %d maxIters= %d relTol= %.1e absTol= %.1e diagnosticFrequency= %d", minSteps, maxIters, relTol, absTol, diagnosticFrequency);
+      error->message(FLERR, msg);
+    }
   }
 
   // Initialize/Create the sparse matrix database.
@@ -232,7 +256,7 @@ void FixRX::post_constructor()
   int nUniqueSpecies = 0;
   bool match;
 
-  auto tmpspecies = new char*[maxspecies];
+  char **tmpspecies = new char*[maxspecies];
   for (int jj=0; jj < maxspecies; jj++)
     tmpspecies[jj] = nullptr;
 
@@ -242,19 +266,21 @@ void FixRX::post_constructor()
   fp = nullptr;
   if (comm->me == 0) {
     fp = utils::open_potential(kineticsFile,lmp,nullptr);
-    if (fp == nullptr)
-      error->one(FLERR,"Cannot open rx file {}: {}",kineticsFile,utils::getsyserror());
+    if (fp == nullptr) {
+      char str[128];
+      snprintf(str,128,"Cannot open rx file %s",kineticsFile);
+      error->one(FLERR,str);
+    }
   }
 
   // Assign species names to tmpspecies array and determine the number of unique species
 
-  int n;
-  char line[MAXLINE] = {'\0'};
-  char *ptr;
+  int n,nwords;
+  char line[MAXLINE],*ptr;
   int eof = 0;
   char * word;
 
-  while (true) {
+  while (1) {
     if (comm->me == 0) {
       ptr = fgets(line,MAXLINE,fp);
       if (ptr == nullptr) {
@@ -270,10 +296,12 @@ void FixRX::post_constructor()
     // strip comment, skip line if blank
 
     if ((ptr = strchr(line,'#'))) *ptr = '\0';
-    if (utils::count_words(line) == 0) continue;
+    nwords = utils::count_words(line);
+    if (nwords == 0) continue;
 
     // words = ptrs to all words in line
 
+    nwords = 0;
     word = strtok(line," \t\n\r\f");
     while (word != nullptr) {
       word = strtok(nullptr, " \t\n\r\f");
@@ -317,9 +345,9 @@ void FixRX::post_constructor()
   newcmd1 += " ghost yes";
   newcmd2 += " ghost yes";
 
-  fix_species = dynamic_cast<FixPropertyAtom *>(modify->add_fix(newcmd1));
+  fix_species = (FixPropertyAtom *) modify->add_fix(newcmd1);
   restartFlag = fix_species->restart_reset;
-  fix_species_old = dynamic_cast<FixPropertyAtom *>(modify->add_fix(newcmd2));
+  fix_species_old = (FixPropertyAtom *) modify->add_fix(newcmd2);
 
   if (nspecies==0) error->all(FLERR,"There are no rx species specified.");
 
@@ -331,7 +359,7 @@ void FixRX::post_constructor()
   read_file( kineticsFile );
 
   if (useSparseKinetics)
-    initSparse();
+    this->initSparse();
 
   // set comm size needed by this Pair
   comm_forward = nspecies*2;
@@ -342,9 +370,9 @@ void FixRX::post_constructor()
 
 void FixRX::initSparse()
 {
-  constexpr int Verbosity = 1;
+  const int Verbosity = 1;
 
-  if (comm->me == 0 && Verbosity > 1) {
+  if (comm->me == 0 and Verbosity > 1) {
     for (int k = 0; k < nspecies; ++k)
       printf("atom->dvname[%d]= %s\n", k, atom->dvname[k]);
 
@@ -388,12 +416,13 @@ void FixRX::initSparse()
   int mxprod = 0;
   int mxreac = 0;
   int mxspec = 0;
+  int nIntegral = 0;
   for (int i = 0; i < nreactions; ++i) {
     int nreac_i = 0, nprod_i = 0;
     std::string pstr, rstr;
     bool allAreIntegral = true;
     for (int k = 0; k < nspecies; ++k) {
-      if (stoichReactants[i][k] == 0 && stoichProducts[i][k] == 0)
+      if (stoichReactants[i][k] == 0 and stoichProducts[i][k] == 0)
         nzeros++;
 
       if (stoichReactants[i][k] > 0.0) {
@@ -420,22 +449,18 @@ void FixRX::initSparse()
         pstr += atom->dvname[k];
       }
     }
-    if (comm->me == 0 && Verbosity > 1)
-      utils::logmesg(lmp,"rx{:3d}: {} {} {} ... {} = {}\n",
-                     i, nreac_i, nprod_i, allAreIntegral, rstr, pstr);
+    if (comm->me == 0 and Verbosity > 1)
+      printf("rx%3d: %d %d %d ... %s %s %s\n", i, nreac_i, nprod_i, allAreIntegral, rstr.c_str(), /*reversible[i]*/ (false) ? "<=>" : "=", pstr.c_str());
 
     mxreac = std::max( mxreac, nreac_i );
     mxprod = std::max( mxprod, nprod_i );
     mxspec = std::max( mxspec, nreac_i + nprod_i );
+    if (allAreIntegral) nIntegral++;
   }
 
-  if (comm->me == 0 && Verbosity > 1) {
-    auto msg = fmt::format("FixRX: Sparsity of Stoichiometric Matrix= {:.1f}% non-zeros= {} "
-                           "nspecies= {} nreactions= {} maxReactants= {} maxProducts= {} "
-                           "maxSpecies= {} integralReactions= {}",
-                           100*(double(nzeros) / (nspecies * nreactions)), nzeros, nspecies,
-                           nreactions, mxreac, mxprod, (mxreac + mxprod),
-                           SparseKinetics_enableIntegralReactions);
+  if (comm->me == 0 and Verbosity > 1) {
+    char msg[256];
+    sprintf(msg, "FixRX: Sparsity of Stoichiometric Matrix= %.1f%% non-zeros= %d nspecies= %d nreactions= %d maxReactants= %d maxProducts= %d maxSpecies= %d integralReactions= %d", 100*(double(nzeros) / (nspecies * nreactions)), nzeros, nspecies, nreactions, mxreac, mxprod, (mxreac + mxprod), SparseKinetics_enableIntegralReactions);
     error->message(FLERR, msg);
   }
 
@@ -515,10 +540,10 @@ void FixRX::initSparse()
        sparseKinetics_isIntegralReaction[i] = isIntegral_i;
   }
 
-  if (comm->me == 0 && Verbosity > 1) {
-    for (int i = 1; i < (int)nu_bin.size(); ++i)
-      if ((nu_bin[i] > 0) && screen)
-        fprintf(screen, "nu_bin[%d] = %d\n", i, nu_bin[i]);
+  if (comm->me == 0 and Verbosity > 1) {
+    for (int i = 1; i < nu_bin.size(); ++i)
+      if (nu_bin[i] > 0)
+        printf("nu_bin[%d] = %d\n", i, nu_bin[i]);
 
     for (int i = 0; i < nreactions; ++i) {
       std::string pstr, rstr;
@@ -530,7 +555,7 @@ void FixRX::initSparse()
             rstr += " + ";
 
           char digit[6];
-          if (SparseKinetics_enableIntegralReactions && sparseKinetics_isIntegralReaction[i])
+          if (SparseKinetics_enableIntegralReactions and sparseKinetics_isIntegralReaction[i])
             sprintf(digit,"%d ", sparseKinetics_inu[i][kk]);
           else
             sprintf(digit,"%4.1f ", sparseKinetics_nu[i][kk]);
@@ -546,7 +571,7 @@ void FixRX::initSparse()
             pstr += " + ";
 
           char digit[6];
-          if (SparseKinetics_enableIntegralReactions && sparseKinetics_isIntegralReaction[i])
+          if (SparseKinetics_enableIntegralReactions and sparseKinetics_isIntegralReaction[i])
             sprintf(digit,"%d ", sparseKinetics_inu[i][kk]);
           else
             sprintf(digit,"%4.1f ", sparseKinetics_nu[i][kk]);
@@ -554,8 +579,8 @@ void FixRX::initSparse()
           pstr += atom->dvname[k];
         }
       }
-      if (comm->me == 0 && Verbosity > 1 && screen)
-        fprintf(screen,"rx%3d: %s %s %s\n", i, rstr.c_str(), /*reversible[i]*/ (false) ? "<=>" : "=", pstr.c_str());
+      if (comm->me == 0 and Verbosity > 1)
+        printf("rx%3d: %s %s %s\n", i, rstr.c_str(), /*reversible[i]*/ (false) ? "<=>" : "=", pstr.c_str());
     }
     // end for nreactions
   }
@@ -575,9 +600,9 @@ int FixRX::setmask()
 
 void FixRX::init()
 {
-  pairDPDE = dynamic_cast<PairDPDfdtEnergy *>(force->pair_match("dpd/fdt/energy",1));
+  pairDPDE = (PairDPDfdtEnergy *) force->pair_match("dpd/fdt/energy",1);
   if (pairDPDE == nullptr)
-    pairDPDE = dynamic_cast<PairDPDfdtEnergy *>(force->pair_match("dpd/fdt/energy/kk",1));
+    pairDPDE = (PairDPDfdtEnergy *) force->pair_match("dpd/fdt/energy/kk",1);
 
   if (pairDPDE == nullptr)
     error->all(FLERR,"Must use pair_style dpd/fdt/energy with fix rx");
@@ -590,7 +615,9 @@ void FixRX::init()
   // need a half neighbor list
   // built whenever re-neighboring occurs
 
-  neighbor->add_request(this);
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->pair = 0;
+  neighbor->requests[irequest]->fix = 1;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -621,7 +648,7 @@ void FixRX::setup_pre_force(int /*vflag*/)
     userData.kFor = new double[nreactions];
     userData.rxnRateLaw = new double[nreactions];
 
-    auto rwork = new double[8*nspecies];
+    double *rwork = new double[8*nspecies];
 
     if (localTempFlag) {
       int count = nlocal + (newton_pair ? nghost : 0);
@@ -650,7 +677,7 @@ void FixRX::setup_pre_force(int /*vflag*/)
       }
 
     // Communicate the updated momenta and velocities to all nodes
-    comm->forward_comm(this);
+    comm->forward_comm_fix(this);
     if (localTempFlag) delete [] dpdThetaLocal;
 
     delete [] userData.kFor;
@@ -682,16 +709,22 @@ void FixRX::pre_force(int /*vflag*/)
 
   // Zero the counters for the ODE solvers.
   int nSteps = 0;
+  int nIters = 0;
   int nFuncs = 0;
   int nFails = 0;
 
-  if (odeIntegrationFlag == ODE_LAMMPS_RKF45 && diagnosticFrequency == 1) {
+  if (odeIntegrationFlag == ODE_LAMMPS_RKF45 && diagnosticFrequency == 1)
+  {
     memory->create( diagnosticCounterPerODE[StepSum], nlocal, "FixRX::diagnosticCounterPerODE");
     memory->create( diagnosticCounterPerODE[FuncSum], nlocal, "FixRX::diagnosticCounterPerODE");
   }
 
+#if 0
+  #pragma omp parallel \
+     reduction(+: nSteps, nIters, nFuncs, nFails )
+#endif
   {
-    auto rwork = new double[8*nspecies];
+    double *rwork = new double[8*nspecies];
 
     UserRHSData userData;
     userData.kFor = new double[nreactions];
@@ -699,8 +732,11 @@ void FixRX::pre_force(int /*vflag*/)
 
     int ode_counter[4] = { 0 };
 
-    for (int i = 0; i < nlocal; i++) {
-      if (mask[i] & groupbit) {
+    //#pragma omp for schedule(runtime)
+    for (int i = 0; i < nlocal; i++)
+    {
+      if (mask[i] & groupbit)
+      {
         double theta;
         if (localTempFlag)
           theta = dpdThetaLocal[i];
@@ -719,6 +755,7 @@ void FixRX::pre_force(int /*vflag*/)
     }
 
     nSteps += ode_counter[0];
+    nIters += ode_counter[1];
     nFuncs += ode_counter[2];
     nFails += ode_counter[3];
 
@@ -731,16 +768,25 @@ void FixRX::pre_force(int /*vflag*/)
   TimerType timer_ODE = getTimeStamp();
 
   // Communicate the updated momenta and velocities to all nodes
-  comm->forward_comm(this);
+  comm->forward_comm_fix(this);
   if (localTempFlag) delete [] dpdThetaLocal;
 
   //TimerType timer_stop = getTimeStamp();
 
   double time_ODE = getElapsedTime(timer_localTemperature, timer_ODE);
 
+  //printf("me= %d total= %g temp= %g ode= %g comm= %g nlocal= %d nfc= %d %d\n", comm->me,
+  //                       getElapsedTime(timer_start, timer_stop),
+  //                       getElapsedTime(timer_start, timer_localTemperature),
+  //                       getElapsedTime(timer_localTemperature, timer_ODE),
+  //                       getElapsedTime(timer_ODE, timer_stop), nlocal, nFuncs, nSteps);
+
   // Warn the user if a failure was detected in the ODE solver.
-  if (nFails > 0)
-    error->warning(FLERR, fmt::format("FixRX::pre_force ODE solver failed for {} atoms.", nFails));
+  if (nFails > 0) {
+    char sbuf[128];
+    sprintf(sbuf,"in FixRX::pre_force, ODE solver failed for %d atoms.", nFails);
+    error->warning(FLERR, sbuf);
+  }
 
   // Compute and report ODE diagnostics, if requested.
   if (odeIntegrationFlag == ODE_LAMMPS_RKF45 && diagnosticFrequency != 0) {
@@ -783,12 +829,11 @@ void FixRX::read_file(char *file)
 
   // Count the number of reactions from kinetics file
 
-  int n,ispecies;
-  char line[MAXLINE] = {'\0'};
-  char *ptr;
+  int n,nwords,ispecies;
+  char line[MAXLINE],*ptr;
   int eof = 0;
 
-  while (true) {
+  while (1) {
     if (comm->me == 0) {
       ptr = fgets(line,MAXLINE,fp);
       if (ptr == nullptr) {
@@ -804,7 +849,8 @@ void FixRX::read_file(char *file)
     // strip comment, skip line if blank
 
     if ((ptr = strchr(line,'#'))) *ptr = '\0';
-    if (utils::count_words(line) == 0) continue;
+    nwords = utils::count_words(line);
+    if (nwords == 0) continue;
 
     nreactions++;
   }
@@ -841,7 +887,7 @@ void FixRX::read_file(char *file)
 
   nreactions=0;
   sign = -1.0;
-  while (true) {
+  while (1) {
     if (comm->me == 0) {
       ptr = fgets(line,MAXLINE,fp);
       if (ptr == nullptr) {
@@ -857,10 +903,12 @@ void FixRX::read_file(char *file)
     // strip comment, skip line if blank
 
     if ((ptr = strchr(line,'#'))) *ptr = '\0';
-    if (utils::count_words(line) == 0) continue;
+    nwords = utils::count_words(line);
+    if (nwords == 0) continue;
 
     // words = ptrs to all words in line
 
+    nwords = 0;
     word = strtok(line," \t\n\r\f");
     while (word != nullptr) {
       tmpStoich = atof(word);
@@ -1103,7 +1151,8 @@ void FixRX::rkf45_step (const int neq, const double h, double y[], double y_out[
       y_out[k] = y[k] + r4;
    }
 
-   }
+   return;
+}
 
 int FixRX::rkf45_h0 (const int neq, const double t, const double /*t_stop*/,
                      const double hmin, const double hmax,
@@ -1135,7 +1184,7 @@ int FixRX::rkf45_h0 (const int neq, const double t, const double /*t_stop*/,
    // compute ydot at t=t0
    rhs (t, y, ydot, v_params);
 
-   while (true)
+   while (1)
    {
       // Estimate y'' with finite-difference ...
 
@@ -1197,7 +1246,7 @@ int FixRX::rkf45_h0 (const int neq, const double t, const double /*t_stop*/,
    return (iter + 1);
 }
 
-void FixRX::odeDiagnostics()
+void FixRX::odeDiagnostics(void)
 {
   TimerType timer_start = getTimeStamp();
 
@@ -1234,7 +1283,7 @@ void FixRX::odeDiagnostics()
   double max_per_proc[numCounters];
   double min_per_proc[numCounters];
 
-  if (true)
+  if (1)
   {
      static bool firstStep = true;
 
@@ -1265,7 +1314,7 @@ void FixRX::odeDiagnostics()
 
      printf("me= %d nst= %g nfc= %g time= %g nlocal= %g lmpnst= %g weight_idx= %d 1st= %d aveNeigh= %g\n", comm->me, this->diagnosticCounter[0], this->diagnosticCounter[1], this->diagnosticCounter[2], this->diagnosticCounter[3], this->diagnosticCounter[4], rx_weight_index, firstStep, averageNumNeighbors);
 
-     if (rx_weight_index != -1 && !firstStep && false)
+     if (rx_weight_index != -1 && !firstStep && 0)
      {
         double *rx_weight = atom->dvector[rx_weight_index];
 
@@ -1374,9 +1423,17 @@ void FixRX::odeDiagnostics()
   double time_local = getElapsedTime( timer_start, timer_stop );
 
   if (comm->me == 0) {
-    utils::logmesg(lmp,"FixRX::ODE Diagnostics:  # of iters  |# of rhs evals| run-time (sec) | # atoms\n");
-    utils::logmesg(lmp,"         AVG per ODE  : {:>12.5g} | {:>12.5g} | {:>12.5g}\n",
-                   avg_per_atom[0], avg_per_atom[1], avg_per_atom[2]);
+    char smesg[128];
+
+#define print_mesg(smesg) {\
+    if (screen)  fprintf(screen,"%s\n", smesg); \
+    if (logfile) fprintf(logfile,"%s\n", smesg); }
+
+    sprintf(smesg, "FixRX::ODE Diagnostics:  # of iters  |# of rhs evals| run-time (sec) | # atoms");
+    print_mesg(smesg);
+
+    sprintf(smesg, "         AVG per ODE  : %-12.5g | %-12.5g | %-12.5g", avg_per_atom[0], avg_per_atom[1], avg_per_atom[2]);
+    print_mesg(smesg);
 
     // only valid for single time-step!
     if (diagnosticFrequency == 1) {
@@ -1384,37 +1441,48 @@ void FixRX::odeDiagnostics()
       for (int i = 0; i < numCounters; ++i)
         rms_per_ODE[i] = sqrt( sum_sq[i+numCounters] / nODEs );
 
-      utils::logmesg(lmp, "         RMS per ODE  : {:>12.5g} | {:>12.5g}\n",
-                     rms_per_ODE[0], rms_per_ODE[1]);
-      utils::logmesg(lmp, "         MAX per ODE  : {:>12.5g} | {:>12.5g}\n",
-                     max_per_ODE[0], max_per_ODE[1]);
-      utils::logmesg(lmp, "         MIN per ODE  : {:>12.5g} | {:>12.5g}\n",
-                     min_per_ODE[0], min_per_ODE[1]);
+      sprintf(smesg, "         RMS per ODE  : %-12.5g | %-12.5g ", rms_per_ODE[0], rms_per_ODE[1]);
+      print_mesg(smesg);
+
+      sprintf(smesg, "         MAX per ODE  : %-12.5g | %-12.5g ", max_per_ODE[0], max_per_ODE[1]);
+      print_mesg(smesg);
+
+      sprintf(smesg, "         MIN per ODE  : %-12.5g | %-12.5g ", min_per_ODE[0], min_per_ODE[1]);
+      print_mesg(smesg);
     }
 
-    utils::logmesg(lmp,"         AVG per Proc : {:>12.5g} | {:>12.5g} | {:>12.5g} | {:>12.5g}\n",
-                   avg_per_proc[StepSum], avg_per_proc[FuncSum], avg_per_proc[TimeSum], avg_per_proc[AtomSum]);
+    sprintf(smesg, "         AVG per Proc : %-12.5g | %-12.5g | %-12.5g | %-12.5g", avg_per_proc[StepSum], avg_per_proc[FuncSum], avg_per_proc[TimeSum], avg_per_proc[AtomSum]);
+    print_mesg(smesg);
 
     if (comm->nprocs > 1) {
       double rms_per_proc[numCounters];
       for (int i = 0; i < numCounters; ++i)
         rms_per_proc[i] = sqrt( sum_sq[i] / comm->nprocs );
 
-      utils::logmesg(lmp,"         RMS per Proc : {:>12.5g} | {:>12.5g} | {:>12.5g} | {:>12.5g}\n",
-                     rms_per_proc[0], rms_per_proc[1], rms_per_proc[2], rms_per_proc[AtomSum]);
-      utils::logmesg(lmp,"         MAX per Proc : {:>12.5g} | {:>12.5g} | {:>12.5g} | {:>12.5g}\n",
-                     max_per_proc[0], max_per_proc[1], max_per_proc[2], max_per_proc[AtomSum]);
-      utils::logmesg(lmp,"         MIN per Proc : {:>12.5g} | {:>12.5g} | {:>12.5g} | {:>12.5g}\n",
-                     min_per_proc[0], min_per_proc[1], min_per_proc[2], min_per_proc[AtomSum]);
+      sprintf(smesg, "         RMS per Proc : %-12.5g | %-12.5g | %-12.5g | %-12.5g", rms_per_proc[0], rms_per_proc[1], rms_per_proc[2], rms_per_proc[AtomSum]);
+      print_mesg(smesg);
+
+      sprintf(smesg, "         MAX per Proc : %-12.5g | %-12.5g | %-12.5g | %-12.5g", max_per_proc[0], max_per_proc[1], max_per_proc[2], max_per_proc[AtomSum]);
+      print_mesg(smesg);
+
+      sprintf(smesg, "         MIN per Proc : %-12.5g | %-12.5g | %-12.5g | %-12.5g", min_per_proc[0], min_per_proc[1], min_per_proc[2], min_per_proc[AtomSum]);
+      print_mesg(smesg);
     }
 
-    utils::logmesg(lmp, "  AVG'd over {} time-steps\n", nTimes);
-    utils::logmesg(lmp, "  AVG'ing took {} sec", time_local);
+    sprintf(smesg, "  AVG'd over %d time-steps", nTimes);
+    print_mesg(smesg);
+    sprintf(smesg, "  AVG'ing took %g sec", time_local);
+    print_mesg(smesg);
+
+#undef print_mesg
+
   }
 
   // Reset the counters.
   for (int i = 0; i < numDiagnosticCounters; ++i)
     diagnosticCounter[i] = 0;
+
+  return;
 }
 
 void FixRX::rkf45(int id, double *rwork, void *v_param, int ode_counter[])
@@ -1566,7 +1634,7 @@ int FixRX::rhs(double t, const double *y, double *dydt, void *params)
 
 int FixRX::rhs_dense(double /*t*/, const double *y, double *dydt, void *params)
 {
-  auto userData = (UserRHSData *) params;
+  UserRHSData *userData = (UserRHSData *) params;
 
   double *rxnRateLaw = userData->rxnRateLaw;
   double *kFor       = userData->kFor;
@@ -1600,7 +1668,7 @@ int FixRX::rhs_dense(double /*t*/, const double *y, double *dydt, void *params)
 
 int FixRX::rhs_sparse(double /*t*/, const double *y, double *dydt, void *v_params) const
 {
-   auto userData = (UserRHSData *) v_params;
+   UserRHSData *userData = (UserRHSData *) v_params;
 
    const double VDPD = domain->xprd * domain->yprd * domain->zprd / atom->natoms;
 
@@ -1756,7 +1824,7 @@ void FixRX::computeLocalTemperature()
       }
     }
   }
-  if (newton_pair) comm->reverse_comm(this);
+  if (newton_pair) comm->reverse_comm_fix(this);
 
   // self-interaction for local temperature
   for (i = 0; i < nlocal; i++) {

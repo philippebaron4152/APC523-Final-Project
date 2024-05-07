@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -39,10 +39,10 @@ class AngleHarmonicKokkos : public AngleHarmonic {
   typedef EV_FLOAT value_type;
 
   AngleHarmonicKokkos(class LAMMPS *);
-  ~AngleHarmonicKokkos() override;
-  void compute(int, int) override;
-  void coeff(int, char **) override;
-  void read_restart(FILE *) override;
+  virtual ~AngleHarmonicKokkos();
+  void compute(int, int);
+  void coeff(int, char **);
+  void read_restart(FILE *);
 
   template<int NEWTON_BOND, int EVFLAG>
   KOKKOS_INLINE_FUNCTION
@@ -81,7 +81,7 @@ class AngleHarmonicKokkos : public AngleHarmonic {
   typename ArrayTypes<DeviceType>::t_ffloat_1d d_k;
   typename ArrayTypes<DeviceType>::t_ffloat_1d d_theta0;
 
-  void allocate() override;
+  void allocate();
 };
 
 }
@@ -89,3 +89,6 @@ class AngleHarmonicKokkos : public AngleHarmonic {
 #endif
 #endif
 
+/* ERROR/WARNING messages:
+
+*/

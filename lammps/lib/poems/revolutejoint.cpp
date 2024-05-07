@@ -29,7 +29,8 @@ RevoluteJoint::RevoluteJoint(){
   SetAxisPK(axis);
 }
 
-RevoluteJoint::~RevoluteJoint() = default;
+RevoluteJoint::~RevoluteJoint(){
+}
 
 JointType RevoluteJoint::GetType(){
   return REVOLUTEJOINT;

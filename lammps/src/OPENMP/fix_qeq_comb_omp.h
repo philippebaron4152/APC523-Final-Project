@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    See the README file in the top-level LAMMPS directory.
 ------------------------------------------------------------------------- */
@@ -22,8 +22,8 @@ namespace LAMMPS_NS {
 class FixQEQCombOMP : public FixQEQComb {
  public:
   FixQEQCombOMP(class LAMMPS *, int, char **);
-  void init() override;
-  void post_force(int) override;
+  virtual void init();
+  virtual void post_force(int);
 };
 
 }    // namespace LAMMPS_NS

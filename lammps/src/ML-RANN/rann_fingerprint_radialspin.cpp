@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -29,9 +29,8 @@ do not necessarily reflect the views of the United States Army.​”
 DISTRIBUTION A. Approved for public release; distribution unlimited. OPSEC#4918
  */
 #include "rann_fingerprint_radialspin.h"
-#include "pair_rann.h"
 
-#include <cmath>
+
 
 using namespace LAMMPS_NS::RANN;
 
@@ -68,30 +67,30 @@ bool Fingerprint_radialspin::parse_values(std::string constant,std::vector<std::
   int l;
   int nwords=line1.size();
   if (constant.compare("re")==0) {
-    re = strtod(line1[0].c_str(),nullptr);
+    re = strtod(line1[0].c_str(),NULL);
   }
   else if (constant.compare("rc")==0) {
-    rc = strtod(line1[0].c_str(),nullptr);
+    rc = strtod(line1[0].c_str(),NULL);
   }
   else if (constant.compare("alpha")==0) {
     delete[] alpha;
     alpha = new double[nwords];
     for (l=0;l<nwords;l++) {
-      alpha[l]=strtod(line1[l].c_str(),nullptr);
+      alpha[l]=strtod(line1[l].c_str(),NULL);
     }
   }
   else if (constant.compare("dr")==0) {
-    dr = strtod(line1[0].c_str(),nullptr);
+    dr = strtod(line1[0].c_str(),NULL);
   }
   else if (constant.compare("n")==0) {
-    nmax = strtol(line1[0].c_str(),nullptr,10);
+    nmax = strtol(line1[0].c_str(),NULL,10);
   }
   else if (constant.compare("o")==0) {
-    omin = strtol(line1[0].c_str(),nullptr,10);
+    omin = strtol(line1[0].c_str(),NULL,10);
   }
   else pair->errorf(FLERR,"Undefined value for radial power");
   //code will run with default o=0 if o is never specified. All other values must be defined in potential file.
-  if (re!=0 && rc!=0 && alpha!=nullptr && dr!=0 && nmax!=0)return true;
+  if (re!=0 && rc!=0 && alpha!=0 && dr!=0 && nmax!=0)return true;
   return false;
 }
 

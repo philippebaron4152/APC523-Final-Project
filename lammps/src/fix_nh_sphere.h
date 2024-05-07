@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,17 +21,37 @@ namespace LAMMPS_NS {
 class FixNHSphere : public FixNH {
  public:
   FixNHSphere(class LAMMPS *, int, char **);
-
-  void init() override;
+  virtual ~FixNHSphere() {}
+  void init();
 
  protected:
   double inertia;
 
-  void nve_v() override;
-  void nve_x() override;
-  void nh_v_temp() override;
+  void nve_v();
+  void nve_x();
+  void nh_v_temp();
 };
 
 }    // namespace LAMMPS_NS
 
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Fix nvt/nph/npt sphere requires atom style sphere
+
+Self-explanatory.
+
+E: Fix nvt/nph/npt sphere disc option requires 2d simulation
+
+UNDOCUMENTED
+
+E: Fix nvt/npt/nph/sphere require extended particles
+
+UNDOCUMENTED
+
+U: Fix nvt/sphere requires extended particles
+
+This fix can only be used for particles of a finite size.
+
+*/

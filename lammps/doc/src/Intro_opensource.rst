@@ -19,13 +19,13 @@ software and open-source distribution, see `www.gnu.org <gnuorg_>`_
 or `www.opensource.org <opensource_>`_.  The legal text of the GPL as it
 applies to LAMMPS is in the LICENSE file included in the LAMMPS distribution.
 
-.. _gpl: https://github.com/lammps/lammps/blob/develop/LICENSE
+.. _gpl: https://github.com/lammps/lammps/blob/master/LICENSE
 
 .. _lgpl: https://www.gnu.org/licenses/old-licenses/lgpl-2.1.html
 
-.. _gnuorg: https://www.gnu.org
+.. _gnuorg: http://www.gnu.org
 
-.. _opensource: https://www.opensource.org
+.. _opensource: http://www.opensource.org
 
 Here is a more specific summary of what the GPL means for LAMMPS users:
 

@@ -1,25 +1,49 @@
+/*
 //@HEADER
 // ************************************************************************
 //
-//                        Kokkos v. 4.0
-//       Copyright (2022) National Technology & Engineering
+//                        Kokkos v. 3.0
+//       Copyright (2020) National Technology & Engineering
 //               Solutions of Sandia, LLC (NTESS).
 //
 // Under the terms of Contract DE-NA0003525 with NTESS,
 // the U.S. Government retains certain rights in this software.
 //
-// Part of Kokkos, under the Apache License v2.0 with LLVM Exceptions.
-// See https://kokkos.org/LICENSE for license information.
-// SPDX-License-Identifier: Apache-2.0 WITH LLVM-exception
+// Redistribution and use in source and binary forms, with or without
+// modification, are permitted provided that the following conditions are
+// met:
 //
+// 1. Redistributions of source code must retain the above copyright
+// notice, this list of conditions and the following disclaimer.
+//
+// 2. Redistributions in binary form must reproduce the above copyright
+// notice, this list of conditions and the following disclaimer in the
+// documentation and/or other materials provided with the distribution.
+//
+// 3. Neither the name of the Corporation nor the names of the
+// contributors may be used to endorse or promote products derived from
+// this software without specific prior written permission.
+//
+// THIS SOFTWARE IS PROVIDED BY NTESS "AS IS" AND ANY
+// EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+// IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR
+// PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL NTESS OR THE
+// CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+// EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO,
+// PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR
+// PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF
+// LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING
+// NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+// SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+//
+// Questions? Contact Christian R. Trott (crtrott@sandia.gov)
+//
+// ************************************************************************
 //@HEADER
+*/
 
 #ifndef KOKKOS_STATICCRSGRAPH_HPP
 #define KOKKOS_STATICCRSGRAPH_HPP
-#ifndef KOKKOS_IMPL_PUBLIC_INCLUDE
-#define KOKKOS_IMPL_PUBLIC_INCLUDE
-#define KOKKOS_IMPL_PUBLIC_INCLUDE_NOTDEFINED_STATICCRSGRAPH
-#endif
 
 #include <string>
 #include <vector>
@@ -190,7 +214,8 @@ struct GraphRowViewConst {
       const typename GraphType::entries_type& colidx_in,
       const ordinal_type& stride, const ordinal_type& count,
       const OffsetType& idx,
-      const std::enable_if_t<std::is_integral<OffsetType>::value, int>& = 0)
+      const typename std::enable_if<std::is_integral<OffsetType>::value,
+                                    int>::type& = 0)
       : colidx_(&colidx_in(idx)), stride_(stride), length(count) {}
 
   /// \brief Number of entries in the row.
@@ -380,9 +405,7 @@ class StaticCrsGraph {
     Kokkos::parallel_for("Kokkos::StaticCrsGraph::create_block_partitioning",
                          Kokkos::RangePolicy<execution_space>(0, numRows()),
                          partitioner);
-    typename device_type::execution_space().fence(
-        "Kokkos::StaticCrsGraph::create_block_partitioning:: fence after "
-        "partition");
+    typename device_type::execution_space().fence();
 
     row_block_offsets = block_offsets;
   }
@@ -446,7 +469,8 @@ struct StaticCrsGraphMaximumEntry {
   void init(value_type& update) const { update = 0; }
 
   KOKKOS_INLINE_FUNCTION
-  void join(value_type& update, const value_type& input) const {
+  void join(volatile value_type& update,
+            volatile const value_type& input) const {
     if (update < input) update = input;
   }
 };
@@ -472,8 +496,4 @@ DataType maximum_entry(const StaticCrsGraph<DataType, Arg1Type, Arg2Type,
 //----------------------------------------------------------------------------
 //----------------------------------------------------------------------------
 
-#ifdef KOKKOS_IMPL_PUBLIC_INCLUDE_NOTDEFINED_STATICCRSGRAPH
-#undef KOKKOS_IMPL_PUBLIC_INCLUDE
-#undef KOKKOS_IMPL_PUBLIC_INCLUDE_NOTDEFINED_STATICCRSGRAPH
-#endif
 #endif /* #ifndef KOKKOS_CRSARRAY_HPP */

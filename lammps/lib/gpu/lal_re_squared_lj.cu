@@ -86,7 +86,7 @@
         ap1+=astride;                                                        \
       }                                                                      \
     }                                                                        \
-    acctyp3 old=ans[ii];                                                     \
+    acctyp4 old=ans[ii];                                                     \
     old.x+=f.x;                                                              \
     old.y+=f.y;                                                              \
     old.z+=f.z;                                                              \
@@ -131,7 +131,7 @@
         ap1+=astride;                                                       \
       }                                                                     \
     }                                                                       \
-    acctyp3 old=ans[ii];                                                    \
+    acctyp4 old=ans[ii];                                                    \
     old.x+=f.x;                                                             \
     old.y+=f.y;                                                             \
     old.z+=f.z;                                                             \
@@ -154,7 +154,7 @@ __kernel void k_resquared_ellipsoid_sphere(const __global numtyp4 *restrict x_,
                                            const int ntypes,
                                            const __global int *dev_nbor,
                                            const int stride,
-                                           __global acctyp3 *restrict ans,
+                                           __global acctyp4 *restrict ans,
                                            const int astride,
                                            __global acctyp *restrict engv,
                                            __global int *restrict err_flag,
@@ -180,7 +180,7 @@ __kernel void k_resquared_ellipsoid_sphere(const __global numtyp4 *restrict x_,
   const numtyp solv_f_r =
      (numtyp)3.0/((numtyp)16.0*ucl_atan((numtyp)1.0)*(numtyp)2025.0);
 
-  acctyp3 f, tor;
+  acctyp4 f, tor;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
   tor.x=(acctyp)0; tor.y=(acctyp)0; tor.z=(acctyp)0;
   acctyp energy, virial[6];
@@ -216,7 +216,6 @@ __kernel void k_resquared_ellipsoid_sphere(const __global numtyp4 *restrict x_,
 
     numtyp factor_lj;
     for ( ; nbor<nbor_end; nbor+=n_stride) {
-      ucl_prefetch(dev_nbor+nbor+n_stride);
       int j=dev_nbor[nbor];
       factor_lj = sp_lj[sbmask(j)];
       j &= NEIGHMASK;
@@ -410,7 +409,7 @@ __kernel void k_resquared_sphere_ellipsoid(const __global numtyp4 *restrict x_,
                                            const int ntypes,
                                            const __global int *dev_nbor,
                                            const int stride,
-                                           __global acctyp3 *restrict ans,
+                                           __global acctyp4 *restrict ans,
                                            __global acctyp *restrict engv,
                                            __global int *restrict err_flag,
                                            const int eflag, const int vflag,
@@ -436,7 +435,7 @@ __kernel void k_resquared_sphere_ellipsoid(const __global numtyp4 *restrict x_,
   const numtyp solv_f_r =
     (numtyp)3.0/((numtyp)16.0*ucl_atan((numtyp)1.0)*(numtyp)2025.0);
 
-  acctyp3 f;
+  acctyp4 f;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
   acctyp energy, virial[6];
   if (EVFLAG) {
@@ -455,7 +454,6 @@ __kernel void k_resquared_sphere_ellipsoid(const __global numtyp4 *restrict x_,
 
     numtyp factor_lj;
     for ( ; nbor<nbor_end; nbor+=n_stride) {
-      ucl_prefetch(dev_nbor+nbor+n_stride);
       int i=dev_nbor[nbor];
       factor_lj = sp_lj[sbmask(i)];
       i &= NEIGHMASK;
@@ -612,7 +610,7 @@ __kernel void k_resquared_lj(const __global numtyp4 *restrict x_,
                              const __global numtyp *restrict gum,
                              const int stride,
                              const __global int *dev_ij,
-                             __global acctyp3 *restrict ans,
+                             __global acctyp4 *restrict ans,
                              __global acctyp *restrict engv,
                              __global int *restrict err_flag,
                              const int eflag, const int vflag, const int start,
@@ -630,7 +628,7 @@ __kernel void k_resquared_lj(const __global numtyp4 *restrict x_,
   sp_lj[2]=gum[2];
   sp_lj[3]=gum[3];
 
-  acctyp3 f;
+  acctyp4 f;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
   acctyp energy, virial[6];
   if (EVFLAG) {
@@ -649,7 +647,6 @@ __kernel void k_resquared_lj(const __global numtyp4 *restrict x_,
 
     numtyp factor_lj;
     for ( ; nbor<nbor_end; nbor+=n_stride) {
-      ucl_prefetch(dev_ij+nbor+n_stride);
 
       int j=dev_ij[nbor];
       factor_lj = sp_lj[sbmask(j)];
@@ -700,7 +697,7 @@ __kernel void k_resquared_lj_fast(const __global numtyp4 *restrict x_,
                                   const __global numtyp *restrict gum,
                                   const int stride,
                                   const __global int *dev_ij,
-                                  __global acctyp3 *restrict ans,
+                                  __global acctyp4 *restrict ans,
                                   __global acctyp *restrict engv,
                                   __global int *restrict err_flag,
                                   const int eflag, const int vflag,
@@ -724,7 +721,7 @@ __kernel void k_resquared_lj_fast(const __global numtyp4 *restrict x_,
       lj3[tid]=lj3_in[tid];
   }
 
-  acctyp3 f;
+  acctyp4 f;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
   acctyp energy, virial[6];
   if (EVFLAG) {
@@ -746,7 +743,6 @@ __kernel void k_resquared_lj_fast(const __global numtyp4 *restrict x_,
 
     numtyp factor_lj;
     for ( ; nbor<nbor_end; nbor+=n_stride) {
-      ucl_prefetch(dev_ij+nbor+n_stride);
 
       int j=dev_ij[nbor];
       factor_lj = sp_lj[sbmask(j)];

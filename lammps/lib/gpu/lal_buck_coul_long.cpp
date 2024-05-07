@@ -34,7 +34,7 @@ BuckCoulLongT::BuckCoulLong() : BaseCharge<numtyp,acctyp>(),
 }
 
 template <class numtyp, class acctyp>
-BuckCoulLongT::~BuckCoulLong() {
+BuckCoulLongT::~BuckCoulLongT() {
   clear();
 }
 

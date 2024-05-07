@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,11 +27,12 @@ namespace LAMMPS_NS {
 class FixMvvDPD : public Fix {
  public:
   FixMvvDPD(class LAMMPS *, int, char **);
-  int setmask() override;
-  void init() override;
-  void initial_integrate(int) override;
-  void final_integrate() override;
-  void reset_dt() override;
+  virtual ~FixMvvDPD() {}
+  int setmask();
+  virtual void init();
+  virtual void initial_integrate(int);
+  virtual void final_integrate();
+  virtual void reset_dt();
 
  protected:
   double dtv, dtf;

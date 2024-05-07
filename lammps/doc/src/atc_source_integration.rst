@@ -6,7 +6,7 @@ fix_modify AtC source_integration command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> source_integration <fe|atom>
 

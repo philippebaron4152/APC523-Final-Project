@@ -6,7 +6,7 @@ fix lineforce command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID lineforce x y z
 

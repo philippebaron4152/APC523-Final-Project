@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -28,16 +28,18 @@
 #include "error.h"
 #include "force.h"
 #include "memory.h"
-#include "neigh_list.h"
 #include "neighbor.h"
+#include "neigh_list.h"
 #include "potential_file_reader.h"
+#include "tokenizer.h"
 
 #include <cmath>
 #include <cstring>
 
 using namespace LAMMPS_NS;
 
-static constexpr int DELTA = 4;
+#define MAXLINE 1024
+#define DELTA 4
 
 /* ---------------------------------------------------------------------- */
 
@@ -159,15 +161,15 @@ void PairKolmogorovCrespiZ::compute(int eflag, int vflag)
         if (evflag) {
           ev_tally(i, j, nlocal, newton_pair, evdwl, 0.0, fpair, delx, dely, delz);
           if (vflag_either) {
-            double fi[3], fj[3];
+            double fi[3],fj[3];
             fi[0] = delx * fpair1;
             fi[1] = dely * fpair1;
             fi[2] = 0;
             fj[0] = -delx * fpair1;
             fj[1] = -dely * fpair1;
             fj[2] = 0;
-            v_tally2_newton(i, fi, x[i]);
-            v_tally2_newton(j, fj, x[j]);
+            v_tally2_newton(i,fi,x[i]);
+            v_tally2_newton(j,fj,x[j]);
           }
         }
       }
@@ -245,9 +247,9 @@ void PairKolmogorovCrespiZ::coeff(int narg, char **arg)
 void PairKolmogorovCrespiZ::init_style()
 {
   if (force->newton_pair == 0)
-    error->all(FLERR, "Pair style kolmogorov/crespi/z requires newton pair on");
+    error->all(FLERR,"Pair style kolmogorov/crespi/z requires newton pair on");
 
-  neighbor->add_request(this);
+  neighbor->request(this,instance_me);
 }
 
 /* ----------------------------------------------------------------------
@@ -359,7 +361,7 @@ void PairKolmogorovCrespiZ::read_file(char *filename)
       params[nparams].z06 = pow(params[nparams].z0, 6);
 
       nparams++;
-      if (nparams >= pow((double)atom->ntypes, 3)) break;
+      if (nparams >= pow(atom->ntypes, 3)) break;
     }
   }
   MPI_Bcast(&nparams, 1, MPI_INT, 0, world);
@@ -378,15 +380,11 @@ void PairKolmogorovCrespiZ::read_file(char *filename)
       int n = -1;
       for (int m = 0; m < nparams; m++) {
         if (i == params[m].ielement && j == params[m].jelement) {
-          if (n >= 0)
-            error->all(FLERR, "Potential file has a duplicate entry for: {} {}", elements[i],
-                       elements[j]);
+          if (n >= 0) error->all(FLERR, "Potential file has duplicate entry");
           n = m;
         }
       }
-      if (n < 0)
-        error->all(FLERR, "Potential file is missing an entry for: {} {}", elements[i],
-                   elements[j]);
+      if (n < 0) error->all(FLERR, "Potential file is missing an entry");
       elem2param[i][j] = n;
     }
   }

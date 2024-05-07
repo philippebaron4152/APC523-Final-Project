@@ -6,7 +6,7 @@ fix_modify AtC boundary type command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> boundary type <atom-type-id>
 

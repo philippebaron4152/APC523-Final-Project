@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -17,24 +17,29 @@
 ------------------------------------------------------------------------- */
 
 #include "pair_born_coul_long.h"
-
-#include "atom.h"
-#include "comm.h"
-#include "error.h"
-#include "ewald_const.h"
-#include "force.h"
-#include "kspace.h"
-#include "math_const.h"
-#include "memory.h"
-#include "neigh_list.h"
-#include "neighbor.h"
-
 #include <cmath>
 #include <cstring>
+#include "atom.h"
+#include "comm.h"
+#include "force.h"
+#include "kspace.h"
+#include "neighbor.h"
+#include "neigh_list.h"
+#include "math_const.h"
+#include "memory.h"
+#include "error.h"
+
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
-using namespace EwaldConst;
+
+#define EWALD_F   1.12837917
+#define EWALD_P   0.3275911
+#define A1        0.254829592
+#define A2       -0.284496736
+#define A3        1.421413741
+#define A4       -1.453152027
+#define A5        1.061405429
 
 /* ---------------------------------------------------------------------- */
 
@@ -369,13 +374,13 @@ void PairBornCoulLong::init_style()
 
   cut_coulsq = cut_coul * cut_coul;
 
-  // ensure use of KSpace long-range solver, set g_ewald
+  // insure use of KSpace long-range solver, set g_ewald
 
   if (force->kspace == nullptr)
     error->all(FLERR,"Pair style requires a KSpace style");
   g_ewald = force->kspace->g_ewald;
 
-  neighbor->add_request(this);
+  neighbor->request(this,instance_me);
 
   // setup force tables
 

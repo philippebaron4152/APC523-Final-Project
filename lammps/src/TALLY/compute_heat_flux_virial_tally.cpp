@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -22,6 +22,8 @@
 #include "pair.h"
 #include "update.h"
 
+#include <cmath>
+
 using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
@@ -29,17 +31,18 @@ using namespace LAMMPS_NS;
 ComputeHeatFluxVirialTally::ComputeHeatFluxVirialTally(LAMMPS *lmp, int narg, char **arg) :
     Compute(lmp, narg, arg)
 {
-  if (narg < 4) utils::missing_cmd_args(FLERR, "compute heat/flux/virial/tally", error);
+  if (narg < 4) error->all(FLERR, "Illegal compute heat/flux/virial/tally command");
 
   igroup2 = group->find(arg[3]);
   if (igroup2 == -1)
-    error->all(FLERR, "Could not find compute heat/flux/virial/tally second group ID {}", arg[3]);
+    error->all(FLERR, "Could not find compute heat/flux/virial/tally second group ID");
   groupbit2 = group->bitmask[igroup2];
 
   scalar_flag = 1;
   vector_flag = 0;
   peratom_flag = 1;
   timeflag = 1;
+  dynamic_group_allow = 0;
 
   comm_reverse = size_peratom_cols = 3;
   extscalar = 1;
@@ -191,10 +194,7 @@ double ComputeHeatFluxVirialTally::compute_scalar()
 
   invoked_scalar = update->ntimestep;
   if ((did_setup != invoked_scalar) || (update->eflag_global != invoked_scalar))
-    error->all(FLERR, "Stress was not tallied on needed timestep");
-
-  if ((comm->me == 0) && !force->pair->did_tally_callback())
-    error->warning(FLERR, "Stress was not tallied by pair style");
+    error->all(FLERR, "Energy was not tallied on needed timestep");
 
   // sum heat flux across procs
   double hflux = 0.0;
@@ -213,15 +213,12 @@ void ComputeHeatFluxVirialTally::compute_peratom()
 {
   invoked_peratom = update->ntimestep;
   if ((did_setup != invoked_peratom) || (update->eflag_global != invoked_peratom))
-    error->all(FLERR, "Stress was not tallied on needed timestep");
-
-  if ((comm->me == 0) && !force->pair->did_tally_callback())
-    error->warning(FLERR, "Stress was not tallied by pair style");
+    error->all(FLERR, "Energy was not tallied on needed timestep");
 
   // collect contributions from ghost atoms
 
   if (force->newton_pair) {
-    comm->reverse_comm(this);
+    comm->reverse_comm_compute(this);
 
     // clear out ghost atom data after it has been collected to local atoms
     const int nall = atom->nlocal + atom->nghost;

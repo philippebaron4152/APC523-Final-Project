@@ -10,7 +10,7 @@ fix drude/transform/inverse command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID style keyword value ...
 

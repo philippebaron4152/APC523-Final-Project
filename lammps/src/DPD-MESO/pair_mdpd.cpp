@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -13,38 +13,38 @@
 ------------------------------------------------------------------------- */
 
 /* ----------------------------------------------------------------------
-   Contributing author: Zhen Li (Clemson University)
-   Email: zli7@clemson.edu
+   Contributing author: Zhen Li (Brown University)
+   Email: zhen_li@brown.edu
 ------------------------------------------------------------------------- */
 
 #include "pair_mdpd.h"
 
-#include "atom.h"
-#include "citeme.h"
-#include "comm.h"
-#include "error.h"
-#include "force.h"
-#include "memory.h"
-#include "neigh_list.h"
-#include "neighbor.h"
-#include "random_mars.h"
-#include "update.h"
-
 #include <cmath>
+#include <ctime>
+#include "atom.h"
+#include "comm.h"
+#include "update.h"
+#include "force.h"
+#include "neighbor.h"
+#include "neigh_list.h"
+#include "random_mars.h"
+#include "citeme.h"
+#include "memory.h"
+#include "error.h"
+
 
 using namespace LAMMPS_NS;
 
-static constexpr double EPSILON = 1.0e-10;
+#define EPSILON 1.0e-10
 
 static const char cite_pair_mdpd[] =
-  "pair mdpd command: doi:10.1063/1.4812366\n\n"
+  "pair mdpd command:\n\n"
   "@Article{ZLi2013_POF,\n"
-  " author = {Li, Z. and Hu, G. H. and Wang, Z. L. and Ma Y. B. and Zhou, Z. W.},\n"
-  " title = {Three Dimensional Flow Structures in a Moving Droplet on Substrate: a Dissipative Particle Dynamics Study},\n"
+  " author = {Li, Z. and Hu, G.H. and Wang, Z.L. and Ma Y.B. and Zhou, Z.W.},\n"
+  " title = {Three dimensional flow structures in a moving droplet on substrate: a dissipative particle dynamics study},\n"
   " journal = {Physics of Fluids},\n"
   " year = {2013},\n"
   " volume = {25},\n"
-  " number = {7},\n"
   " pages = {072103}\n"
   "}\n\n";
 
@@ -217,13 +217,12 @@ void PairMDPD::settings(int narg, char **arg)
   seed = utils::inumeric(FLERR,arg[2],false,lmp);
 
   // initialize Marsaglia RNG with processor-unique seed
-  // create a positive seed based on the system clock, if requested.
 
   if (seed <= 0) {
-    constexpr double LARGE_NUM = 2<<30;
-    seed = int(fmod(platform::walltime() * LARGE_NUM, LARGE_NUM)) + 1;
+    struct timespec time;
+    clock_gettime( CLOCK_REALTIME, &time );
+    seed = time.tv_nsec;  // if seed is non-positive, get the current time as the seed
   }
-
   delete random;
   random = new RanMars(lmp,(seed + comm->me) % 900000000);
 
@@ -288,10 +287,10 @@ void PairMDPD::init_style()
   // if newton off, forces between atoms ij will be double computed
   // using different random numbers
 
-  if (force->newton_pair == 0 && comm->me == 0)
-    error->warning(FLERR, "Pair mdpd needs newton pair on for momentum conservation");
+  if (force->newton_pair == 0 && comm->me == 0) error->warning(FLERR,
+      "Pair mdpd needs newton pair on for momentum conservation");
 
-  neighbor->add_request(this);
+  neighbor->request(this,instance_me);
 }
 
 /* ----------------------------------------------------------------------

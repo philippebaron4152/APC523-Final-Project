@@ -6,7 +6,7 @@ fix_modify AtC reset_atomic_reference_positions command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> reset_atomic_reference_positions
 

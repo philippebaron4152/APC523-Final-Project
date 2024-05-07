@@ -12,7 +12,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -38,11 +38,11 @@ namespace LAMMPS_NS {
 class ComputeSMDVol : public Compute {
  public:
   ComputeSMDVol(class LAMMPS *, int, char **);
-  ~ComputeSMDVol() override;
-  void init() override;
-  void compute_peratom() override;
-  double compute_scalar() override;
-  double memory_usage() override;
+  ~ComputeSMDVol();
+  void init();
+  void compute_peratom();
+  double compute_scalar();
+  double memory_usage();
 
  private:
   int nmax;

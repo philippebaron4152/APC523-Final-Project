@@ -73,7 +73,7 @@ _texture( param5_tex,int4);
     }                                                                       \
   }                                                                         \
   if (offset==0 && ii<inum) {                                               \
-    acctyp3 old=ans[ii];                                                    \
+    acctyp4 old=ans[ii];                                                    \
     old.x+=f.x;                                                             \
     old.y+=f.y;                                                             \
     old.z+=f.z;                                                             \
@@ -132,7 +132,7 @@ _texture( param5_tex,int4);
     }                                                                       \
   }                                                                         \
   if (offset==0 && ii<inum) {                                               \
-    acctyp3 old=ans[ii];                                                    \
+    acctyp4 old=ans[ii];                                                    \
     old.x+=f.x;                                                             \
     old.y+=f.y;                                                             \
     old.z+=f.z;                                                             \
@@ -210,7 +210,7 @@ _texture( param5_tex,int4);
   if (t_per_atom>1)                                                         \
     simd_reduce_add3(t_per_atom, f.x, f.y, f.z);                            \
   if (offset==0 && ii<inum) {                                               \
-    acctyp3 old=ans[ii];                                                    \
+    acctyp4 old=ans[ii];                                                    \
     old.x+=f.x;                                                             \
     old.y+=f.y;                                                             \
     old.z+=f.z;                                                             \
@@ -247,7 +247,6 @@ __kernel void k_vashishta_short_nbor(const __global numtyp4 *restrict x_,
     const int out_stride=nbor_pitch*t_per_atom-t_per_atom;
 
     for ( ; nbor<nbor_end; nbor+=nbor_pitch) {
-      ucl_prefetch(dev_packed+nbor+nbor_pitch);
       int sj=dev_packed[nbor];
       int j = sj & NEIGHMASK;
       numtyp4 jx; fetch4(jx,j,pos_tex); //x_[j];
@@ -284,7 +283,7 @@ __kernel void k_vashishta(const __global numtyp4 *restrict x_,
                    const __global int *restrict elem2param,
                    const int nelements,
                    const __global int * dev_packed,
-                   __global acctyp3 *restrict ans,
+                   __global acctyp4 *restrict ans,
                    __global acctyp *restrict engv,
                    const int eflag, const int vflag, const int inum,
                    const int nbor_pitch, const int ev_stride) {
@@ -292,7 +291,7 @@ __kernel void k_vashishta(const __global numtyp4 *restrict x_,
 
   local_allocate_store_pair();
 
-  acctyp3 f;
+  acctyp4 f;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
   acctyp energy, virial[6];
   if (EVFLAG) {
@@ -314,7 +313,6 @@ __kernel void k_vashishta(const __global numtyp4 *restrict x_,
     itype=map[itype];
 
     for ( ; nbor<nbor_end; nbor+=nbor_pitch) {
-      ucl_prefetch(dev_packed+nbor+nbor_pitch);
 
       int j=dev_packed[nbor];
       j &= NEIGHMASK;
@@ -355,7 +353,7 @@ __kernel void k_vashishta(const __global numtyp4 *restrict x_,
         numtyp r4inv = rinvsq*rinvsq;
         numtyp r6inv = rinvsq*r4inv;
 
-        numtyp reta = ucl_powr(r,-param1_eta);
+        numtyp reta = pow(r,-param1_eta);
         numtyp lam1r = r*param1_lam1inv;
         numtyp lam4r = r*param1_lam4inv;
         numtyp vc2 = param1_zizj * ucl_exp(-lam1r)/r;
@@ -491,7 +489,7 @@ __kernel void k_vashishta_three_center(const __global numtyp4 *restrict x_,
                                 const __global int *restrict elem2param,
                                 const int nelements,
                                 const __global int * dev_nbor,
-                                __global acctyp3 *restrict ans,
+                                __global acctyp4 *restrict ans,
                                 __global acctyp *restrict engv,
                                 const int eflag, const int vflag,
                                 const int inum,  const int nbor_pitch,
@@ -506,7 +504,7 @@ __kernel void k_vashishta_three_center(const __global numtyp4 *restrict x_,
 
   local_allocate_store_three();
 
-  acctyp3 f;
+  acctyp4 f;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
   acctyp energy, virial[6];
   if (EVFLAG) {
@@ -614,7 +612,7 @@ __kernel void k_vashishta_three_end(const __global numtyp4 *restrict x_,
                              const int nelements,
                              const __global int * dev_nbor,
                              const __global int * dev_ilist,
-                             __global acctyp3 *restrict ans,
+                             __global acctyp4 *restrict ans,
                              __global acctyp *restrict engv,
                              const int eflag, const int vflag,
                              const int inum,  const int nbor_pitch,
@@ -629,7 +627,7 @@ __kernel void k_vashishta_three_end(const __global numtyp4 *restrict x_,
 
   local_allocate_store_three();
 
-  acctyp3 f;
+  acctyp4 f;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
   acctyp energy, virial[6];
   if (EVFLAG) {
@@ -745,7 +743,7 @@ __kernel void k_vashishta_three_end_vatom(const __global numtyp4 *restrict x_,
                              const int nelements,
                              const __global int * dev_nbor,
                              const __global int * dev_ilist,
-                             __global acctyp3 *restrict ans,
+                             __global acctyp4 *restrict ans,
                              __global acctyp *restrict engv,
                              const int eflag, const int vflag,
                              const int inum,  const int nbor_pitch,
@@ -760,7 +758,7 @@ __kernel void k_vashishta_three_end_vatom(const __global numtyp4 *restrict x_,
 
   local_allocate_store_three();
 
-  acctyp3 f;
+  acctyp4 f;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
   acctyp energy, virial[6];
   if (EVFLAG) {

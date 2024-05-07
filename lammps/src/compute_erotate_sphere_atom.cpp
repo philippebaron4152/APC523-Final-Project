@@ -1,7 +1,8 @@
+// clang-format off
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -12,35 +13,36 @@
 ------------------------------------------------------------------------- */
 
 #include "compute_erotate_sphere_atom.h"
-
+#include <cstring>
 #include "atom.h"
+#include "update.h"
+#include "modify.h"
 #include "comm.h"
-#include "error.h"
 #include "force.h"
 #include "memory.h"
-#include "modify.h"
-#include "update.h"
+#include "error.h"
 
 using namespace LAMMPS_NS;
 
-static constexpr double INERTIA = 0.4;    // moment of inertia prefactor for sphere
+#define INERTIA 0.4          // moment of inertia prefactor for sphere
 
 /* ---------------------------------------------------------------------- */
 
-ComputeErotateSphereAtom::ComputeErotateSphereAtom(LAMMPS *lmp, int narg, char **arg) :
-    Compute(lmp, narg, arg), erot(nullptr)
+ComputeErotateSphereAtom::
+ComputeErotateSphereAtom(LAMMPS *lmp, int narg, char **arg) :
+  Compute(lmp, narg, arg),
+  erot(nullptr)
 {
-  if (narg != 3) error->all(FLERR, "Illegal compute erotate/sphere//atom command");
+  if (narg != 3)
+    error->all(FLERR,"Illegal compute erotate/sphere//atom command");
 
   peratom_flag = 1;
   size_peratom_cols = 0;
 
   // error check
 
-  if (!atom->omega_flag)
-    error->all(FLERR, "Compute erotate/sphere/atom requires atom attribute omega");
-  if (!atom->radius_flag)
-    error->all(FLERR, "Compute erotate/sphere/atom requires atom attribute radius");
+  if (!atom->sphere_flag)
+    error->all(FLERR,"Compute erotate/sphere/atom requires atom style sphere");
 
   nmax = 0;
 }
@@ -56,8 +58,11 @@ ComputeErotateSphereAtom::~ComputeErotateSphereAtom()
 
 void ComputeErotateSphereAtom::init()
 {
-  if (modify->get_compute_by_style(style).size() > 1)
-    if (comm->me == 0) error->warning(FLERR, "More than one compute {}", style);
+  int count = 0;
+  for (int i = 0; i < modify->ncompute; i++)
+    if (strcmp(modify->compute[i]->style,"erotate/sphere/atom") == 0) count++;
+  if (count > 1 && comm->me == 0)
+    error->warning(FLERR,"More than one compute erotate/sphere/atom");
 
   pfactor = 0.5 * force->mvv2e * INERTIA;
 }
@@ -73,7 +78,7 @@ void ComputeErotateSphereAtom::compute_peratom()
   if (atom->nmax > nmax) {
     memory->destroy(erot);
     nmax = atom->nmax;
-    memory->create(erot, nmax, "erotate/sphere/atom:erot");
+    memory->create(erot,nmax,"erotate/sphere/atom:erot");
     vector_atom = erot;
   }
 
@@ -88,12 +93,10 @@ void ComputeErotateSphereAtom::compute_peratom()
 
   for (int i = 0; i < nlocal; i++) {
     if (mask[i] & groupbit) {
-      erot[i] =
-          (omega[i][0] * omega[i][0] + omega[i][1] * omega[i][1] + omega[i][2] * omega[i][2]) *
-          radius[i] * radius[i] * rmass[i];
+      erot[i] = (omega[i][0]*omega[i][0] + omega[i][1]*omega[i][1] +
+                 omega[i][2]*omega[i][2]) * radius[i]*radius[i]*rmass[i];
       erot[i] *= pfactor;
-    } else
-      erot[i] = 0.0;
+    } else erot[i] = 0.0;
   }
 }
 
@@ -103,6 +106,6 @@ void ComputeErotateSphereAtom::compute_peratom()
 
 double ComputeErotateSphereAtom::memory_usage()
 {
-  double bytes = (double) nmax * sizeof(double);
+  double bytes = (double)nmax * sizeof(double);
   return bytes;
 }

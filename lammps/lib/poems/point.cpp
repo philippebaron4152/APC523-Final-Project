@@ -21,7 +21,8 @@
 Point::Point(){
   position.Zeros();
 }
-Point::~Point() = default;
+Point::~Point(){
+}
 
 bool Point::ReadIn(std::istream& in){
   return ReadInPointData(in);
@@ -38,6 +39,6 @@ Point* NewPoint(int type){
     case FIXEDPOINT :  // A Fixed Point
       return new FixedPoint();
     default  :  // error
-      return nullptr;
+      return 0;
   }
 }

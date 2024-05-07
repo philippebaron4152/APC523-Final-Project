@@ -6,7 +6,7 @@ fix_modify AtC output boundary_integral command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> output boundary_integral <fieldname> faceset [name]
 

@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -42,7 +42,7 @@ ComputePressureBocs::ComputePressureBocs(LAMMPS *lmp, int narg, char **arg) :
   Compute(lmp, narg, arg),
   vptr(nullptr), id_temp(nullptr)
 {
-  if (narg < 4) utils::missing_cmd_args(FLERR,"compute pressure/bocs", error);
+  if (narg < 4) error->all(FLERR,"Illegal compute pressure/bocs command");
   if (igroup) error->all(FLERR,"Compute pressure/bocs must use group all");
 
   scalar_flag = vector_flag = 1;
@@ -56,18 +56,18 @@ ComputePressureBocs::ComputePressureBocs(LAMMPS *lmp, int narg, char **arg) :
   phi_coeff = nullptr;
 
   // store temperature ID used by pressure computation
-  // ensure it is valid for temperature computation
+  // insure it is valid for temperature computation
 
   if (strcmp(arg[3],"NULL") == 0) id_temp = nullptr;
   else {
     id_temp = utils::strdup(arg[3]);
 
-    temperature = modify->get_compute_by_id(id_temp);
-    if (!temperature)
-      error->all(FLERR,"Could not find compute pressure/bocs temperature compute {}", id_temp);
-    if (temperature->tempflag == 0)
-      error->all(FLERR,"Compute pressure/bocs temperature compute {} does not compute "
-                 "temperature", id_temp);
+    int icompute = modify->find_compute(id_temp);
+    if (icompute < 0)
+      error->all(FLERR,"Could not find compute pressure/bocs temperature ID");
+    if (modify->compute[icompute]->tempflag == 0)
+      error->all(FLERR,"Compute pressure/bocs temperature ID does not "
+                 "compute temperature");
   }
 
   // process optional args
@@ -137,9 +137,10 @@ void ComputePressureBocs::init()
   // fixes could have changed or compute_modify could have changed it
 
   if (keflag) {
-    temperature = modify->get_compute_by_id(id_temp);
-    if (!temperature)
-      error->all(FLERR,"Could not find compute pressure/bocs temperature compute {}", id_temp);
+    int icompute = modify->find_compute(id_temp);
+    if (icompute < 0)
+      error->all(FLERR,"Could not find compute pressure/bocs temperature ID");
+    temperature = modify->compute[icompute];
   }
 
   // detect contributions to virial
@@ -157,8 +158,10 @@ void ComputePressureBocs::init()
     if (improperflag && force->improper) nvirial++;
   }
   if (fixflag) {
-    for (const auto &ifix : modify->get_fix_list())
-      if (ifix->thermo_virial) nvirial++;
+    Fix **fix = modify->fix;
+    int nfix = modify->nfix;
+    for (int i = 0; i < nfix; i++)
+      if (fix[i]->thermo_virial) nvirial++;
   }
 
   if (nvirial) {
@@ -171,11 +174,10 @@ void ComputePressureBocs::init()
       vptr[nvirial++] = force->dihedral->virial;
     if (improperflag && force->improper)
       vptr[nvirial++] = force->improper->virial;
-    if (fixflag) {
-      for (const auto &ifix : modify->get_fix_list())
-        if (ifix->virial_global_flag && ifix->thermo_virial)
-          vptr[nvirial++] = ifix->virial;
-    }
+    if (fixflag)
+      for (int i = 0; i < modify->nfix; i++)
+        if (modify->fix[i]->virial_global_flag && modify->fix[i]->thermo_virial)
+          vptr[nvirial++] = modify->fix[i]->virial;
   }
 
   // flag Kspace contribution separately, since not summed across procs
@@ -231,14 +233,23 @@ double ComputePressureBocs::get_cg_p_corr(double ** grid, int basis_type,
                                           double vCG)
 {
   int i = find_index(grid[0],vCG);
-  double deltax = vCG - grid[0][i];
+  double correction, deltax = vCG - grid[0][i];
 
   if (basis_type == BASIS_LINEAR_SPLINE)
-    return grid[1][i] + (deltax) * ( grid[1][i+1] - grid[1][i] ) / ( grid[0][i+1] - grid[0][i] );
+  {
+    correction = grid[1][i] + (deltax) *
+          ( grid[1][i+1] - grid[1][i] ) / ( grid[0][i+1] - grid[0][i] );
+  }
   else if (basis_type == BASIS_CUBIC_SPLINE)
-    return grid[1][i] + (grid[2][i] * deltax) + (grid[3][i] * pow(deltax,2)) + (grid[4][i] * pow(deltax,3));
-  else error->all(FLERR,"bad spline type passed to get_cg_p_corr()\n");
-  return 0.0;
+  {
+    correction = grid[1][i] + (grid[2][i] * deltax) +
+            (grid[3][i] * pow(deltax,2)) + (grid[4][i] * pow(deltax,3));
+  }
+  else
+  {
+    error->all(FLERR,"bad spline type passed to get_cg_p_corr()\n");
+  }
+  return correction;
 }
 
 /* ----------------------------------------------------------------------
@@ -250,8 +261,11 @@ void ComputePressureBocs::send_cg_info(int basis_type, int sent_N_basis,
                                        double *sent_phi_coeff, int sent_N_mol,
                                        double sent_vavg)
 {
-  if (basis_type == BASIS_ANALYTIC) p_basis_type = BASIS_ANALYTIC;
-  else error->all(FLERR,"Incorrect basis type passed to ComputePressureBocs\n");
+  if (basis_type == BASIS_ANALYTIC) { p_basis_type = BASIS_ANALYTIC; }
+  else
+  {
+    error->all(FLERR,"Incorrect basis type passed to ComputePressureBocs\n");
+  }
 
   p_match_flag = 1;
 

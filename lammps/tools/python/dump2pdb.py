@@ -9,16 +9,16 @@
 #          pdbfile = new PDB file
 #          template = PDB file to use as template for creating new PDB file
 #            this arg is optional, if not used a generic PDB file is created
-# Author:  Steve Plimpton (Sandia), sjplimp at gmail.com
+# Author:  Steve Plimpton (Sandia), sjplimp at sandia.gov
 
 import sys,os
 path = os.environ["LAMMPS_PYTHON_TOOLS"]
-sys.path.insert(1,path)
+sys.path.append(path)
 from dump import dump
 from pdbfile import pdbfile
 
 if len(sys.argv) != 8 and len(sys.argv) != 9:
-  sys.exit("Syntax: dump2pdb.py dumpfile Nid Ntype Nx Ny Nz pdbfile template")
+  raise StandardError, "Syntax: dump2pdb.py dumpfile Nid Ntype Nx Ny Nz pdbfile template"
 
 dumpfile = sys.argv[1]
 nid = int(sys.argv[2])

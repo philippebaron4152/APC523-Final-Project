@@ -84,7 +84,7 @@ LinearSolver::LinearSolver(
 // --------------------------------------------------------------------
 //  Setup
 // --------------------------------------------------------------------
-void LinearSolver::setup()
+void LinearSolver::setup(void)
 {
   tol_     = kTol;
   nVariables_ = matrix_.nRows();
@@ -113,7 +113,7 @@ void LinearSolver::setup()
 // --------------------------------------------------------------------
 //  Initialize
 // --------------------------------------------------------------------
-void LinearSolver::allow_reinitialization()
+void LinearSolver::allow_reinitialization(void)
 {
   if (constraintHandlerType_ == PENALIZE_CONSTRAINTS) {
     if (matrixModified_ ) throw ATC_Error("LinearSolver: can't allow reinitialization after matrix has been modified");
@@ -157,7 +157,7 @@ void LinearSolver::initialize(const BC_SET * bcs)
 // --------------------------------------------------------------------
 //  initialize_matrix
 // --------------------------------------------------------------------
-void LinearSolver::initialize_matrix()
+void LinearSolver::initialize_matrix(void)
 {
   if ( initializedMatrix_ ) return;
   if       (constraintHandlerType_ == PENALIZE_CONSTRAINTS) {
@@ -172,7 +172,7 @@ void LinearSolver::initialize_matrix()
 // --------------------------------------------------------------------
 //  initialize_inverse
 // --------------------------------------------------------------------
-void LinearSolver::initialize_inverse()
+void LinearSolver::initialize_inverse(void)
 {
   if ( initializedInverse_ ) return;
   if (solverType_ == ITERATIVE_SOLVE_SYMMETRIC
@@ -196,7 +196,7 @@ void LinearSolver::initialize_inverse()
 // --------------------------------------------------------------------
 //  initialize_rhs
 // --------------------------------------------------------------------
-void LinearSolver::initialize_rhs()
+void LinearSolver::initialize_rhs(void)
 {
   if (! rhs_ ) return;
   if (! bcs_ ) {
@@ -215,7 +215,7 @@ void LinearSolver::initialize_rhs()
 // add matrix penalty
 // - change matrix for Dirichlet conditions: add penalty
 // --------------------------------------------------------------------
-void LinearSolver::add_matrix_penalty()
+void LinearSolver::add_matrix_penalty(void)
 {
   penalty_ = kPenalty; // relative to matrix diagonal
   SPAR_MAT & A = matrixCopy_;
@@ -233,7 +233,7 @@ void LinearSolver::add_matrix_penalty()
 // partition matrix
 // - partition matrix based on Dirichlet constraints
 // --------------------------------------------------------------------
-void LinearSolver::partition_matrix()
+void LinearSolver::partition_matrix(void)
 {
   fixedSet_.clear();
   BC_SET::const_iterator itr;

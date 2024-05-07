@@ -7,16 +7,16 @@
 #          Nid,Ntype,Nx,Ny,Nz = columns #s for ID,type,x,y,z
 #                               (usually 1,2,3,4,5)
 #          cfgfile = new CFG file
-# Author:  Steve Plimpton (Sandia), sjplimp at gmail.com
+# Author:  Steve Plimpton (Sandia), sjplimp at sandia.gov
 
 import sys,os
 path = os.environ["LAMMPS_PYTHON_TOOLS"]
-sys.path.insert(1,path)
+sys.path.append(path)
 from dump import dump
 from cfg import cfg
 
 if len(sys.argv) != 8:
-  sys.exit("Syntax: dump2cfg.py dumpfile Nid Ntype Nx Ny Nz cfgfile")
+  raise StandardError, "Syntax: dump2cfg.py dumpfile Nid Ntype Nx Ny Nz cfgfile"
 
 dumpfile = sys.argv[1]
 nid = int(sys.argv[2])

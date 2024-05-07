@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    This software is distributed under the GNU General Public License.
 
@@ -22,6 +22,7 @@
 #include "force.h"
 #include "lattice.h"
 #include "memory.h"
+#include "modify.h"
 #include "neigh_list.h"
 #include "suffix.h"
 
@@ -108,9 +109,9 @@ void PairPeriPMBOMP::eval(int iifrom, int iito, ThrData * const thr)
   double *vfrac = atom->vfrac;
   double *s0 = atom->s0;
   double **x0 = atom->x0;
-  double **r0   = fix_peri_neigh->r0;
-  tagint **partner = fix_peri_neigh->partner;
-  int *npartner = fix_peri_neigh->npartner;
+  double **r0   = ((FixPeriNeigh *) modify->fix[ifix_peri])->r0;
+  tagint **partner = ((FixPeriNeigh *) modify->fix[ifix_peri])->partner;
+  int *npartner = ((FixPeriNeigh *) modify->fix[ifix_peri])->npartner;
 
   // lc = lattice constant
   // init_style guarantees it's the same in x, y, and z

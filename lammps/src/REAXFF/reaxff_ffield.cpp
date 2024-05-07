@@ -11,7 +11,7 @@
   Please cite the related publication:
   H. M. Aktulga, J. C. Fogarty, S. A. Pandit, A. Y. Grama,
   "Parallel Reactive Molecular Dynamics: Numerical Methods and
-  Algorithmic Techniques", Parallel Computing,  38, 245-259 (2012).
+  Algorithmic Techniques", Parallel Computing, in press.
 
   This program is free software; you can redistribute it and/or
   modify it under the terms of the GNU General Public License as
@@ -32,25 +32,20 @@
 #include "text_file_reader.h"
 #include "utils.h"
 
+#include <cctype>
 #include <cmath>
-#include <cstring>
-#include <exception>
 #include <string>
 
 using LAMMPS_NS::utils::open_potential;
 using LAMMPS_NS::utils::getsyserror;
-using LAMMPS_NS::utils::strmatch;
-using LAMMPS_NS::utils::uppercase;
-using LAMMPS_NS::EOFException;
-using LAMMPS_NS::ValueTokenizer;
 
 namespace ReaxFF {
 
-  class ffield_parser_error : public std::exception {
+  class parser_error : public std::exception {
     std::string message;
   public:
-    explicit ffield_parser_error(const std::string &mesg) { message = mesg; }
-    const char *what() const noexcept override { return message.c_str(); }
+    parser_error(const std::string &mesg) { message = mesg; }
+    const char *what() const noexcept { return message.c_str(); }
   };
 
   void Read_Force_Field(const char *filename, reax_interaction *reax,
@@ -63,30 +58,23 @@ namespace ReaxFF {
 
     // read and parse the force field only on rank 0
 
-#define THROW_ERROR(txt) throw ffield_parser_error(fmt::format("{}:{}: {}", filename, lineno, txt))
-
-#define CHECK_COLUMNS(want)                                                          \
-  if (values.count() < static_cast<std::size_t>(want))                               \
-    throw ffield_parser_error(fmt::format("{}:{}: Invalid force field file format: " \
-                                          " expected {} columns but found {}",       \
-                                          filename, lineno, want, values.count()))
+#define THROW_ERROR(txt)                                                \
+    throw parser_error(fmt::format("{}:{}: {}",filename,lineno,txt))
 
     if (control->me == 0) {
-      FILE *fp = open_potential(filename, lmp, nullptr);
+      FILE *fp = LAMMPS_NS::utils::open_potential(filename, lmp, nullptr);
       if (!fp)
-        error->one(FLERR,"The ReaxFF parameter file {} cannot be opened: {}",
-                   filename, getsyserror());
+        error->one(FLERR,fmt::format("The ReaxFF parameter file {} cannot be opened: {}",
+                                     filename, getsyserror()));
       LAMMPS_NS::TextFileReader reader(fp, "ReaxFF parameter");
       reader.ignore_comments = false;
 
       try {
         int i,j,k,l,m,n,lineno = 0;
 
-        // check if header comment line is present
+        // skip header comment line
 
-        auto line = reader.next_line();
-        if (strmatch(line, "^\\s*[0-9]+\\s+!.*general parameters.*"))
-          THROW_ERROR("First line of ReaxFF potential file must be a comment or empty");
+        reader.skip_line();
         ++lineno;
 
         // set some defaults
@@ -168,12 +156,14 @@ namespace ReaxFF {
 
           if ((values.count() < 8) && !lgflag)
             THROW_ERROR("This force field file requires using 'lgvdw yes'");
-          CHECK_COLUMNS(9);
+          if (values.count() < 9)
+            THROW_ERROR("Invalid force field file format");
 
-          // copy element symbol in uppercase and truncate stored element symbol if necessary
-          auto element = uppercase(values.next_string());
-          strncpy(sbp[i].name,element.c_str(),3);
-          sbp[i].name[3] = '\0';
+          auto element = values.next_string();
+          int len = MIN(element.size(),3); // truncate stored element symbol if necessary
+          for (j = 0; j < len; ++j)
+            sbp[i].name[j] = toupper(element[j]);
+          sbp[i].name[len] = '\0';
 
           sbp[i].r_s        = values.next_double();
           sbp[i].valency    = values.next_double();
@@ -189,7 +179,8 @@ namespace ReaxFF {
 
           values = reader.next_values(0);
           ++lineno;
-          CHECK_COLUMNS(8);
+          if (values.count() < 8)
+            THROW_ERROR("Invalid force field file format");
 
           sbp[i].alpha      = values.next_double();
           sbp[i].gamma_w    = values.next_double();
@@ -204,7 +195,8 @@ namespace ReaxFF {
 
           values = reader.next_values(0);
           ++lineno;
-          CHECK_COLUMNS(8);
+          if (values.count() < 8)
+            THROW_ERROR("Invalid force field file format");
 
           sbp[i].r_pi_pi    = values.next_double();
           sbp[i].p_lp2      = values.next_double();
@@ -212,13 +204,13 @@ namespace ReaxFF {
           sbp[i].b_o_131    = values.next_double();
           sbp[i].b_o_132    = values.next_double();
           sbp[i].b_o_133    = values.next_double();
-          sbp[i].bcut_acks2  = values.next_double();
 
           // line four
 
           values = reader.next_values(0);
           ++lineno;
-          CHECK_COLUMNS(8);
+          if (values.count() < 8)
+            THROW_ERROR("Invalid force field file format");
 
           sbp[i].p_ovun2    = values.next_double();
           sbp[i].p_val3     = values.next_double();
@@ -234,7 +226,8 @@ namespace ReaxFF {
           if (lgflag) {
             values = reader.next_values(0);
             ++lineno;
-            CHECK_COLUMNS(2);
+            if (values.count() < 2)
+              THROW_ERROR("Invalid force field file format");
             sbp[i].lgcij    = values.next_double();
             sbp[i].lgre     = values.next_double();
           } else sbp[i].lgcij = sbp[i].lgre = 0.0;
@@ -246,24 +239,27 @@ namespace ReaxFF {
             // Shielding van der Waals?
             if (sbp[i].gamma_w > 0.5) {
               if (gp.vdw_type != 0 && gp.vdw_type != 3) {
-                error->warning(FLERR, "Van der Waals parameters for element {} "
-                               "indicate inner wall+shielding, but earlier "
-                               "atoms indicate a different van der Waals "
-                               "method. This may cause division-by-zero "
-                               "errors. Keeping van der Waals setting for "
-                               "earlier atoms.",sbp[i].name);
-
+                const auto errmsg
+                  = fmt::format("Van der Waals parameters for element {} "
+                                "indicate inner wall+shielding, but earlier "
+                                "atoms indicate a different van der Waals "
+                                "method. This may cause division-by-zero "
+                                "errors. Keeping van der Waals setting for "
+                                "earlier atoms.",sbp[i].name);
+                error->warning(FLERR,errmsg);
               } else {
                 gp.vdw_type = 3;
               }
             } else {  // No shielding van der Waals parameters present
               if ((gp.vdw_type != 0) && (gp.vdw_type != 2)) {
-                error->warning(FLERR, "Van der Waals parameters for element {} "
-                               "indicate inner wall withou shielding, but "
-                               "earlier atoms indicate a different van der "
-                               "Waals-method. This may cause division-by-"
-                               "zero errors. Keeping van der Waals setting "
-                               "for earlier atoms.", sbp[i].name);
+                const auto errmsg
+                  = fmt::format("Van der Waals parameters for element {} "
+                                "indicate inner wall withou shielding, but "
+                                "earlier atoms indicate a different van der "
+                                "Waals-method. This may cause division-by-"
+                                "zero errors. Keeping van der Waals setting "
+                                "for earlier atoms.", sbp[i].name);
+                error->warning(FLERR,errmsg);
               } else {
                 gp.vdw_type = 2;
               }
@@ -271,18 +267,22 @@ namespace ReaxFF {
           } else { // No Inner wall parameters present
             if (sbp[i].gamma_w > 0.5) { // Shielding vdWaals
               if ((gp.vdw_type != 0) && (gp.vdw_type != 1)) {
-                error->warning(FLERR, "Van der Waals parameters for element {} "
-                               "indicate shielding without inner wall, but "
-                               "earlier elements indicate a different van der "
-                               "Waals method. This may cause division-by-zero "
-                               "errors. Keeping van der Waals setting for "
-                               "earlier atoms.", sbp[i].name);
+                const auto errmsg
+                  = fmt::format("Van der Waals parameters for element {} "
+                                "indicate shielding without inner wall, but "
+                                "earlier elements indicate a different van der "
+                                "Waals method. This may cause division-by-zero "
+                                "errors. Keeping van der Waals setting for "
+                                "earlier atoms.", sbp[i].name);
+                error->warning(FLERR,errmsg);
               } else {
                 gp.vdw_type = 1;
               }
             } else {
-              error->one(FLERR, "Inconsistent van der Waals parameters: "
-                         "No shielding or inner wall set for element {}", sbp[i].name);
+              error->one(FLERR,fmt::format("Inconsistent van der Waals "
+                                           "parameters: No shielding or inner "
+                                           "wall set for element {}",
+                                           sbp[i].name));
             }
           }
         }
@@ -291,7 +291,8 @@ namespace ReaxFF {
         for (i = 0; i < ntypes; i++) {
           if ((sbp[i].mass < 21) &&
               (sbp[i].valency_val != sbp[i].valency_boc)) {
-            error->warning(FLERR, "Changed valency_val to valency_boc for {}", sbp[i].name);
+            error->warning(FLERR,fmt::format("Changed valency_val to valency"
+                                             "_boc for {}", sbp[i].name));
             sbp[i].valency_val = sbp[i].valency_boc;
           }
         }
@@ -309,7 +310,8 @@ namespace ReaxFF {
 
           values = reader.next_values(0);
           ++lineno;
-          CHECK_COLUMNS(10);
+          if (values.count() < 10)
+            THROW_ERROR("Invalid force field file format");
 
           j = values.next_int() - 1;
           k = values.next_int() - 1;
@@ -332,7 +334,8 @@ namespace ReaxFF {
 
           values = reader.next_values(0);
           ++lineno;
-          CHECK_COLUMNS(7);
+          if (values.count() < 8)
+            THROW_ERROR("Invalid force field file format");
 
           if ((j < ntypes) && (k < ntypes)) {
             tbp[j][k].p_be2 = tbp[k][j].p_be2 = values.next_double();
@@ -341,11 +344,7 @@ namespace ReaxFF {
             values.skip();
             tbp[j][k].p_bo1 = tbp[k][j].p_bo1 = values.next_double();
             tbp[j][k].p_bo2 = tbp[k][j].p_bo2 = values.next_double();
-            // if the 8th value is missing use 0.0
-            if (values.has_next())
-              tbp[j][k].ovc   = tbp[k][j].ovc   = values.next_double();
-            else
-              tbp[j][k].ovc   = tbp[k][j].ovc   = 0.0;
+            tbp[j][k].ovc   = tbp[k][j].ovc   = values.next_double();
           }
         }
 
@@ -386,7 +385,8 @@ namespace ReaxFF {
         for (i = 0; i < n; ++i) {
           values = reader.next_values(0);
           ++lineno;
-          CHECK_COLUMNS(8 + lgflag);
+          if ((int)values.count() < 8 + lgflag)
+            THROW_ERROR("Invalid force field file format");
 
           j = values.next_int() - 1;
           k = values.next_int() - 1;
@@ -430,7 +430,8 @@ namespace ReaxFF {
         for (i = 0; i < n; ++i) {
           values = reader.next_values(0);
           ++lineno;
-          CHECK_COLUMNS(10);
+          if (values.count() < 10)
+            THROW_ERROR("Invalid force field file format");
 
           j = values.next_int() - 1;
           k = values.next_int() - 1;
@@ -484,7 +485,8 @@ namespace ReaxFF {
         for (i = 0; i < n; ++i) {
           values = reader.next_values(0);
           ++lineno;
-          CHECK_COLUMNS(9);
+          if (values.count() < 9)
+            THROW_ERROR("Invalid force field file format");
 
           j = values.next_int() - 1;
           k = values.next_int() - 1;
@@ -543,24 +545,22 @@ namespace ReaxFF {
           }
         }
 
-        // next line is number of hydrogen bond parameters. that block may be missing
+        // next line is number of hydrogen bond parameters
+
+        values = reader.next_values(0);
+        n = values.next_int();
+        ++lineno;
 
         for (i = 0; i < ntypes; ++i)
           for (j = 0; j < ntypes; ++j)
             for (k = 0; k < ntypes; ++k)
               hbp[i][j][k].r0_hb = -1.0;
 
-        auto thisline = reader.next_line();
-        if (!thisline) throw EOFException("ReaxFF parameter file has no hydrogen bond parameters");
-
-        values = ValueTokenizer(thisline);
-        n = values.next_int();
-        ++lineno;
-
         for (i = 0; i < n; ++i) {
           values = reader.next_values(0);
           ++lineno;
-          CHECK_COLUMNS(7);
+          if (values.count() < 7)
+            THROW_ERROR("Invalid force field file format");
 
           j = values.next_int() - 1;
           k = values.next_int() - 1;
@@ -578,12 +578,9 @@ namespace ReaxFF {
         }
 
         memory->destroy(tor_flag);
-      } catch (EOFException &e) {
-        error->warning(FLERR, e.what());
       } catch (std::exception &e) {
         error->one(FLERR,e.what());
       }
-      fclose(fp);
     }
 
     // broadcast global parameters and allocate list on ranks != 0
@@ -616,5 +613,4 @@ namespace ReaxFF {
     control->nonb_cut  = reax->gp.l[12];
   }
 #undef THROW_ERROR
-#undef CHECK_COLUMNS
 }

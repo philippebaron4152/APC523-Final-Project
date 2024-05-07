@@ -30,6 +30,7 @@
 #include "reaxff_omp.h"
 
 #include "error.h"
+#include "fix_omp.h"
 #include "pair_reaxff_omp.h"
 
 #include "reaxff_api.h"
@@ -265,7 +266,6 @@ namespace ReaxFF {
       for (int i = 0; i < system->N; ++i) {
         atom_i = &(system->my_atoms[i]);
         type_i  = atom_i->type;
-        if (type_i < 0) continue;
         sbp_i = &(system->reax_param.sbp[type_i]);
 
         start_i = Start_Index(i, far_nbrs);
@@ -277,7 +277,6 @@ namespace ReaxFF {
             int j = nbr_pj->nbr;
             atom_j = &(system->my_atoms[j]);
             type_j = atom_j->type;
-            if (type_j < 0) continue;
             sbp_j = &(system->reax_param.sbp[type_j]);
             twbp = &(system->reax_param.tbp[type_i][type_j]);
 
@@ -354,9 +353,6 @@ namespace ReaxFF {
       // Need to wait for all indices and tmp arrays accumulated.
 #if defined(_OPENMP)
 #pragma omp barrier
-      {
-        ;
-      }
 #endif
 
 #if defined(_OPENMP)
@@ -381,7 +377,6 @@ namespace ReaxFF {
         for (int i = 0; i < system->n; ++i) {
           atom_i = &(system->my_atoms[i]);
           type_i  = atom_i->type;
-          if (type_i < 0) continue;
           sbp_i = &(system->reax_param.sbp[type_i]);
           ihb = sbp_i->p_hbond;
 

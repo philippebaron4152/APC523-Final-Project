@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -30,12 +30,12 @@ class DumpAtomADIOS : public DumpAtom {
 
  public:
   DumpAtomADIOS(class LAMMPS *, int, char **);
-  ~DumpAtomADIOS() override;
+  virtual ~DumpAtomADIOS();
 
  protected:
-  void openfile() override;
-  void write() override;
-  void init_style() override;
+  virtual void openfile();
+  virtual void write();
+  virtual void init_style();
 
  private:
   DumpAtomADIOSInternal *internal;
@@ -44,3 +44,17 @@ class DumpAtomADIOS : public DumpAtom {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+    E: Cannot open dump file %s
+
+    The output file for the dump command cannot be opened.  Check that the
+    path and name are correct.
+
+    E: Too much per-proc info for dump
+
+    Number of local atoms times number of columns must fit in a 32-bit
+    integer for dump.
+
+    */

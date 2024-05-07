@@ -6,7 +6,7 @@ log command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    log file keyword
 

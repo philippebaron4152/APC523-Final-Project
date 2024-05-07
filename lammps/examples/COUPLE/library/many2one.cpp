@@ -2,7 +2,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include "many2one.h"
-#include "memorylib.h"
+#include "memory.h"
 
 /* ---------------------------------------------------------------------- */
 
@@ -12,7 +12,7 @@ Many2One::Many2One(MPI_Comm caller_comm)
   MPI_Comm_rank(comm,&me);
   MPI_Comm_size(comm,&nprocs);
 
-  memory = new MemoryLib(comm);
+  memory = new Memory(comm);
 
   if (me == 0) {
     counts = new int[nprocs];

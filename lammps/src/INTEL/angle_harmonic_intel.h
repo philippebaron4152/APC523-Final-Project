@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -33,8 +33,9 @@ namespace LAMMPS_NS {
 class AngleHarmonicIntel : public AngleHarmonic {
  public:
   AngleHarmonicIntel(class LAMMPS *);
-  void compute(int, int) override;
-  void init_style() override;
+  virtual ~AngleHarmonicIntel();
+  virtual void compute(int, int);
+  virtual void init_style();
 
  protected:
   FixIntel *fix;
@@ -59,8 +60,8 @@ class AngleHarmonicIntel : public AngleHarmonic {
     } fc_packed1;
 
     fc_packed1 *fc;
-    ForceConst() : fc(nullptr), _nangletypes(0) {}
-    ~ForceConst() noexcept(false) { set_ntypes(0, nullptr); }
+    ForceConst() : _nangletypes(0) {}
+    ~ForceConst() { set_ntypes(0, nullptr); }
 
     void set_ntypes(const int nangletypes, Memory *memory);
 
@@ -76,3 +77,7 @@ class AngleHarmonicIntel : public AngleHarmonic {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+*/

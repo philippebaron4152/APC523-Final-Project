@@ -224,7 +224,7 @@ const double kMinScale_ = 10000.;
   //--------------------------------------------------------
   //  Initialize
   //--------------------------------------------------------
-  void ConcentrationRegulatorMethodTransition::initialize()
+  void ConcentrationRegulatorMethodTransition::initialize(void)
   {
 #ifdef ATC_VERBOSE
     lammpsInterface_->print_msg_once(
@@ -289,7 +289,7 @@ const double kMinScale_ = 10000.;
   //--------------------------------------------------------
   //  pre exchange
   //--------------------------------------------------------
-  void ConcentrationRegulatorMethodTransition::pre_exchange()
+  void ConcentrationRegulatorMethodTransition::pre_exchange(void)
   {
     // return if should not be called on this timestep
     if ( ! lammpsInterface_->now(frequency_)) return;
@@ -312,7 +312,7 @@ const double kMinScale_ = 10000.;
   //--------------------------------------------------------
   //  pre force
   //--------------------------------------------------------
-  void ConcentrationRegulatorMethodTransition::pre_force()
+  void ConcentrationRegulatorMethodTransition::pre_force(void)
   {
     transition();
   }
@@ -353,7 +353,7 @@ const double kMinScale_ = 10000.;
   //--------------------------------------------------------
   //  excess
   //--------------------------------------------------------
-  int ConcentrationRegulatorMethodTransition::excess() const
+  int ConcentrationRegulatorMethodTransition::excess(void) const
   {
      int nexcess = count()-targetCount_;
      nexcess = max(min(nexcess,maxExchanges_),-maxExchanges_);
@@ -362,7 +362,7 @@ const double kMinScale_ = 10000.;
   //--------------------------------------------------------
   //  count
   //--------------------------------------------------------
-  int ConcentrationRegulatorMethodTransition::count() const
+  int ConcentrationRegulatorMethodTransition::count(void) const
   {
     // integrate concentration over region
     const DENS_MAT & c = (atc_->field(SPECIES_CONCENTRATION)).quantity();

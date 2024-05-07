@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -36,12 +36,12 @@ namespace LAMMPS_NS {
 class PairTersoffTable : public Pair {
  public:
   PairTersoffTable(class LAMMPS *);
-  ~PairTersoffTable() override;
-  void compute(int, int) override;
-  void settings(int, char **) override;
-  void coeff(int, char **) override;
-  void init_style() override;
-  double init_one(int, int) override;
+  virtual ~PairTersoffTable();
+  virtual void compute(int, int);
+  void settings(int, char **);
+  void coeff(int, char **);
+  void init_style();
+  double init_one(int, int);
 
   static constexpr int NPARAMS_PER_LINE = 17;
 
@@ -69,8 +69,8 @@ class PairTersoffTable : public Pair {
 
   double **preGtetaFunction, **preGtetaFunctionDerived;
   double *preCutoffFunction, *preCutoffFunctionDerived;
-  virtual void allocatePreLoops();
-  virtual void deallocatePreLoops();
+  virtual void allocatePreLoops(void);
+  virtual void deallocatePreLoops(void);
 
   // grids
 
@@ -79,8 +79,8 @@ class PairTersoffTable : public Pair {
   double **gtetaFunction, **gtetaFunctionDerived;
   double **betaZetaPower, **betaZetaPowerDerived;
 
-  void allocateGrids();
-  void deallocateGrids();
+  void allocateGrids(void);
+  void deallocateGrids(void);
 };
 
 }    // namespace LAMMPS_NS

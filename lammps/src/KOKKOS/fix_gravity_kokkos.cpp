@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -16,12 +16,15 @@
 
 #include "atom_kokkos.h"
 #include "atom_masks.h"
+#include "atom_vec.h"
 #include "input.h"
 #include "modify.h"
 #include "update.h"
 #include "variable.h"
 
 using namespace LAMMPS_NS;
+
+enum{CONSTANT,EQUAL};
 
 /* ---------------------------------------------------------------------- */
 

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -16,6 +16,9 @@
 FixStyle(reaxff/species/kk,FixReaxFFSpeciesKokkos);
 FixStyle(reaxff/species/kk/device,FixReaxFFSpeciesKokkos);
 FixStyle(reaxff/species/kk/host,FixReaxFFSpeciesKokkos);
+FixStyle(reax/c/species/kk,FixReaxFFSpeciesKokkos);
+FixStyle(reax/c/species/kk/device,FixReaxFFSpeciesKokkos);
+FixStyle(reax/c/species/kk/host,FixReaxFFSpeciesKokkos);
 // clang-format on
 #else
 
@@ -32,11 +35,11 @@ namespace LAMMPS_NS {
 class FixReaxFFSpeciesKokkos : public FixReaxFFSpecies {
  public:
   FixReaxFFSpeciesKokkos(class LAMMPS *, int, char **);
-
-  void init() override;
+  virtual ~FixReaxFFSpeciesKokkos();
+  void init();
 
  private:
-  void FindMolecule() override;
+  void FindMolecule();
 };
 }
 

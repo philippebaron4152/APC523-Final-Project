@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,19 +27,19 @@ namespace LAMMPS_NS {
 class ComputeTempRamp : public Compute {
  public:
   ComputeTempRamp(class LAMMPS *, int, char **);
-  ~ComputeTempRamp() override;
-  void init() override {}
-  void setup() override;
-  double compute_scalar() override;
-  void compute_vector() override;
+  ~ComputeTempRamp();
+  void init() {}
+  void setup();
+  double compute_scalar();
+  void compute_vector();
 
-  void remove_bias(int, double *) override;
-  void remove_bias_all() override;
-  void remove_bias_thr(int, double *, double *) override;
-  void restore_bias(int, double *) override;
-  void restore_bias_thr(int, double *, double *) override;
-  void restore_bias_all() override;
-  double memory_usage() override;
+  void remove_bias(int, double *);
+  void remove_bias_all();
+  void remove_bias_thr(int, double *, double *);
+  void restore_bias(int, double *);
+  void restore_bias_thr(int, double *, double *);
+  void restore_bias_all();
+  double memory_usage();
 
  private:
   int coord_dim;
@@ -56,3 +56,18 @@ class ComputeTempRamp : public Compute {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal ... command
+
+Self-explanatory.  Check the input script syntax and compare to the
+documentation for the command.  You can use -echo screen as a
+command-line option when running LAMMPS to see the offending line.
+
+E: Temperature compute degrees of freedom < 0
+
+This should not happen if you are calculating the temperature
+on a valid set of atoms.
+
+*/

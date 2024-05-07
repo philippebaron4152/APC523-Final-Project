@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,12 +27,14 @@ namespace LAMMPS_NS {
 class AngleCosineDelta : public AngleCosineSquared {
  public:
   AngleCosineDelta(class LAMMPS *);
-  void compute(int, int) override;
-  double single(int, int, int, int) override;
-  void born_matrix(int type, int i1, int i2, int i3, double &du, double &du2) override;
+  virtual void compute(int, int);
+  double single(int, int, int, int);
 };
 
 }    // namespace LAMMPS_NS
 
 #endif
 #endif
+/* ERROR/WARNING messages:
+
+*/

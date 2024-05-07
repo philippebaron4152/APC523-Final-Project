@@ -6,7 +6,7 @@ fix_modify AtC control mask_direction command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> control mask_direction <direction> <on|off>
 

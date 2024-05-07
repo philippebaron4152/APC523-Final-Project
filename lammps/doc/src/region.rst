@@ -6,35 +6,29 @@ region command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    region ID style args keyword arg ...
 
 * ID = user-assigned name for the region
-* style = *delete* or *block* or *cone* or *cylinder* or *ellipsoid* or *plane* or *prism* or *sphere* or *union* or *intersect*
+* style = *delete* or *block* or *cone* or *cylinder* or *plane* or *prism* or *sphere* or *union* or *intersect*
 
   .. parsed-literal::
 
        *delete* = no args
        *block* args = xlo xhi ylo yhi zlo zhi
          xlo,xhi,ylo,yhi,zlo,zhi = bounds of block in all dimensions (distance units)
-         xlo,xhi,ylo,yhi,zlo,zhi can be a variable
        *cone* args = dim c1 c2 radlo radhi lo hi
          dim = *x* or *y* or *z* = axis of cone
          c1,c2 = coords of cone axis in other 2 dimensions (distance units)
          radlo,radhi = cone radii at lo and hi end (distance units)
          lo,hi = bounds of cone in dim (distance units)
-         c1,c2,radlo,radhi,lo,hi can be a variable (see below)
        *cylinder* args = dim c1 c2 radius lo hi
          dim = *x* or *y* or *z* = axis of cylinder
          c1,c2 = coords of cylinder axis in other 2 dimensions (distance units)
          radius = cylinder radius (distance units)
            c1,c2, and radius can be a variable (see below)
          lo,hi = bounds of cylinder in dim (distance units)
-       *ellipsoid* args = x y z a b c
-         x,y,z = center of ellipsoid (distance units)
-         a,b,c = half the length of the principal axes of the ellipsoid (distance units)
-           x,y,z,a,b and c can be a variable (see below)
        *plane* args = px py pz nx ny nz
          px,py,pz = point on the plane (distance units)
          nx,ny,nz = direction normal to plane (distance units)
@@ -66,7 +60,7 @@ Syntax
          *lattice* = the geometry is defined in lattice units
          *box* = the geometry is defined in simulation box units
        *move* args = v_x v_y v_z
-         v_x,v_y,v_z = equal-style variables for x,y,z displacement of region over time (distance units)
+         v_x,v_y,v_z = equal-style variables for x,y,z displacement of region over time
        *rotate* args = v_theta Px Py Pz Rx Ry Rz
          v_theta = equal-style variable for rotaton of region over time (in radians)
          Px,Py,Pz = origin for axis of rotation (distance units)
@@ -164,14 +158,6 @@ Thus the third example above specifies a cylinder with its axis in the
 y-direction located at x = 2.0 and z = 3.0, with a radius of 5.0, and
 extending in the y-direction from -5.0 to the upper box boundary.
 
-.. versionadded:: 4May2022
-
-For style *ellipsoid*, an axis-aligned ellipsoid is defined. The
-ellipsoid has its center at (x,y,z) and is defined by 3 axis-aligned
-vectors given by A = (a,0,0); B = (0,b,0); C = (0,0,c).  Note that
-although the ellipsoid is specified as axis-aligned it can be rotated
-via the optional *rotate* keyword.
-
 For style *plane*, a plane is defined which contain the point
 (px,py,pz) and has a normal vector (nx,ny,nz).  The normal vector does
 not have to be of unit length.  The "inside" of the plane is the
@@ -198,22 +184,15 @@ since if the maximum tilt factor is 5 (as in this example), then
 configurations with tilt = ..., -15, -5, 5, 15, 25, ... are all
 geometrically equivalent.
 
-For style *sphere*, a sphere is defined with its center at (x,y,z)
-and with radius as its radius.
-
-The *radius* value for styles *sphere* and *cylinder*, and the
-parameters a,b,c for style *ellipsoid*, can each be specified as an
-equal-style :doc:`variable <variable>`.  Likewise, for style *sphere*
-and *ellipsoid* the x-, y-, and z- coordinates of the center of the
-sphere/ellipsoid can be specified as an equal-style variable.  And for
-style *cylinder* the two center positions c1 and c2 for the location
-of the cylinder axes can be specified as a equal-style variable. For style *cone*
-all properties can be defined via equal-style variables.
-
-If the value is a variable, it should be specified as v_name, where
-name is the variable name.  In this case, the variable will be
-evaluated each timestep, and its value used to determine the radius of
-the region.
+The *radius* value for style *sphere* and *cylinder* can be specified
+as an equal-style :doc:`variable <variable>`.  If the value is a
+variable, it should be specified as v_name, where name is the variable
+name.  In this case, the variable will be evaluated each timestep, and
+its value used to determine the radius of the region. For style *sphere*
+also the x-, y-, and z- coordinate of the center of the sphere and for
+style *cylinder* the two center positions c1 and c2 for the location of
+the cylinder axes can be a variable with the same kind of effect and
+requirements than for the radius.
 
 Equal-style variables can specify formulas with various mathematical
 functions, and include :doc:`thermo_style <thermo_style>` command
@@ -271,9 +250,6 @@ define the lattice spacings which are used as follows:
   to lo and hi.  The spacings in the two radial dimensions are applied
   to c1 and c2.  The cylinder radius is scaled by the lattice
   spacing in the dimension corresponding to c1.
-* For style *ellipsoid*, the lattice spacing in dimensions x,y,z are
-  applied to the ellipsoid center x,y,z.  The spacing in dimensions
-  x,y,z are applied to the ellipsoid radii a,b,c respectively.
 * For style *plane*, the lattice spacing in dimension x is applied to
   px and nx, similarly the spacings in dimensions y,z are applied to
   py/ny and pz/nz.
@@ -395,13 +371,26 @@ sub-regions can be defined with the *open* keyword.
 
 ----------
 
-.. include:: accel_styles.rst
+Styles with a *gpu*, *intel*, *kk*, *omp*, or *opt* suffix are
+functionally the same as the corresponding style without the suffix.
+They have been optimized to run faster, depending on your available
+hardware, as discussed on the :doc:`Speed packages <Speed_packages>` doc
+page.  The accelerated styles take the same arguments and should
+produce the same results, except for round-off and precision issues.
 
-.. note::
+The code using the region (such as a fix or compute) must also be supported
+by Kokkos or no acceleration will occur. Currently, only *block* style
+regions are supported by Kokkos.
 
-  Currently, only *block* style regions are supported by Kokkos.  The
-  code using the region (such as a fix or compute) must also be
-  supported by Kokkos or no acceleration will occur.
+These accelerated styles are part of the Kokkos package.  They are
+only enabled if LAMMPS was built with that package.  See the :doc:`Build package <Build_package>` page for more info.
+
+You can specify the accelerated styles explicitly in your input script
+by including their suffix, or you can use the :doc:`-suffix command-line switch <Run_options>` when you invoke LAMMPS, or you can use the
+:doc:`suffix <suffix>` command in your input script.
+
+See the :doc:`Speed packages <Speed_packages>` page for more
+instructions on how to use the accelerated styles effectively.
 
 ----------
 

@@ -1,7 +1,6 @@
 .. index:: pair_style coul/slater
 .. index:: pair_style coul/slater/cut
 .. index:: pair_style coul/slater/long
-.. index:: pair_style coul/slater/long/gpu
 
 pair_style coul/slater command
 ==============================
@@ -11,8 +10,6 @@ pair_style coul/slater/cut command
 
 pair_style coul/slater/long command
 ===================================
-
-Accelerator Variants: *coul/slater/long/gpu*
 
 Syntax
 """"""

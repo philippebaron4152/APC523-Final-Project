@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -89,6 +89,11 @@ thyla_part::thyla_part( int type, double *args, double xlo, double ylo, double z
   y0 = (type == THYLA_TYPE_SPHERE) ? params[2] : params[4];
   z0 = (type == THYLA_TYPE_SPHERE) ? params[3] : params[5];
 }
+
+
+
+thyla_part::~thyla_part()
+{}
 
 double thyla_part::g(const double *x)
 {

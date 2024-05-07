@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -15,6 +15,7 @@
 #ifdef FIX_CLASS
 // clang-format off
 FixStyle(reaxff/species,FixReaxFFSpecies);
+FixStyle(reax/c/species,FixReaxFFSpecies);
 // clang-format on
 #else
 
@@ -34,35 +35,30 @@ typedef struct {
 class FixReaxFFSpecies : public Fix {
  public:
   FixReaxFFSpecies(class LAMMPS *, int, char **);
-  ~FixReaxFFSpecies() override;
-  int setmask() override;
-  void init() override;
-  void init_list(int, class NeighList *) override;
-  void setup(int) override;
-  void post_integrate() override;
-  double compute_vector(int) override;
+  virtual ~FixReaxFFSpecies();
+  int setmask();
+  virtual void init();
+  void init_list(int, class NeighList *);
+  void setup(int);
+  void post_integrate();
+  double compute_vector(int);
 
  protected:
-  int nmax, nlocal, ntypes, ntotal;
-  int nrepeat, nfreq, posfreq, compressed, ndelspec;
+  int me, nprocs, nmax, nlocal, ntypes, ntotal;
+  int nrepeat, nfreq, posfreq;
   int Nmoltype, vector_nmole, vector_nspec;
-  int *Name, *MolName, *NMol, *nd, *MolType, *molmap, *mark;
-  int *Mol2Spec;
+  int *Name, *MolName, *NMol, *nd, *MolType, *molmap;
   double *clusterID;
   AtomCoord *x0;
+
+  double bg_cut;
   double **BOCut;
+  char **tmparg;
 
-  std::vector<std::string> del_species;
-
-  FILE *fp, *pos, *fdel;
+  FILE *fp, *pos;
   int eleflag, posflag, multipos, padflag, setupflag;
-  int delflag, specieslistflag, masslimitflag;
-  int delete_Nlimit, delete_Nlimit_varid;
-  std::string delete_Nlimit_varname;
-  int delete_Nsteps, *delete_Tcount;
-  double massmin, massmax;
-  int singlepos_opened, multipos_opened, del_opened;
-  char *ele, **eletype, *filepos, *filedel;
+  int singlepos_opened, multipos_opened;
+  char *ele, **eletype, *filepos;
 
   void Output_ReaxFF_Bonds(bigint, FILE *);
   AtomCoord chAnchor(AtomCoord, AtomCoord);
@@ -70,15 +66,14 @@ class FixReaxFFSpecies : public Fix {
   void SortMolecule(int &);
   void FindSpecies(int, int &);
   void WriteFormulas(int, int);
-  void DeleteSpecies(int, int);
   int CheckExistence(int, int);
 
   int nint(const double &);
-  int pack_forward_comm(int, int *, double *, int, int *) override;
-  void unpack_forward_comm(int, int, double *) override;
+  int pack_forward_comm(int, int *, double *, int, int *);
+  void unpack_forward_comm(int, int, double *);
   void OpenPos();
   void WritePos(int, int);
-  double memory_usage() override;
+  double memory_usage();
 
   bigint nvalid;
 

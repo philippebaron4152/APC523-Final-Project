@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -24,7 +24,6 @@
 #include "domain.h"
 #include "error.h"
 #include "fix_deform.h"
-#include "fix_drude.h"
 #include "force.h"
 #include "irregular.h"
 #include "kspace.h"
@@ -40,8 +39,8 @@
 using namespace LAMMPS_NS;
 using namespace FixConst;
 
-static constexpr double DELTAFLIP = 0.1;
-static constexpr double TILTMAX = 1.5;
+#define DELTAFLIP 0.1
+#define TILTMAX 1.5
 
 enum{NOBIAS,BIAS};
 enum{NONE,XYZ,XY,YZ,XZ};
@@ -52,13 +51,14 @@ enum{ISO,ANISO,TRICLINIC};
  ---------------------------------------------------------------------- */
 
 FixTGNHDrude::FixTGNHDrude(LAMMPS *lmp, int narg, char **arg) :
-    Fix(lmp, narg, arg), irregular(nullptr), id_temp(nullptr), id_press(nullptr), etamol(nullptr),
-    etamol_dot(nullptr), etamol_dotdot(nullptr), etamol_mass(nullptr), etaint(nullptr),
-    etaint_dot(nullptr), etaint_dotdot(nullptr), etaint_mass(nullptr), etadrude(nullptr),
-    etadrude_dot(nullptr), etadrude_dotdot(nullptr), etadrude_mass(nullptr), etap(nullptr),
-    etap_dot(nullptr), etap_dotdot(nullptr), etap_mass(nullptr)
+  Fix(lmp, narg, arg),
+  rfix(nullptr), irregular(nullptr), id_temp(nullptr), id_press(nullptr),
+  etamol(nullptr), etamol_dot(nullptr), etamol_dotdot(nullptr), etamol_mass(nullptr),
+  etaint(nullptr), etaint_dot(nullptr), etaint_dotdot(nullptr), etaint_mass(nullptr),
+  etadrude(nullptr), etadrude_dot(nullptr), etadrude_dotdot(nullptr), etadrude_mass(nullptr),
+  etap(nullptr), etap_dot(nullptr), etap_dotdot(nullptr), etap_mass(nullptr)
 {
-  if (narg < 4) error->all(FLERR, "Illegal fix {} command", style);
+  if (narg < 4) error->all(FLERR,"Illegal fix nvt/npt/nph command");
 
   restart_global = 1;
   dynamic_group_allow = 0;
@@ -255,7 +255,9 @@ FixTGNHDrude::FixTGNHDrude(LAMMPS *lmp, int narg, char **arg) :
       iarg += 2;
     } else if (strcmp(arg[iarg],"mtk") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal fix nvt/npt/nph command");
-      mtk_flag = utils::logical(FLERR, arg[iarg + 1], false, lmp);
+      if (strcmp(arg[iarg+1],"yes") == 0) mtk_flag = 1;
+      else if (strcmp(arg[iarg+1],"no") == 0) mtk_flag = 0;
+      else error->all(FLERR,"Illegal fix nvt/npt/nph command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"tloop") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal fix nvt/npt/nph command");
@@ -274,19 +276,27 @@ FixTGNHDrude::FixTGNHDrude(LAMMPS *lmp, int narg, char **arg) :
       iarg += 2;
     } else if (strcmp(arg[iarg],"scalexy") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal fix nvt/npt/nph command");
-      scalexy = utils::logical(FLERR, arg[iarg + 1], false, lmp);
+      if (strcmp(arg[iarg+1],"yes") == 0) scalexy = 1;
+      else if (strcmp(arg[iarg+1],"no") == 0) scalexy = 0;
+      else error->all(FLERR,"Illegal fix nvt/npt/nph command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"scalexz") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal fix nvt/npt/nph command");
-      scalexz = utils::logical(FLERR, arg[iarg + 1], false, lmp);
+      if (strcmp(arg[iarg+1],"yes") == 0) scalexz = 1;
+      else if (strcmp(arg[iarg+1],"no") == 0) scalexz = 0;
+      else error->all(FLERR,"Illegal fix nvt/npt/nph command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"scaleyz") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal fix nvt/npt/nph command");
-      scaleyz = utils::logical(FLERR, arg[iarg + 1], false, lmp);
+      if (strcmp(arg[iarg+1],"yes") == 0) scaleyz = 1;
+      else if (strcmp(arg[iarg+1],"no") == 0) scaleyz = 0;
+      else error->all(FLERR,"Illegal fix nvt/npt/nph command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"flip") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal fix nvt/npt/nph command");
-      flipflag = utils::logical(FLERR, arg[iarg + 1], false, lmp);
+      if (strcmp(arg[iarg+1],"yes") == 0) flipflag = 1;
+      else if (strcmp(arg[iarg+1],"no") == 0) flipflag = 0;
+      else error->all(FLERR,"Illegal fix nvt/npt/nph command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"fixedpoint") == 0) {
       if (iarg+4 > narg) error->all(FLERR,"Illegal fix nvt/npt/nph command");
@@ -506,6 +516,9 @@ FixTGNHDrude::FixTGNHDrude(LAMMPS *lmp, int narg, char **arg) :
     }
   }
 
+  nrigid = 0;
+  rfix = nullptr;
+
   if (pre_exchange_flag) irregular = new Irregular(lmp);
   else irregular = nullptr;
 
@@ -515,15 +528,15 @@ FixTGNHDrude::FixTGNHDrude(LAMMPS *lmp, int narg, char **arg) :
   vol0 = t0 = 0.0;
 
   // find fix drude
-
-  auto fdrude = modify->get_fix_by_style("^drude$");
-  if (fdrude.size() < 1) error->all(FLERR, "Fix {} requires fix drude", style);
-  fix_drude = dynamic_cast<FixDrude *>(fdrude[0]);
-  if (!fix_drude) error->all(FLERR, "Fix {} requires fix drude", style);
+  int ifix;
+  for (ifix = 0; ifix < modify->nfix; ifix++)
+    if (strcmp(modify->fix[ifix]->style,"drude") == 0) break;
+  if (ifix == modify->nfix) error->all(FLERR, "fix tgnh/drude requires fix drude");
+  fix_drude = (FixDrude *) modify->fix[ifix];
 
   // make sure ghost atoms have velocity
   if (!comm->ghost_velocity)
-    error->all(FLERR,"Fix {} requires ghost velocities. Use comm_modify vel yes", style);
+    error->all(FLERR,"fix tgnh/drude requires ghost velocities. Use comm_modify vel yes");
 }
 
 /* ---------------------------------------------------------------------- */
@@ -532,36 +545,38 @@ FixTGNHDrude::~FixTGNHDrude()
 {
   if (copymode) return;
 
+  delete [] rfix;
+
   delete irregular;
 
   // delete temperature and pressure if fix created them
 
   if (tcomputeflag) modify->delete_compute(id_temp);
-  delete[] id_temp;
+  delete [] id_temp;
 
   if (tstat_flag) {
-    delete[] etaint;
-    delete[] etaint_dot;
-    delete[] etaint_dotdot;
-    delete[] etaint_mass;
-    delete[] etamol;
-    delete[] etamol_dot;
-    delete[] etamol_dotdot;
-    delete[] etamol_mass;
-    delete[] etadrude;
-    delete[] etadrude_dot;
-    delete[] etadrude_dotdot;
-    delete[] etadrude_mass;
+    delete [] etaint;
+    delete [] etaint_dot;
+    delete [] etaint_dotdot;
+    delete [] etaint_mass;
+    delete [] etamol;
+    delete [] etamol_dot;
+    delete [] etamol_dotdot;
+    delete [] etamol_mass;
+    delete [] etadrude;
+    delete [] etadrude_dot;
+    delete [] etadrude_dotdot;
+    delete [] etadrude_mass;
   }
 
   if (pstat_flag) {
     if (pcomputeflag) modify->delete_compute(id_press);
-    delete[] id_press;
+    delete [] id_press;
     if (mpchain) {
-      delete[] etap;
-      delete[] etap_dot;
-      delete[] etap_dotdot;
-      delete[] etap_mass;
+      delete [] etap;
+      delete [] etap_dot;
+      delete [] etap_dotdot;
+      delete [] etap_mass;
     }
   }
 }
@@ -589,7 +604,7 @@ void FixTGNHDrude::init()
   if (pstat_flag)
     for (int i = 0; i < modify->nfix; i++)
       if (strcmp(modify->fix[i]->style,"deform") == 0) {
-        int *dimflag = (dynamic_cast<FixDeform *>(modify->fix[i]))->dimflag;
+        int *dimflag = ((FixDeform *) modify->fix[i])->dimflag;
         if ((p_flag[0] && dimflag[0]) || (p_flag[1] && dimflag[1]) ||
             (p_flag[2] && dimflag[2]) || (p_flag[3] && dimflag[3]) ||
             (p_flag[4] && dimflag[4]) || (p_flag[5] && dimflag[5]))
@@ -599,15 +614,19 @@ void FixTGNHDrude::init()
 
   // set temperature and pressure ptrs
 
-  temperature = modify->get_compute_by_id(id_temp);
-  if (!temperature) error->all(FLERR,"Temperature ID for fix {} does not exist", style);
+  int icompute = modify->find_compute(id_temp);
+  if (icompute < 0)
+    error->all(FLERR,"Temperature ID for fix nvt/npt does not exist");
+  temperature = modify->compute[icompute];
 
   if (temperature->tempbias) which = BIAS;
   else which = NOBIAS;
 
   if (pstat_flag) {
-    pressure = modify->get_compute_by_id(id_press);
-    if (!pressure) error->all(FLERR,"Pressure ID for fix {} does not exist", id_press);
+    icompute = modify->find_compute(id_press);
+    if (icompute < 0)
+      error->all(FLERR,"Pressure ID for fix npt/nph does not exist");
+    pressure = modify->compute[icompute];
   }
 
   // set timesteps and frequencies
@@ -654,16 +673,26 @@ void FixTGNHDrude::init()
   else kspace_flag = 0;
 
   if (utils::strmatch(update->integrate_style,"^respa")) {
-    nlevels_respa = (dynamic_cast<Respa *>(update->integrate))->nlevels;
-    step_respa = (dynamic_cast<Respa *>(update->integrate))->step;
+    nlevels_respa = ((Respa *) update->integrate)->nlevels;
+    step_respa = ((Respa *) update->integrate)->step;
     dto = 0.5*step_respa[0];
   }
 
   // detect if any rigid fixes exist so rigid bodies move when box is remapped
+  // rfix[] = indices to each fix rigid
 
-  rfix.clear();
-  for (auto &ifix : modify->get_fix_list())
-    if (ifix->rigid_flag) rfix.push_back(ifix);
+  delete [] rfix;
+  nrigid = 0;
+  rfix = nullptr;
+
+  for (int i = 0; i < modify->nfix; i++)
+    if (modify->fix[i]->rigid_flag) nrigid++;
+  if (nrigid) {
+    rfix = new int[nrigid];
+    nrigid = 0;
+    for (int i = 0; i < modify->nfix; i++)
+      if (modify->fix[i]->rigid_flag) rfix[nrigid++] = i;
+  }
 }
 
 /* ----------------------------------------------------------------------
@@ -712,7 +741,7 @@ void FixTGNHDrude::setup_mol_mass_dof() {
   memory->create(v_mol_tmp, n_mol + 1, 3, "fix_tgnh_drude::v_mol_tmp");
   memory->create(mass_mol, n_mol + 1, "fix_tgnh_drude::mass_mol");
 
-  auto mass_tmp = new double[n_mol + 1];
+  double *mass_tmp = new double[n_mol + 1];
   memset(mass_tmp, 0, sizeof(double) * (n_mol + 1));
   for (int i = 0; i < atom->nlocal; i++) {
     id_mol = molecule[i];
@@ -741,7 +770,7 @@ void FixTGNHDrude::setup_mol_mass_dof() {
               dof_mol, dof_int, dof_drude);
     }
   }
-  if (dof_mol <=0 || dof_int <=0 || dof_drude <=0)
+  if (dof_mol <=0 or dof_int <=0 or dof_drude <=0)
     error->all(FLERR, "TGNHC thermostat requires DOFs of molecules, atoms and dipoles larger than 0");
 }
 
@@ -1076,6 +1105,7 @@ void FixTGNHDrude::couple()
 
 void FixTGNHDrude::remap()
 {
+  int i;
   double oldlo,oldhi;
   double expfac;
 
@@ -1090,7 +1120,9 @@ void FixTGNHDrude::remap()
 
   domain->x2lamda(nlocal);
 
-  for (auto &ifix : rfix) ifix->deform(0);
+  if (nrigid)
+    for (i = 0; i < nrigid; i++)
+      modify->fix[rfix[i]]->deform(0);
 
   // reset global and local box to new size/shape
 
@@ -1230,7 +1262,9 @@ void FixTGNHDrude::remap()
 
   domain->lamda2x(nlocal);
 
-  for (auto &ifix : rfix) ifix->deform(1);
+  if (nrigid)
+    for (i = 0; i < nrigid; i++)
+      modify->fix[rfix[i]]->deform(1);
 }
 
 /* ----------------------------------------------------------------------
@@ -1339,7 +1373,7 @@ int FixTGNHDrude::pack_restart_data(double *list)
 void FixTGNHDrude::restart(char *buf)
 {
   int n = 0;
-  auto list = (double *) buf;
+  double *list = (double *) buf;
   int flag = static_cast<int> (list[n++]);
   if (flag) {
     int m = static_cast<int> (list[n++]);
@@ -1401,23 +1435,27 @@ int FixTGNHDrude::modify_param(int narg, char **arg)
       modify->delete_compute(id_temp);
       tcomputeflag = 0;
     }
-    delete[] id_temp;
+    delete [] id_temp;
     id_temp = utils::strdup(arg[1]);
 
-    temperature = modify->get_compute_by_id(id_temp);
-    if (!temperature) error->all(FLERR,"Could not find fix_modify temperature ID {}", id_temp);
+    int icompute = modify->find_compute(arg[1]);
+    if (icompute < 0)
+      error->all(FLERR,"Could not find fix_modify temperature ID");
+    temperature = modify->compute[icompute];
 
     if (temperature->tempflag == 0)
-      error->all(FLERR, "Fix_modify temperature ID {} does not compute temperature", id_temp);
+      error->all(FLERR,
+                 "Fix_modify temperature ID does not compute temperature");
     if (temperature->igroup != 0 && comm->me == 0)
       error->warning(FLERR,"Temperature for fix modify is not for group all");
 
     // reset id_temp of pressure to new temperature ID
 
     if (pstat_flag) {
-      pressure = modify->get_compute_by_id(id_press);
-      if (!pressure) error->all(FLERR,"Pressure ID {} for fix modify does not exist", id_press);
-      pressure->reset_extra_compute_fix(id_temp);
+      icompute = modify->find_compute(id_press);
+      if (icompute < 0)
+        error->all(FLERR,"Pressure ID for fix modify does not exist");
+      modify->compute[icompute]->reset_extra_compute_fix(id_temp);
     }
 
     return 2;
@@ -1429,14 +1467,15 @@ int FixTGNHDrude::modify_param(int narg, char **arg)
       modify->delete_compute(id_press);
       pcomputeflag = 0;
     }
-    delete[] id_press;
+    delete [] id_press;
     id_press = utils::strdup(arg[1]);
 
-    pressure = modify->get_compute_by_id(id_press);
-    if (!pressure) error->all(FLERR,"Could not find fix_modify pressure ID {}", id_press);
+    int icompute = modify->find_compute(arg[1]);
+    if (icompute < 0) error->all(FLERR,"Could not find fix_modify pressure ID");
+    pressure = modify->compute[icompute];
 
     if (pressure->pressflag == 0)
-      error->all(FLERR,"Fix_modify pressure ID {} does not compute pressure", id_press);
+      error->all(FLERR,"Fix_modify pressure ID does not compute pressure");
     return 2;
   }
 

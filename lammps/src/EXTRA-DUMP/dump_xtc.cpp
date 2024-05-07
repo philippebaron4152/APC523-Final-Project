@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -14,7 +14,7 @@
 
 /* ----------------------------------------------------------------------
    Contributing authors: Naveen Michaud-Agrawal (Johns Hopkins U)
-                         Open Source XDR based I/O routines from
+                         open-source XDR routines from
                            Frans van Hoesel (https://www.rug.nl/staff/f.h.j.van.hoesel/)
                            are included in this file
                          Axel Kohlmeyer (Temple U)
@@ -24,40 +24,37 @@
 ------------------------------------------------------------------------- */
 
 #include "dump_xtc.h"
-
-#include "atom.h"
-#include "comm.h"
-#include "domain.h"
-#include "error.h"
-#include "force.h"
-#include "group.h"
-#include "memory.h"
-#include "output.h"
-#include "update.h"
-
-#include "xdr_compat.h"
-
-#include <climits>
 #include <cmath>
+
 #include <cstring>
+#include <climits>
+#include "domain.h"
+#include "atom.h"
+#include "update.h"
+#include "group.h"
+#include "output.h"
+#include "force.h"
+#include "comm.h"
+#include "memory.h"
+#include "error.h"
 
 using namespace LAMMPS_NS;
 
-static constexpr double EPS = 1.0e-5;
-static constexpr int XTC_MAGIC = 1995;
+#define EPS 1e-5
+#define XTC_MAGIC 1995
 
 #define MYMIN(a,b) ((a) < (b) ? (a) : (b))
 #define MYMAX(a,b) ((a) > (b) ? (a) : (b))
 
-static int xdropen(XDR *, const char *, const char *);
-static int xdrclose(XDR *);
-static void xdrfreebuf();
-static int xdr3dfcoord(XDR *, float *, int *, float *);
+int xdropen(XDR *, const char *, const char *);
+int xdrclose(XDR *);
+void xdrfreebuf();
+int xdr3dfcoord(XDR *, float *, int *, float *);
 
 /* ---------------------------------------------------------------------- */
 
-DumpXTC::DumpXTC(LAMMPS *lmp, int narg, char **arg)
-  : Dump(lmp, narg, arg), coords(nullptr), xd(nullptr)
+DumpXTC::DumpXTC(LAMMPS *lmp, int narg, char **arg) : Dump(lmp, narg, arg),
+  coords(nullptr)
 {
   if (narg != 5) error->all(FLERR,"Illegal dump xtc command");
   if (binary || compressed || multifile || multiproc)
@@ -70,7 +67,6 @@ DumpXTC::DumpXTC(LAMMPS *lmp, int narg, char **arg)
   flush_flag = 0;
   unwrap_flag = 0;
   precision = 1000.0;
-  xd = new XDR;
 
   // allocate global array for atom coords
 
@@ -96,7 +92,7 @@ DumpXTC::DumpXTC(LAMMPS *lmp, int narg, char **arg)
                      "format conventions possible for units lj");
   }
 
-  DumpXTC::openfile();
+  openfile();
   nevery_save = 0;
   ntotal = 0;
 }
@@ -108,10 +104,9 @@ DumpXTC::~DumpXTC()
   memory->destroy(coords);
 
   if (me == 0) {
-    xdrclose(xd);
+    xdrclose(&xd);
     xdrfreebuf();
   }
-  delete xd;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -125,24 +120,17 @@ void DumpXTC::init_style()
 
   if (flush_flag) error->all(FLERR,"Cannot set dump_modify flush for dump xtc");
 
-  // check that dump modify settings are compatible with xtc
-  // but only when not being called from the "write_dump" command
+  // check that dump frequency has not changed and is not a variable
 
-  if (strcmp(id,"WRITE_DUMP") != 0) {
-    int idump;
-    for (idump = 0; idump < output->ndump; idump++)
-      if (strcmp(id,output->dump[idump]->id) == 0) break;
+  int idump;
+  for (idump = 0; idump < output->ndump; idump++)
+    if (strcmp(id,output->dump[idump]->id) == 0) break;
+  if (output->every_dump[idump] == 0)
+    error->all(FLERR,"Cannot use variable every setting for dump xtc");
 
-    if (output->mode_dump[idump] == 1)
-      error->all(FLERR,"Cannot use every/time setting for dump xtc");
-
-    if (output->every_dump[idump] == 0)
-      error->all(FLERR,"Cannot use every variable setting for dump xtc");
-
-    if (nevery_save == 0) nevery_save = output->every_dump[idump];
-    else if (nevery_save != output->every_dump[idump])
-      error->all(FLERR,"Cannot change dump_modify every for dump xtc");
-  }
+  if (nevery_save == 0) nevery_save = output->every_dump[idump];
+  else if (nevery_save != output->every_dump[idump])
+    error->all(FLERR,"Cannot change dump_modify every for dump xtc");
 }
 
 /* ---------------------------------------------------------------------- */
@@ -154,8 +142,7 @@ void DumpXTC::openfile()
 
   fp = nullptr;
   if (me == 0)
-    if (xdropen(xd,filename,"w") == 0)
-      error->one(FLERR,"Cannot open XTC format dump file {}: {}", filename, utils::getsyserror());
+    if (xdropen(&xd,filename,"w") == 0) error->one(FLERR,"Cannot open dump file");
 }
 
 /* ---------------------------------------------------------------------- */
@@ -181,11 +168,11 @@ void DumpXTC::write_header(bigint nbig)
   if (me != 0) return;
 
   int tmp = XTC_MAGIC;
-  xdr_int(xd,&tmp);
-  xdr_int(xd,&n);
-  xdr_int(xd,&ntimestep);
+  xdr_int(&xd,&tmp);
+  xdr_int(&xd,&n);
+  xdr_int(&xd,&ntimestep);
   float time_value = ntimestep * tfactor * update->dt;
-  xdr_float(xd,&time_value);
+  xdr_float(&xd,&time_value);
 
   // cell basis vectors
   if (domain->triclinic) {
@@ -197,18 +184,18 @@ void DumpXTC::write_header(bigint nbig)
     float xz = sfactor * domain->xz;
     float yz = sfactor * domain->yz;
 
-    xdr_float(xd,&xdim); xdr_float(xd,&zero); xdr_float(xd,&zero);
-    xdr_float(xd,&xy  ); xdr_float(xd,&ydim); xdr_float(xd,&zero);
-    xdr_float(xd,&xz  ); xdr_float(xd,&yz  ); xdr_float(xd,&zdim);
+    xdr_float(&xd,&xdim); xdr_float(&xd,&zero); xdr_float(&xd,&zero);
+    xdr_float(&xd,&xy  ); xdr_float(&xd,&ydim); xdr_float(&xd,&zero);
+    xdr_float(&xd,&xz  ); xdr_float(&xd,&yz  ); xdr_float(&xd,&zdim);
   } else {
     float zero = 0.0;
     float xdim = sfactor * (domain->boxhi[0] - domain->boxlo[0]);
     float ydim = sfactor * (domain->boxhi[1] - domain->boxlo[1]);
     float zdim = sfactor * (domain->boxhi[2] - domain->boxlo[2]);
 
-    xdr_float(xd,&xdim); xdr_float(xd,&zero); xdr_float(xd,&zero);
-    xdr_float(xd,&zero); xdr_float(xd,&ydim); xdr_float(xd,&zero);
-    xdr_float(xd,&zero); xdr_float(xd,&zero); xdr_float(xd,&zdim);
+    xdr_float(&xd,&xdim); xdr_float(&xd,&zero); xdr_float(&xd,&zero);
+    xdr_float(&xd,&zero); xdr_float(&xd,&ydim); xdr_float(&xd,&zero);
+    xdr_float(&xd,&zero); xdr_float(&xd,&zero); xdr_float(&xd,&zdim);
   }
 }
 
@@ -291,7 +278,9 @@ int DumpXTC::modify_param(int narg, char **arg)
 {
   if (strcmp(arg[0],"unwrap") == 0) {
     if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
-    unwrap_flag = utils::logical(FLERR,arg[1],false,lmp);
+    if (strcmp(arg[1],"yes") == 0) unwrap_flag = 1;
+    else if (strcmp(arg[1],"no") == 0) unwrap_flag = 0;
+    else error->all(FLERR,"Illegal dump_modify command");
     return 2;
   } else if (strcmp(arg[0],"precision") == 0) {
     if (narg < 2) error->all(FLERR,"Illegal dump_modify command");
@@ -333,7 +322,7 @@ double DumpXTC::memory_usage()
 
 void DumpXTC::write_frame()
 {
-  xdr3dfcoord(xd,coords,&natoms,&precision);
+  xdr3dfcoord(&xd,coords,&natoms,&precision);
 }
 
 // ----------------------------------------------------------------------
@@ -386,7 +375,7 @@ static int *buf = nullptr;
  | with some routines to assist in this task (those are marked
  | static and cannot be called from user programs)
 */
-#define MAXABS (float)(INT_MAX-2)
+#define MAXABS INT_MAX-2
 
 #ifndef SQR
 #define SQR(x) ((x)*(x))
@@ -411,7 +400,7 @@ static int magicints[] = {
  |
  | xdropen - open xdr file
  |
- | This version differs from xdrstdio_create, because I need to know
+ | This versions differs from xdrstdio_create, because I need to know
  | the state of the file (read or write) so I can use xdr3dfcoord
  | in eigther read or write mode, and the file descriptor
  | so I can close the file (something xdr_destroy doesn't do).
@@ -438,10 +427,10 @@ int xdropen(XDR *xdrs, const char *filename, const char *type)
     return 0;
   }
   if (*type == 'w' || *type == 'W') {
-    type = (char *) "wb+";
+    type = (char *) "w+";
     lmode = XDR_ENCODE;
   } else {
-    type = (char *) "rb";
+    type = (char *) "r";
     lmode = XDR_DECODE;
   }
   xdrfiles[xdrid] = fopen(filename, type);
@@ -745,7 +734,7 @@ static void receiveints(int buf[], const int num_of_ints, int num_of_bits,
   }
   for (i = num_of_ints-1; i > 0; i--) {
     num = 0;
-    for (j = num_of_bytes-1; j >= 0; j--) {
+    for (j = num_of_bytes-1; j >=0; j--) {
       num = (num << 8) | bytes[j];
       p = num / sizes[i];
       bytes[j] = p;
@@ -1051,9 +1040,9 @@ int xdr3dfcoord(XDR *xdrs, float *fp, int *size, float *precision)
         sizesmall[0] = sizesmall[1] = sizesmall[2] = magicints[smallidx];
       }
     }
-    if (buf[1] != 0) buf[0]++;
+    if (buf[1] != 0) buf[0]++;;
     xdr_int(xdrs, &(buf[0])); /* buf[0] holds the length in bytes */
-    return errval * (xdr_opaque(xdrs, (char *)&(buf[3]), (unsigned int)buf[0]));
+    return errval * (xdr_opaque(xdrs, (caddr_t)&(buf[3]), (u_int)buf[0]));
   } else {
 
     /* xdrs is open for reading */
@@ -1134,7 +1123,7 @@ int xdr3dfcoord(XDR *xdrs, float *fp, int *size, float *precision)
 
     if (xdr_int(xdrs, &(buf[0])) == 0)
       return 0;
-    if (xdr_opaque(xdrs, (char *)&(buf[3]), (unsigned int)buf[0]) == 0)
+    if (xdr_opaque(xdrs, (caddr_t)&(buf[3]), (u_int)buf[0]) == 0)
       return 0;
     buf[0] = buf[1] = buf[2] = 0;
 

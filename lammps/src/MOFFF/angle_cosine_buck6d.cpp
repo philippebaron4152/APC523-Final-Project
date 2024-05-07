@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -34,7 +34,7 @@
 using namespace LAMMPS_NS;
 using namespace MathConst;
 
-static constexpr double SMALL = 0.001;
+#define SMALL 0.001
 
 /* ---------------------------------------------------------------------- */
 
@@ -68,10 +68,10 @@ void AngleCosineBuck6d::compute(int eflag, int vflag)
   double term1,term2,term3,term4,term5,ebuck6d,evdwl;
   double rcu,rqu,sme,smf;
 
-  eangle = 0.0;
+  eangle = evdwl = 0.0;
   ev_init(eflag,vflag);
 
-  // ensure pair->ev_tally() will use 1-3 virial contribution
+  // insure pair->ev_tally() will use 1-3 virial contribution
 
   if (vflag_global == VIRIAL_FDOTR)
     force->pair->vflag_either = force->pair->vflag_global = 1;
@@ -340,7 +340,7 @@ void AngleCosineBuck6d::read_restart(FILE *fp)
 
   MPI_Bcast(&k[1],atom->nangletypes,MPI_DOUBLE,0,world);
   MPI_Bcast(&multiplicity[1],atom->nangletypes,MPI_INT,0,world);
-  MPI_Bcast(&th0[1],atom->nangletypes,MPI_DOUBLE,0,world);
+  MPI_Bcast(&th0[1],atom->nangletypes,MPI_INT,0,world);
   for (int i = 1; i <= atom->nangletypes; i++) setflag[i] = 1;
 }
 

@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -17,21 +17,23 @@
 ------------------------------------------------------------------------- */
 
 #include "pair_coul_wolf_kokkos.h"
-
-#include "atom_kokkos.h"
-#include "atom_masks.h"
-#include "force.h"
+#include <cmath>
 #include "kokkos.h"
-#include "math_const.h"
-#include "memory_kokkos.h"
+#include "atom_kokkos.h"
+#include "force.h"
+#include "neighbor.h"
 #include "neigh_list_kokkos.h"
 #include "neigh_request.h"
-#include "neighbor.h"
-
-#include <cmath>
+#include "math_const.h"
+#include "memory_kokkos.h"
+#include "error.h"
+#include "atom_masks.h"
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
+
+#define KOKKOS_CUDA_MAX_THREADS 256
+#define KOKKOS_CUDA_MIN_BLOCKS 8
 
 /* ---------------------------------------------------------------------- */
 
@@ -197,14 +199,26 @@ void PairCoulWolfKokkos<DeviceType>::init_style()
 {
   PairCoulWolf::init_style();
 
-  // adjust neighbor list request for KOKKOS
+  // irequest = neigh request made by parent class
 
   neighflag = lmp->kokkos->neighflag;
-  auto request = neighbor->find_request(this);
-  request->set_kokkos_host(std::is_same_v<DeviceType,LMPHostType> &&
-                           !std::is_same_v<DeviceType,LMPDeviceType>);
-  request->set_kokkos_device(std::is_same_v<DeviceType,LMPDeviceType>);
-  if (neighflag == FULL) request->enable_full();
+  int irequest = neighbor->nrequest - 1;
+
+  neighbor->requests[irequest]->
+    kokkos_host = std::is_same<DeviceType,LMPHostType>::value &&
+    !std::is_same<DeviceType,LMPDeviceType>::value;
+  neighbor->requests[irequest]->
+    kokkos_device = std::is_same<DeviceType,LMPDeviceType>::value;
+
+  if (neighflag == FULL) {
+    neighbor->requests[irequest]->full = 1;
+    neighbor->requests[irequest]->half = 0;
+  } else if (neighflag == HALF || neighflag == HALFTHREAD) {
+    neighbor->requests[irequest]->full = 0;
+    neighbor->requests[irequest]->half = 1;
+  } else {
+    error->all(FLERR,"Cannot use chosen neighbor list style with coul/wolf/kk");
+  }
 }
 
 /* ---------------------------------------------------------------------- */

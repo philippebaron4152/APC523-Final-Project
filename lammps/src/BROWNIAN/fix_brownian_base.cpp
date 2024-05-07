@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -17,12 +17,15 @@
    Contributing author: Sam Cameron (University of Bristol)
 ------------------------------------------------------------------------- */
 
-#include "fix_brownian_base.h"
+#include "fix_brownian.h"
 
+#include "atom.h"
 #include "comm.h"
 #include "domain.h"
 #include "error.h"
 #include "force.h"
+#include "math_extra.h"
+#include "memory.h"
 #include "random_mars.h"
 #include "update.h"
 
@@ -43,8 +46,6 @@ FixBrownianBase::FixBrownianBase(LAMMPS *lmp, int narg, char **arg) : Fix(lmp, n
   gamma_t_flag = gamma_r_flag = 0;
   gamma_t_eigen_flag = gamma_r_eigen_flag = 0;
   dipole_flag = 0;
-  rot_temp_flag = 0;
-  planar_rot_flag = 0;
   g2 = 0.0;
 
   if (narg < 5) error->all(FLERR, "Illegal fix brownian command.");
@@ -156,26 +157,10 @@ FixBrownianBase::FixBrownianBase(LAMMPS *lmp, int narg, char **arg) : Fix(lmp, n
       if (gamma_r <= 0) error->all(FLERR, "Fix brownian gamma_r must be > 0.");
       iarg = iarg + 2;
 
-    } else if (strcmp(arg[iarg], "rotation_temp") == 0) {
-      if (narg == iarg + 1) { error->all(FLERR, "Illegal fix brownian command."); }
-
-      rot_temp_flag = 1;
-      rot_temp = utils::numeric(FLERR, arg[iarg + 1], false, lmp);
-      if (rot_temp <= 0) error->all(FLERR, "Fix brownian rotation_temp must be > 0.");
-      iarg = iarg + 2;
-
-    } else if (strcmp(arg[iarg], "planar_rotation") == 0) {
-
-      planar_rot_flag = 1;
-      if (domain->dimension == 2)
-        error->all(FLERR, "The planar_rotation keyword is not allowed for 2D simulations");
-      iarg = iarg + 1;
-
     } else {
       error->all(FLERR, "Illegal fix brownian command.");
     }
   }
-  if (!rot_temp_flag) rot_temp = temp;
 
   // initialize Marsaglia RNG with processor-unique seed
   rng = new RanMars(lmp, seed + comm->me);
@@ -204,7 +189,7 @@ FixBrownianBase::~FixBrownianBase()
     delete[] gamma_r_invsqrt;
   }
 
-  if (dipole_flag) delete[] dipole_body;
+  if (dipole_flag) { delete[] dipole_body; }
   delete rng;
 }
 
@@ -214,13 +199,14 @@ void FixBrownianBase::init()
 {
   dt = update->dt;
   sqrtdt = sqrt(dt);
+
   g1 = force->ftm2v;
   if (noise_flag == 0) {
     g2 = 0.0;
   } else if (gaussian_noise_flag == 1) {
-    g2 = sqrt(2 * force->boltz / dt / force->mvv2e);
+    g2 = sqrt(2 * force->boltz * temp / dt / force->mvv2e);
   } else {
-    g2 = sqrt(24 * force->boltz / dt / force->mvv2e);
+    g2 = sqrt(24 * force->boltz * temp / dt / force->mvv2e);
   }
 }
 

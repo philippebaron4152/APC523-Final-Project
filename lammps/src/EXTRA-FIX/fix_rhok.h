@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
    certain rights in this software.  This software is distributed under
@@ -27,31 +27,32 @@ class FixRhok : public Fix {
   // Constructor: all the parameters to this fix specified in
   // the LAMMPS input get passed in
   FixRhok(LAMMPS *inLMP, int inArgc, char **inArgv);
+  virtual ~FixRhok(){};
 
   // Methods that this fix implements
   // --------------------------------
 
   // Tells LAMMPS where this fix should act
-  int setmask() override;
+  int setmask();
 
   // Initializes the fix at the beginning of a run
-  void init() override;
+  void init();
 
   // Initial application of the fix to a system (when doing MD / minimization)
-  void setup(int inVFlag) override;
-  void min_setup(int inVFlag) override;
+  void setup(int inVFlag);
+  void min_setup(int inVFlag);
 
   // Modify the forces calculated in the main force loop, either when
   // doing usual MD, RESPA MD or minimization
-  void post_force(int inVFlag) override;
-  void post_force_respa(int inVFlag, int inILevel, int inILoop) override;
-  void min_post_force(int inVFlag) override;
+  void post_force(int inVFlag);
+  void post_force_respa(int inVFlag, int inILevel, int inILoop);
+  void min_post_force(int inVFlag);
 
   // Compute the change in the potential energy induced by this fix
-  double compute_scalar() override;
+  double compute_scalar();
 
   // Compute the ith component of the vector associated with this fix
-  double compute_vector(int inI) override;
+  double compute_vector(int inI);
 
  private:
   // RESPA boilerplate

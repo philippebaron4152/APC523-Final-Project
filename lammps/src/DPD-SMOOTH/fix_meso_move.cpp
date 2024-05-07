@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -224,7 +224,7 @@ FixMesoMove::FixMesoMove (LAMMPS *lmp, int narg, char **arg) :
   // perform initial allocation of atom-based array
   // register with Atom class
 
-  FixMesoMove::grow_arrays(atom->nmax);
+  grow_arrays(atom->nmax);
   atom->add_callback(Atom::GROW);
   atom->add_callback(Atom::RESTART);
 
@@ -818,7 +818,7 @@ void FixMesoMove::write_restart (FILE *fp) {
 
 void FixMesoMove::restart (char *buf) {
   int n = 0;
-  auto list = (double *) buf;
+  double *list = (double *) buf;
 
   time_origin = static_cast<int> (list[n++]);
 }

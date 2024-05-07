@@ -6,22 +6,23 @@ fix numdiff command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID numdiff Nevery delta
 
 * ID, group-ID are documented in :doc:`fix <fix>` command
 * numdiff = style name of this fix command
 * Nevery = calculate force by finite difference every this many timesteps
-* delta = size of atom displacements (distance units)
+* delta = finite difference displacement length (distance units)
 
 Examples
 """"""""
 
 .. code-block:: LAMMPS
 
+   fix 1 all numdiff 1 0.0001
    fix 1 all numdiff 10 1e-6
-   fix 1 movegroup numdiff 100 0.01
+   fix 1 all numdiff 100 0.01
 
 Description
 """""""""""
@@ -66,17 +67,16 @@ by two times *delta*.
 
    The cost of each energy evaluation is essentially the cost of an MD
    timestep.  Thus invoking this fix once for a 3d system has a cost
-   of 6N timesteps, where N is the total number of atoms in the system.
-   So this fix can be very expensive to use for large systems.
-   One expedient alternative is to define the fix for a group containing
-   only a few atoms.
+   of 6N timesteps, where N is the total number of atoms in the system
+   (assuming all atoms are included in the group).  So this fix can be
+   very expensive to use for large systems.
 
 ----------
 
 The *Nevery* argument specifies on what timesteps the force will
 be used calculated by finite difference.
 
-The *delta* argument specifies the size of the displacement each
+The *delta* argument specifies the positional displacement each
 atom will undergo.
 
 ----------
@@ -93,12 +93,7 @@ This fix produces a per-atom array which can be accessed by various
 the force on each atom as calculated by finite difference.  The
 per-atom values can only be accessed on timesteps that are multiples
 of *Nevery* since that is when the finite difference forces are
-calculated. See the examples in *examples/numdiff* directory
-to see how this fix can be used to directly compare with
-the analytic forces computed by LAMMPS.
-
-The array values calculated by this compute
-will be in force :doc:`units <units>`.
+calculated.
 
 No parameter of this fix can be used with the *start/stop* keywords of
 the :doc:`run <run>` command.  This fix is invoked during :doc:`energy
@@ -113,7 +108,7 @@ was built with that package.  See the :doc:`Build package <Build_package>` page 
 Related commands
 """"""""""""""""
 
-:doc:`dynamical_matrix <dynamical_matrix>`, :doc:`fix numdiff/virial <fix_numdiff_virial>`,
+:doc:`dynamical_matrix <dynamical_matrix>`,
 
 Default
 """""""

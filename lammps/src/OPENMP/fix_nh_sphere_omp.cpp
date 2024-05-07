@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -16,19 +16,18 @@
    Contributing author: Axel Kohlmeyer (Temple U)
 ------------------------------------------------------------------------- */
 
+#include "omp_compat.h"
 #include "fix_nh_sphere_omp.h"
-
 #include "atom.h"
 #include "compute.h"
 #include "error.h"
 
-#include "omp_compat.h"
 using namespace LAMMPS_NS;
 using namespace FixConst;
 
 enum{NOBIAS,BIAS};
 
-static constexpr double INERTIA = 0.4;          // moment of inertia prefactor for sphere
+#define INERTIA 0.4          // moment of inertia prefactor for sphere
 
 typedef struct { double x,y,z; } dbl3_t;
 
@@ -37,8 +36,8 @@ typedef struct { double x,y,z; } dbl3_t;
 FixNHSphereOMP::FixNHSphereOMP(LAMMPS *lmp, int narg, char **arg) :
   FixNHOMP(lmp, narg, arg)
 {
-  if (!atom->omega_flag) error->all(FLERR,"Fix {} requires atom attribute omega", style);
-  if (!atom->radius_flag) error->all(FLERR,"Fix {} requires atom attribute radius", style);
+  if (!atom->sphere_flag)
+    error->all(FLERR,"Fix nvt/nph/npt sphere requires atom style sphere");
 }
 
 /* ---------------------------------------------------------------------- */
@@ -66,10 +65,10 @@ void FixNHSphereOMP::init()
 
 void FixNHSphereOMP::nve_v()
 {
-  auto * _noalias const v = (dbl3_t *) atom->v[0];
-  auto * _noalias const omega = (dbl3_t *) atom->omega[0];
-  const auto * _noalias const f = (dbl3_t *) atom->f[0];
-  const auto * _noalias const torque = (dbl3_t *) atom->torque[0];
+  dbl3_t * _noalias const v = (dbl3_t *) atom->v[0];
+  dbl3_t * _noalias const omega = (dbl3_t *) atom->omega[0];
+  const dbl3_t * _noalias const f = (dbl3_t *) atom->f[0];
+  const dbl3_t * _noalias const torque = (dbl3_t *) atom->torque[0];
   const double * _noalias const radius = atom->radius;
   const double * _noalias const rmass = atom->rmass;
   const int * _noalias const mask = atom->mask;
@@ -111,8 +110,8 @@ void FixNHSphereOMP::nve_v()
 
 void FixNHSphereOMP::nh_v_temp()
 {
-  auto * _noalias const v = (dbl3_t *) atom->v[0];
-  auto * _noalias const omega = (dbl3_t *) atom->omega[0];
+  dbl3_t * _noalias const v = (dbl3_t *) atom->v[0];
+  dbl3_t * _noalias const omega = (dbl3_t *) atom->omega[0];
   const int * _noalias const mask = atom->mask;
   const int nlocal = (igroup == atom->firstgroup) ? atom->nfirst : atom->nlocal;
 

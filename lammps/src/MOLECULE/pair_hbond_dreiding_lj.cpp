@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -17,28 +17,28 @@
 ------------------------------------------------------------------------- */
 
 #include "pair_hbond_dreiding_lj.h"
-
+#include <cmath>
+#include <cstring>
 #include "atom.h"
 #include "atom_vec.h"
-#include "domain.h"
-#include "error.h"
+#include "molecule.h"
 #include "force.h"
+#include "neighbor.h"
+#include "neigh_request.h"
+#include "neigh_list.h"
+#include "domain.h"
 #include "math_const.h"
 #include "math_special.h"
 #include "memory.h"
-#include "molecule.h"
-#include "neigh_list.h"
-#include "neighbor.h"
+#include "error.h"
 
-#include <cmath>
-#include <cstring>
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
 using namespace MathSpecial;
 
-static constexpr double SMALL = 0.001;
-static constexpr int CHUNK = 8;
+#define SMALL 0.001
+#define CHUNK 8
 
 /* ---------------------------------------------------------------------- */
 
@@ -441,7 +441,9 @@ void PairHbondDreidingLJ::init_style()
 
   // full neighbor list request
 
-  neighbor->add_request(this, NeighConst::REQ_FULL);
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
 }
 
 /* ----------------------------------------------------------------------

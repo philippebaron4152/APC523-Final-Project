@@ -6,7 +6,7 @@ suffix command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    suffix style args
 

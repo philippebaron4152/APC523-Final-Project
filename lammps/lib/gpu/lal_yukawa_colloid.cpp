@@ -56,7 +56,10 @@ int YukawaColloidT::init(const int ntypes,
   if (success!=0)
     return success;
 
-  _shared_view = this->ucl_device->shared_memory() && sizeof(numtyp)==sizeof(double);
+  if (this->ucl_device->shared_memory() && sizeof(numtyp)==sizeof(double))
+    _shared_view=true;
+  else
+    _shared_view=false;
 
   // allocate rad
 
@@ -66,7 +69,7 @@ int YukawaColloidT::init(const int ntypes,
 
   _max_rad_size=static_cast<int>(static_cast<double>(ef_nall)*1.10);
 
-  if (!_shared_view)
+  if (_shared_view==false)
     c_rad.alloc(_max_rad_size,*(this->ucl_device),UCL_WRITE_ONLY,UCL_READ_ONLY);
 
   rad_tex.get_texture(*(this->pair_program),"rad_tex");
@@ -154,7 +157,7 @@ void YukawaColloidT::compute(const int f_ago, const int inum_full,
 
   if (nall>_max_rad_size) {
     _max_rad_size=static_cast<int>(static_cast<double>(nall)*1.10);
-    if (!_shared_view) {
+    if (_shared_view==false) {
       c_rad.resize(_max_rad_size);
       rad_tex.bind_float(c_rad,1);
     }
@@ -226,7 +229,7 @@ int** YukawaColloidT::compute(const int ago, const int inum_full,
 
   if (nall>_max_rad_size) {
     _max_rad_size=static_cast<int>(static_cast<double>(nall)*1.10);
-    if (!_shared_view) {
+    if (_shared_view==false) {
       c_rad.resize(_max_rad_size);
       rad_tex.bind_float(c_rad,1);
     }

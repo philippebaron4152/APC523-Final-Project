@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -17,21 +17,20 @@
                         Copyright (C) 2013
 ------------------------------------------------------------------------- */
 
-#include "compute_basal_atom.h"
-
-#include "atom.h"
-#include "comm.h"
-#include "error.h"
-#include "force.h"
-#include "memory.h"
-#include "modify.h"
-#include "neigh_list.h"
-#include "neighbor.h"
-#include "pair.h"
-#include "update.h"
-
 #include <cmath>
-#include <utility>
+#include <cstring>
+#include "compute_basal_atom.h"
+#include "atom.h"
+#include "update.h"
+#include "modify.h"
+#include "neighbor.h"
+#include "neigh_list.h"
+#include "neigh_request.h"
+#include "force.h"
+#include "pair.h"
+#include "comm.h"
+#include "memory.h"
+#include "error.h"
 
 using namespace LAMMPS_NS;
 
@@ -71,9 +70,17 @@ void ComputeBasalAtom::init()
 {
   // need an occasional full neighbor list
 
-  neighbor->add_request(this, NeighConst::REQ_FULL | NeighConst::REQ_OCCASIONAL);
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->pair = 0;
+  neighbor->requests[irequest]->compute = 1;
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
+  neighbor->requests[irequest]->occasional = 1;
 
-  if ((modify->get_compute_by_style("basal/atom").size() > 1) && (comm->me == 0))
+  int count1 = 0;
+  for (int i = 0; i < modify->ncompute; i++)
+    if (strcmp(modify->compute[i]->style,"basal/atom") == 0) count1++;
+  if (count1 > 1 && comm->me == 0)
     error->warning(FLERR,"More than one compute basal/atom");
 }
 
@@ -200,9 +207,9 @@ void ComputeBasalAtom::compute_peratom()
       chi[0] = chi[1] = chi[2] = chi[3] = chi[4] = chi[5] = chi[6] = chi[7] = 0;
       double x_ij, y_ij, z_ij, x_ik, y_ik, z_ik, xmean5, ymean5, zmean5,
              xmean6, ymean6, zmean6, xmean7, ymean7, zmean7;
-      auto x3 = new double[n0];
-      auto y3 = new double[n0];
-      auto z3 = new double[n0];
+      double *x3 = new double[n0];
+      double *y3 = new double[n0];
+      double *z3 = new double[n0];
       for (j = 0; j < n0; j++) {
         x_ij = x[i][0]-x[nearest_n0[j]][0];
         y_ij = x[i][1]-x[nearest_n0[j]][1];
@@ -432,32 +439,43 @@ void ComputeBasalAtom::compute_peratom()
    2nd routine sorts auxiliary array at same time
 ------------------------------------------------------------------------- */
 
+#define SWAP(a,b)   tmp = a; a = b; b = tmp;
+#define ISWAP(a,b) itmp = a; a = b; b = itmp;
+
 void ComputeBasalAtom::select(int k, int n, double *arr)
   {
   int i,ir,j,l,mid;
-  double a;
+  double a,tmp;
 
   arr--;
   l = 1;
   ir = n;
-  while (true) {
+  for (;;) {
     if (ir <= l+1) {
-      if (ir == l+1 && arr[ir] < arr[l]) std::swap(arr[l],arr[ir]);
+      if (ir == l+1 && arr[ir] < arr[l]) {
+        SWAP(arr[l],arr[ir])
+      }
       return;
     } else {
       mid=(l+ir) >> 1;
-      std::swap(arr[mid],arr[l+1]);
-      if (arr[l] > arr[ir]) std::swap(arr[l],arr[ir]);
-      if (arr[l+1] > arr[ir]) std::swap(arr[l+1],arr[ir]);
-      if (arr[l] > arr[l+1]) std::swap(arr[l],arr[l+1]);
+      SWAP(arr[mid],arr[l+1])
+      if (arr[l] > arr[ir]) {
+        SWAP(arr[l],arr[ir])
+      }
+      if (arr[l+1] > arr[ir]) {
+        SWAP(arr[l+1],arr[ir])
+      }
+      if (arr[l] > arr[l+1]) {
+        SWAP(arr[l],arr[l+1])
+      }
       i = l+1;
       j = ir;
       a = arr[l+1];
-      while (true) {
+      for (;;) {
         do i++; while (arr[i] < a);
         do j--; while (arr[j] > a);
         if (j < i) break;
-        std::swap(arr[i],arr[j]);
+        SWAP(arr[i],arr[j])
       }
       arr[l+1] = arr[j];
       arr[j] = a;
@@ -471,46 +489,46 @@ void ComputeBasalAtom::select(int k, int n, double *arr)
 
 void ComputeBasalAtom::select2(int k, int n, double *arr, int *iarr)
 {
-  int i,ir,j,l,mid,ia;
-  double a;
+  int i,ir,j,l,mid,ia,itmp;
+  double a,tmp;
 
   arr--;
   iarr--;
   l = 1;
   ir = n;
-  while (true) {
+  for (;;) {
     if (ir <= l+1) {
       if (ir == l+1 && arr[ir] < arr[l]) {
-        std::swap(arr[l],arr[ir]);
-        std::swap(iarr[l],iarr[ir]);
+        SWAP(arr[l],arr[ir])
+        ISWAP(iarr[l],iarr[ir])
       }
       return;
     } else {
       mid=(l+ir) >> 1;
-      std::swap(arr[mid],arr[l+1]);
-      std::swap(iarr[mid],iarr[l+1]);
+      SWAP(arr[mid],arr[l+1])
+      ISWAP(iarr[mid],iarr[l+1])
       if (arr[l] > arr[ir]) {
-        std::swap(arr[l],arr[ir]);
-        std::swap(iarr[l],iarr[ir]);
+        SWAP(arr[l],arr[ir])
+        ISWAP(iarr[l],iarr[ir])
       }
       if (arr[l+1] > arr[ir]) {
-        std::swap(arr[l+1],arr[ir]);
-        std::swap(iarr[l+1],iarr[ir]);
+        SWAP(arr[l+1],arr[ir])
+        ISWAP(iarr[l+1],iarr[ir])
       }
       if (arr[l] > arr[l+1]) {
-        std::swap(arr[l],arr[l+1]);
-        std::swap(iarr[l],iarr[l+1]);
+        SWAP(arr[l],arr[l+1])
+        ISWAP(iarr[l],iarr[l+1])
       }
       i = l+1;
       j = ir;
       a = arr[l+1];
       ia = iarr[l+1];
-      while (true) {
+      for (;;) {
         do i++; while (arr[i] < a);
         do j--; while (arr[j] > a);
         if (j < i) break;
-        std::swap(arr[i],arr[j]);
-        std::swap(iarr[i],iarr[j]);
+        SWAP(arr[i],arr[j])
+        ISWAP(iarr[i],iarr[j])
       }
       arr[l+1] = arr[j];
       arr[j] = a;

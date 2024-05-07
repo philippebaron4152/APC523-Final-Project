@@ -165,10 +165,9 @@ __kernel void k_dpd(const __global numtyp4 *restrict x_,
                     const __global numtyp4 *restrict coeff,
                     const int lj_types,
                     const __global numtyp *restrict sp_lj,
-                    const __global numtyp *restrict sp_sqrt,
                     const __global int * dev_nbor,
                     const __global int * dev_packed,
-                    __global acctyp3 *restrict ans,
+                    __global acctyp4 *restrict ans,
                     __global acctyp *restrict engv,
                     const int eflag, const int vflag, const int inum,
                     const int nbor_pitch,
@@ -183,7 +182,7 @@ __kernel void k_dpd(const __global numtyp4 *restrict x_,
   int n_stride;
   local_allocate_store_pair();
 
-  acctyp3 f;
+  acctyp4 f;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
   acctyp energy, virial[6];
   if (EVFLAG) {
@@ -201,13 +200,11 @@ __kernel void k_dpd(const __global numtyp4 *restrict x_,
     numtyp4 iv; fetch4(iv,i,vel_tex); //v_[i];
     int itag=iv.w;
 
-    numtyp factor_dpd, factor_sqrt;
+    numtyp factor_dpd;
     for ( ; nbor<nbor_end; nbor+=n_stride) {
-      ucl_prefetch(dev_packed+nbor+n_stride);
 
       int j=dev_packed[nbor];
       factor_dpd = sp_lj[sbmask(j)];
-      factor_sqrt = sp_sqrt[sbmask(j)];
       j &= NEIGHMASK;
 
       numtyp4 jx; fetch4(jx,j,pos_tex); //x_[j];
@@ -248,9 +245,8 @@ __kernel void k_dpd(const __global numtyp4 *restrict x_,
         numtyp force = (numtyp)0.0;
         if (!tstat_only) force = coeff[mtype].x*wd;
         force -= coeff[mtype].y*wd*wd*dot*rinv;
-        force *= factor_dpd;
-        force += factor_sqrt*coeff[mtype].z*wd*randnum*dtinvsqrt;
-        force*=rinv;
+        force += coeff[mtype].z*wd*randnum*dtinvsqrt;
+        force*=factor_dpd*rinv;
 
         f.x+=delx*force;
         f.y+=dely*force;
@@ -282,10 +278,9 @@ __kernel void k_dpd(const __global numtyp4 *restrict x_,
 __kernel void k_dpd_fast(const __global numtyp4 *restrict x_,
                          const __global numtyp4 *restrict coeff_in,
                          const __global numtyp *restrict sp_lj_in,
-                         const __global numtyp *restrict sp_sqrt_in,
                          const __global int * dev_nbor,
                          const __global int * dev_packed,
-                         __global acctyp3 *restrict ans,
+                         __global acctyp4 *restrict ans,
                          __global acctyp *restrict engv,
                          const int eflag, const int vflag, const int inum,
                          const int nbor_pitch,
@@ -300,11 +295,8 @@ __kernel void k_dpd_fast(const __global numtyp4 *restrict x_,
   #ifndef ONETYPE
   __local numtyp4 coeff[MAX_SHARED_TYPES*MAX_SHARED_TYPES];
   __local numtyp sp_lj[4];
-  __local numtyp sp_sqrt[4];
-  if (tid<4) {
+  if (tid<4)
     sp_lj[tid]=sp_lj_in[tid];
-    sp_sqrt[tid]=sp_sqrt_in[tid];
-  }
   if (tid<MAX_SHARED_TYPES*MAX_SHARED_TYPES) {
     coeff[tid]=coeff_in[tid];
   }
@@ -320,7 +312,7 @@ __kernel void k_dpd_fast(const __global numtyp4 *restrict x_,
   int n_stride;
   local_allocate_store_pair();
 
-  acctyp3 f;
+  acctyp4 f;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
   acctyp energy, virial[6];
   if (EVFLAG) {
@@ -341,16 +333,12 @@ __kernel void k_dpd_fast(const __global numtyp4 *restrict x_,
     numtyp4 iv; fetch4(iv,i,vel_tex); //v_[i];
     int itag=iv.w;
 
-    #ifndef ONETYPE
-    numtyp factor_dpd, factor_sqrt;
-    #endif
+    numtyp factor_dpd;
     for ( ; nbor<nbor_end; nbor+=n_stride) {
-      ucl_prefetch(dev_packed+nbor+n_stride);
 
       int j=dev_packed[nbor];
       #ifndef ONETYPE
       factor_dpd = sp_lj[sbmask(j)];
-      factor_sqrt = sp_sqrt[sbmask(j)];
       j &= NEIGHMASK;
       #endif
 
@@ -402,13 +390,12 @@ __kernel void k_dpd_fast(const __global numtyp4 *restrict x_,
         numtyp force = (numtyp)0.0;
         if (!tstat_only) force = coeffx*wd;
         force -= coeffy*wd*wd*dot*rinv;
-        #ifndef ONETYPE
-        force *= factor_dpd;
-        force += factor_sqrt*coeffz*wd*randnum*dtinvsqrt;
-        #else
         force += coeffz*wd*randnum*dtinvsqrt;
-        #endif
+        #ifndef ONETYPE
+        force*=factor_dpd*rinv;
+        #else
         force*=rinv;
+        #endif
 
         f.x+=delx*force;
         f.y+=dely*force;

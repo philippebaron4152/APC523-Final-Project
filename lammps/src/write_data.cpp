@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -25,7 +25,6 @@
 #include "fix.h"
 #include "force.h"
 #include "improper.h"
-#include "label_map.h"
 #include "memory.h"
 #include "modify.h"
 #include "output.h"
@@ -57,12 +56,12 @@ void WriteData::command(int narg, char **arg)
   if (domain->box_exist == 0)
     error->all(FLERR,"Write_data command before simulation box is defined");
 
-  if (narg < 1) utils::missing_cmd_args(FLERR, "write_data", error);
+  if (narg < 1) error->all(FLERR,"Illegal write_data command");
 
   // if filename contains a "*", replace with current timestep
 
   std::string file = arg[0];
-  std::size_t found = file.find('*');
+  std::size_t found = file.find("*");
   if (found != std::string::npos)
     file.replace(found,1,fmt::format("{}",update->ntimestep));
 
@@ -72,22 +71,15 @@ void WriteData::command(int narg, char **arg)
   pairflag = II;
   coeffflag = 1;
   fixflag = 1;
-  triclinic_general = 0;
-  lmapflag = 1;
-
-  // store current (default) setting since we may change it
-
-  int domain_triclinic_general = domain->triclinic_general;
-  int types_style = atom->types_style;
   int noinit = 0;
 
   int iarg = 1;
   while (iarg < narg) {
     if (strcmp(arg[iarg],"pair") == 0) {
-      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "write_data pair", error);
+      if (iarg+2 > narg) error->all(FLERR,"Illegal write_data command");
       if (strcmp(arg[iarg+1],"ii") == 0) pairflag = II;
       else if (strcmp(arg[iarg+1],"ij") == 0) pairflag = IJ;
-      else error->all(FLERR,"Unknown write_data pair option: {}", arg[iarg+1]);
+      else error->all(FLERR,"Illegal write_data command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"noinit") == 0) {
       noinit = 1;
@@ -98,28 +90,8 @@ void WriteData::command(int narg, char **arg)
     } else if (strcmp(arg[iarg],"nofix") == 0) {
       fixflag = 0;
       iarg++;
-    } else if (strcmp(arg[iarg],"triclinic/general") == 0) {
-      triclinic_general = 1;
-      iarg++;
-    } else if (strcmp(arg[iarg],"nolabelmap") == 0) {
-      lmapflag = 0;
-      iarg++;
-    } else if (strcmp(arg[iarg],"types") == 0) {
-      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "write_data types", error);
-      if (strcmp(arg[iarg+1],"numeric") == 0) atom->types_style = Atom::NUMERIC;
-      else if (strcmp(arg[iarg+1],"labels") == 0) atom->types_style = Atom::LABELS;
-      else error->all(FLERR,"Unknown write_data types option: {}", arg[iarg+1]);
-      iarg += 2;
-    } else error->all(FLERR,"Unknown write_data keyword: {}", arg[iarg]);
+    } else error->all(FLERR,"Illegal write_data command");
   }
-
-  // temporarily disable domain->triclinic_general if output not requested
-
-  if (triclinic_general && !domain->triclinic_general)
-    error->all(FLERR,"Write_data triclinic/general for system "
-               "that is not general triclinic");
-  if (!triclinic_general && domain->triclinic_general)
-    domain->triclinic_general = 0;
 
   // init entire system since comm->exchange is done
   // comm::init needs neighbor::init needs pair::init needs kspace::init, etc
@@ -150,11 +122,6 @@ void WriteData::command(int narg, char **arg)
   }
 
   write(file);
-
-  // restore saved settings
-
-  domain->triclinic_general = domain_triclinic_general;
-  atom->types_style = types_style;
 }
 
 /* ----------------------------------------------------------------------
@@ -209,34 +176,22 @@ void WriteData::write(const std::string &file)
   if (me == 0) {
     fp = fopen(file.c_str(),"w");
     if (fp == nullptr)
-      error->one(FLERR,"Cannot open data file {}: {}", file, utils::getsyserror());
+      error->one(FLERR,"Cannot open data file {}: {}",
+                                   file, utils::getsyserror());
   }
 
   // proc 0 writes header, ntype-length arrays, force fields
-  // label map must come before coeffs
 
   if (me == 0) {
     header();
-    if (lmapflag && atom->labelmapflag) atom->lmap->write_data(fp);
     type_arrays();
     if (coeffflag) force_fields();
   }
 
-  // if general triclinic output:
-  // reset internal per-atom data that needs rotation
-
-  if (domain->triclinic_general) atom->avec->write_data_restricted_to_general();
-
   // per atom info in Atoms and Velocities sections
-  // must not write velocities without tags since we cannot read them back
 
   if (natoms) atoms();
-  if (atom->tag_enable) {
-    if (natoms) velocities();
-  } else {
-    if (me == 0)
-      error->warning(FLERR, "Not writing Velocities section of data file without atom IDs");
-  }
+  if (natoms) velocities();
 
   // molecular topology info if defined
   // do not write molecular topology for atom_style template
@@ -258,14 +213,9 @@ void WriteData::write(const std::string &file)
   // extra sections managed by fixes
 
   if (fixflag)
-    for (auto &ifix : modify->get_fix_list())
-      if (ifix->wd_section)
-        for (int m = 0; m < ifix->wd_section; m++) fix(ifix,m);
-
-  // if general triclinic output:
-  // restore internal per-atom data that was rotated
-
-  if (domain->triclinic_general) atom->avec->write_data_restore_restricted();
+    for (int i = 0; i < modify->nfix; i++)
+      if (modify->fix[i]->wd_section)
+        for (int m = 0; m < modify->fix[i]->wd_section; m++) fix(i,m);
 
   // close data file
 
@@ -278,8 +228,8 @@ void WriteData::write(const std::string &file)
 
 void WriteData::header()
 {
-  fmt::print(fp,"LAMMPS data file via write_data, version {}, timestep = {}, units = {}\n\n",
-             lmp->version, update->ntimestep, update->unit_style);
+  fmt::print(fp,"LAMMPS data file via write_data, version {}, "
+             "timestep = {}\n\n",lmp->version,update->ntimestep);
 
   fmt::print(fp,"{} atoms\n{} atom types\n",atom->natoms,atom->ntypes);
 
@@ -317,29 +267,23 @@ void WriteData::header()
   // fix info
 
   if (fixflag)
-    for (auto &ifix : modify->get_fix_list())
-      if (ifix->wd_header)
-        for (int m = 0; m < ifix->wd_header; m++)
-          ifix->write_data_header(fp,m);
+    for (int i = 0; i < modify->nfix; i++)
+      if (modify->fix[i]->wd_header)
+        for (int m = 0; m < modify->fix[i]->wd_header; m++)
+          modify->fix[i]->write_data_header(fp,m);
 
-  // box info: orthogonal, restricted triclinic, or general triclinic (if requested)
+  // box info
 
-  if (!domain->triclinic_general) {
-    fmt::print(fp,"\n{} {} xlo xhi\n{} {} ylo yhi\n{} {} zlo zhi\n",
-               domain->boxlo[0],domain->boxhi[0],
-               domain->boxlo[1],domain->boxhi[1],
-               domain->boxlo[2],domain->boxhi[2]);
-    if (domain->triclinic)
-      fmt::print(fp,"{} {} {} xy xz yz\n",domain->xy,domain->xz,domain->yz);
-
-  } else if (domain->triclinic_general) {
-    fmt::print(fp,"\n{} {} {} avec\n{} {} {} bvec\n{} {} {} cvec\n",
-               domain->avec[0],domain->avec[1],domain->avec[2],
-               domain->bvec[0],domain->bvec[1],domain->bvec[2],
-               domain->cvec[0],domain->cvec[1],domain->cvec[2]);
-    fmt::print(fp,"{} {} {} abc origin\n",
-               domain->boxlo[0],domain->boxlo[1],domain->boxlo[2]);
-  }
+  auto box = fmt::format("\n{} {} xlo xhi"
+                         "\n{} {} ylo yhi"
+                         "\n{} {} zlo zhi\n",
+                         domain->boxlo[0],domain->boxhi[0],
+                         domain->boxlo[1],domain->boxhi[1],
+                         domain->boxlo[2],domain->boxhi[2]);
+  if (domain->triclinic)
+    box += fmt::format("{} {} {} xy xz yz\n",
+                       domain->xy,domain->xz,domain->yz);
+  fputs(box.c_str(),fp);
 }
 
 /* ----------------------------------------------------------------------
@@ -778,13 +722,13 @@ void WriteData::bonus(int flag)
    write out Mth section of data file owned by Fix ifix
 ------------------------------------------------------------------------- */
 
-void WriteData::fix(Fix *ifix, int mth)
+void WriteData::fix(int ifix, int mth)
 {
   // communication buffer for Fix info
   // maxrow X ncol = largest buffer needed by any proc
 
   int sendrow,ncol;
-  ifix->write_data_section_size(mth,sendrow,ncol);
+  modify->fix[ifix]->write_data_section_size(mth,sendrow,ncol);
   int maxrow;
   MPI_Allreduce(&sendrow,&maxrow,1,MPI_INT,MPI_MAX,world);
 
@@ -794,7 +738,7 @@ void WriteData::fix(Fix *ifix, int mth)
 
   // pack my fix data into buf
 
-  ifix->write_data_section_pack(mth,buf);
+  modify->fix[ifix]->write_data_section_pack(mth,buf);
 
   // write one chunk of info per proc to file
   // proc 0 pings each proc, receives its chunk, writes to file
@@ -807,7 +751,7 @@ void WriteData::fix(Fix *ifix, int mth)
     MPI_Status status;
     MPI_Request request;
 
-    ifix->write_data_section_keyword(mth,fp);
+    modify->fix[ifix]->write_data_section_keyword(mth,fp);
     for (int iproc = 0; iproc < nprocs; iproc++) {
       if (iproc) {
         MPI_Irecv(&buf[0][0],maxrow*ncol,MPI_DOUBLE,iproc,0,world,&request);
@@ -817,7 +761,7 @@ void WriteData::fix(Fix *ifix, int mth)
         recvrow /= ncol;
       } else recvrow = sendrow;
 
-      ifix->write_data_section(mth,fp,recvrow,buf,index);
+      modify->fix[ifix]->write_data_section(mth,fp,recvrow,buf,index);
       index += recvrow;
     }
 

@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -24,7 +24,7 @@
 #include "error.h"
 #include "finish.h"
 #include "fix_event_tad.h"
-#include "fix_store_atom.h"
+#include "fix_store.h"
 #include "force.h"
 #include "integrate.h"
 #include "memory.h"
@@ -54,9 +54,9 @@ TAD::TAD(LAMMPS *lmp) : Command(lmp)
 TAD::~TAD()
 {
   memory->sfree(fix_event_list);
-  if (neb_logfilename != nullptr) delete[] neb_logfilename;
-  delete[] min_style;
-  delete[] min_style_neb;
+  if (neb_logfilename != nullptr) delete [] neb_logfilename;
+  delete [] min_style;
+  delete [] min_style_neb;
 }
 
 /* ----------------------------------------------------------------------
@@ -131,11 +131,11 @@ void TAD::command(int narg, char **arg)
 
   // create FixEventTAD object to store last event
 
-  fix_event = dynamic_cast<FixEventTAD *>(modify->add_fix("tad_event all EVENT/TAD"));
+  fix_event = (FixEventTAD *) modify->add_fix("tad_event all EVENT/TAD");
 
-  // create FixStoreAtom object to store revert state
+  // create FixStore object to store revert state
 
-  fix_revert = dynamic_cast<FixStoreAtom *>(modify->add_fix("tad_revert all STORE/ATOM 7 0 0 0"));
+  fix_revert = (FixStore *) modify->add_fix("tad_revert all STORE peratom 0 7");
 
   // create Finish for timing output
 
@@ -364,10 +364,18 @@ void TAD::command(int narg, char **arg)
   neighbor->ndanger = ndanger;
 
   if (me_universe == 0) {
-    auto mesg = fmt::format("Loop time of {} on {} procs for {} steps with {} atoms\n",
-                            timer->get_wall(Timer::TOTAL), nprocs_universe, nsteps,atom->natoms);
-    if (universe->uscreen) fmt::print(universe->uscreen, mesg);
-    if (universe->ulogfile) fmt::print(universe->ulogfile, mesg);
+    if (universe->uscreen)
+      fprintf(universe->uscreen,
+              "Loop time of %g on %d procs for %d steps with " BIGINT_FORMAT
+              " atoms\n",
+              timer->get_wall(Timer::TOTAL),nprocs_universe,
+              nsteps,atom->natoms);
+    if (universe->ulogfile)
+      fprintf(universe->ulogfile,
+              "Loop time of %g on %d procs for %d steps with " BIGINT_FORMAT
+              " atoms\n",
+              timer->get_wall(Timer::TOTAL),nprocs_universe,
+              nsteps,atom->natoms);
   }
 
   if ((me_universe == 0) && ulogfile_neb) fclose(ulogfile_neb);
@@ -388,7 +396,7 @@ void TAD::command(int narg, char **arg)
   neighbor->dist_check = neigh_dist_check;
 
 
-  delete[] id_compute;
+  delete [] id_compute;
   delete finish;
   modify->delete_fix("tad_event");
   modify->delete_fix("tad_revert");
@@ -499,18 +507,29 @@ void TAD::log_event(int ievent)
   timer->set_wall(Timer::TOTAL, time_start);
   if (universe->me == 0) {
     double tfrac = 0.0;
-    auto mesg = fmt::format("{} {:.3f} {} {} {} {:.3f} {:.3f} {:.3f} {:.3f}\n",
-                            fix_event->event_timestep, timer->elapsed(Timer::TOTAL),
-                            fix_event->event_number, ievent, "E ", fix_event->ebarrier,
-                            tfrac, fix_event->tlo, deltfirst);
-
-    if (universe->uscreen) fmt::print(universe->uscreen, mesg);
-    if (universe->ulogfile) fmt::print(universe->ulogfile, mesg);
+    if (universe->uscreen)
+      fprintf(universe->uscreen,
+              BIGINT_FORMAT " %.3f %d %d %s %.3f %.3f %.3f %.3f\n",
+              fix_event->event_timestep,
+              timer->elapsed(Timer::TOTAL),
+              fix_event->event_number,ievent,
+              "E ",
+              fix_event->ebarrier,tfrac,
+              fix_event->tlo,deltfirst);
+    if (universe->ulogfile)
+      fprintf(universe->ulogfile,
+              BIGINT_FORMAT " %.3f %d %d %s %.3f %.3f %.3f %.3f\n",
+              fix_event->event_timestep,
+              timer->elapsed(Timer::TOTAL),
+              fix_event->event_number,ievent,
+              "E ",
+              fix_event->ebarrier,tfrac,
+              fix_event->tlo,deltfirst);
   }
 
   // dump snapshot of quenched coords
   // must reneighbor and compute forces before dumping
-  // addstep_compute_all ensures eng/virial are calculated if needed
+  // addstep_compute_all insures eng/virial are calculated if needed
 
   if (output->ndump && universe->iworld == 0) {
     timer->barrier_start();
@@ -578,7 +597,7 @@ void TAD::options(int narg, char **arg)
 
     } else if (strcmp(arg[iarg],"neb_style") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal tad command");
-      delete[] min_style_neb;
+      delete [] min_style_neb;
       min_style_neb = utils::strdup(arg[iarg+1]);
       iarg += 2;
 
@@ -589,7 +608,7 @@ void TAD::options(int narg, char **arg)
       iarg += 2;
 
     } else if (strcmp(arg[iarg],"neb_log") == 0) {
-      delete[] neb_logfilename;
+      delete [] neb_logfilename;
       if (iarg+2 > narg) error->all(FLERR,"Illegal tad command");
       if (strcmp(arg[iarg+1],"none") == 0) neb_logfilename = nullptr;
       else {
@@ -691,7 +710,7 @@ void TAD::perform_neb(int ievent)
   //    time_neb += timer->get_wall(Timer::TOTAL);
 
   MPI_Barrier(world);
-  double time_tmp = platform::walltime();
+  double time_tmp = MPI_Wtime();
 
   double dt_hold = update->dt;
   update->dt = dt_neb;
@@ -699,7 +718,7 @@ void TAD::perform_neb(int ievent)
   update->dt = dt_hold;
 
   MPI_Barrier(world);
-  time_neb += platform::walltime() - time_tmp;
+  time_neb += MPI_Wtime() - time_tmp;
 
   if (universe->me == 0) {
     universe->ulogfile = ulogfile_lammps;
@@ -821,9 +840,11 @@ void TAD::initialize_event_list() {
 
 void TAD::delete_event_list() {
 
-  for (int i = 0; i < n_event_list; i++)
-    modify->delete_fix(fmt::format("tad_event_{}",i));
-
+  for (int i = 0; i < n_event_list; i++) {
+    char str[128];
+    sprintf(str,"tad_event_%d",i);
+    modify->delete_fix(str);
+  }
   memory->sfree(fix_event_list);
   fix_event_list = nullptr;
   n_event_list = 0;
@@ -844,7 +865,7 @@ void TAD::add_event()
 
   int ievent = n_event_list++;
   fix_event_list[ievent]
-    = dynamic_cast<FixEventTAD *>(modify->add_fix(fmt::format("tad_event_{} all EVENT/TAD", ievent)));
+    = (FixEventTAD *) modify->add_fix(fmt::format("tad_event_{} all EVENT/TAD", ievent));
 
   // store quenched state for new event
 
@@ -872,7 +893,7 @@ void TAD::compute_tlo(int ievent)
 
   // update first event
 
-  auto  statstr = (char *) "D ";
+  char* statstr = (char *) "D ";
 
   if (ievent == 0) {
     deltfirst = deltlo;
@@ -890,14 +911,26 @@ void TAD::compute_tlo(int ievent)
   if (universe->me == 0) {
     double tfrac = 0.0;
     if (ievent > 0) tfrac = delthi/deltstop;
-    auto mesg = fmt::format("{} {:.3f} {} {} {} {:.3f} {:.3f} {:.3f} {:.3f}\n",
-                            fix_event_list[ievent]->event_timestep, timer->elapsed(Timer::TOTAL),
-                            fix_event->event_number, ievent, statstr, ebarrier, tfrac,
-                            fix_event->tlo, deltlo);
 
-    if (universe->uscreen) fmt::print(universe->uscreen, mesg);
-    if (universe->ulogfile) fmt::print(universe->ulogfile, mesg);
+    if (universe->uscreen)
+      fprintf(universe->uscreen,
+              BIGINT_FORMAT " %.3f %d %d %s %.3f %.3f %.3f %.3f\n",
+              fix_event_list[ievent]->event_timestep,
+              timer->elapsed(Timer::TOTAL),
+              fix_event->event_number,
+              ievent,statstr,ebarrier,tfrac,
+              fix_event->tlo,deltlo);
+
+    if (universe->ulogfile)
+      fprintf(universe->ulogfile,
+              BIGINT_FORMAT " %.3f %d %d %s %.3f %.3f %.3f %.3f\n",
+              fix_event_list[ievent]->event_timestep,
+              timer->elapsed(Timer::TOTAL),
+              fix_event->event_number,
+              ievent,statstr,ebarrier,tfrac,
+              fix_event->tlo,deltlo);
   }
+
 }
 
 /* ----------------------------------------------------------------------

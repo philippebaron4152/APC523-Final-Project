@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,8 +27,10 @@
 #include "math_extra.h"
 #include "memory.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "neighbor.h"
 #include "potential_file_reader.h"
+#include "tokenizer.h"
 
 #include <cmath>
 #include <cstring>
@@ -37,7 +39,7 @@ using namespace LAMMPS_NS;
 using namespace MathConst;
 using namespace MathExtra;
 
-static constexpr int DELTA = 4;
+#define DELTA 4
 
 /* ---------------------------------------------------------------------- */
 
@@ -73,8 +75,7 @@ PairGW::~PairGW()
 void PairGW::compute(int eflag, int vflag)
 {
   int i,j,k,ii,jj,kk,inum,jnum;
-  int itype,jtype,ktype,iparam_ij,iparam_ijk;
-  tagint itag,jtag;
+  int itag,jtag,itype,jtype,ktype,iparam_ij,iparam_ijk;
   double xtmp,ytmp,ztmp,delx,dely,delz,evdwl,fpair;
   double rsq,rsq1,rsq2;
   double delr1[3],delr2[3],fi[3],fj[3],fk[3];
@@ -285,7 +286,9 @@ void PairGW::init_style()
 
   // need a full neighbor list
 
-  neighbor->add_request(this, NeighConst::REQ_FULL);
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
 }
 
 /* ----------------------------------------------------------------------
@@ -428,13 +431,11 @@ void PairGW::setup_params()
           if (i == params[m].ielement && j == params[m].jelement &&
               k == params[m].kelement) {
             if (n >= 0)
-              error->all(FLERR,"Potential file has a duplicate entry for: {} {} {}",
-                         elements[i], elements[j], elements[k]);
+              error->all(FLERR,"Potential file has duplicate entry");
             n = m;
           }
         }
-        if (n < 0) error->all(FLERR,"Potential file is missing an entry for: {} {} {}",
-                              elements[i], elements[j], elements[k]);
+        if (n < 0) error->all(FLERR,"Potential file is missing an entry");
         elem3param[i][j][k] = n;
       }
 

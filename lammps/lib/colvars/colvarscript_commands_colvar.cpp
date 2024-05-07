@@ -36,10 +36,6 @@
         COLVARSCRIPT_OK) {                                              \
       return COLVARSCRIPT_ERROR;                                        \
     }                                                                   \
-    if (objc > 1) {                                                     \
-      /* Silence unused parameter warning */                            \
-      (void) objv[0];                                                    \
-    }                                                                   \
     colvar *this_colvar = colvar_obj(pobj);                             \
     FN_BODY;                                                            \
   }

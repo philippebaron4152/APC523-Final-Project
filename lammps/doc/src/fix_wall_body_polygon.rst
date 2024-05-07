@@ -6,7 +6,7 @@ fix wall/body/polygon command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID wall/body/polygon k_n c_n c_t wallstyle args keyword values ...
 

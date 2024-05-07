@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,14 +27,12 @@ namespace LAMMPS_NS {
 class PairEDIPMulti : public Pair {
  public:
   PairEDIPMulti(class LAMMPS *);
-  ~PairEDIPMulti() override;
-  void compute(int, int) override;
-  void settings(int, char **) override;
-  void coeff(int, char **) override;
-  double init_one(int, int) override;
-  void init_style() override;
-
-  static constexpr int NPARAMS_PER_LINE = 20;
+  virtual ~PairEDIPMulti();
+  virtual void compute(int, int);
+  void settings(int, char **);
+  void coeff(int, char **);
+  double init_one(int, int);
+  void init_style();
 
  protected:
   struct Param {
@@ -50,7 +48,7 @@ class PairEDIPMulti : public Pair {
     double mu, Q0;            // coefficients for function Q(Z)
     double u1, u2, u3, u4;    // coefficients for function tau(Z)
     double cutsq;
-    int ielement, jelement, kelement, dummy;    // dummy added for better alignment
+    int ielement, jelement, kelement;
   };
 
   double *preForceCoord;
@@ -59,18 +57,18 @@ class PairEDIPMulti : public Pair {
   Param *params;    // parameter set for an I-J-K interaction
 
   void allocate();
-  void allocatePreLoops();
-  void deallocatePreLoops();
+  void allocatePreLoops(void);
+  void deallocatePreLoops(void);
 
   void read_file(char *);
-  void setup() override;
+  void setup();
 
-  void edip_pair(double, double, const Param &, double &, double &, double &);
-  void edip_fc(double, const Param &, double &, double &);
-  void edip_fcut2(double, const Param &, double &, double &);
-  void edip_tau(double, const Param &, double &, double &);
-  void edip_h(double, double, const Param &, double &, double &, double &);
-  void edip_fcut3(double, const Param &, double &, double &);
+  void edip_pair(double, double, Param *, double &, double &, double &);
+  void edip_fc(double, Param *, double &, double &);
+  void edip_fcut2(double, Param *, double &, double &);
+  void edip_tau(double, Param *, double &, double &);
+  void edip_h(double, double, Param *, double &, double &, double &);
+  void edip_fcut3(double, Param *, double &, double &);
 };
 
 }    // namespace LAMMPS_NS

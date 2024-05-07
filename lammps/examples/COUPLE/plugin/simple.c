@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
-   https://www.lammps.org, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   www.cs.sandia.gov/~sjplimp/lammps.html
+   Steve Plimpton, sjplimp@sandia.gov, Sandia National Laboratories
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -19,16 +19,10 @@
            in.lammps = LAMMPS input script
    See README for compilation instructions */
 
-#include <mpi.h>
-
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
-/* define so interface to lammps_open() is available,
-   since we will run on split communicator */
-#define LAMMPS_LIB_MPI 1
-
+#include <mpi.h>
 #include "liblammpsplugin.h"  /* this is the include for the plugin loader */
 
 int main(int narg, char **arg)
@@ -53,7 +47,7 @@ int main(int narg, char **arg)
   MPI_Init(&narg,&arg);
 
   if (narg != 4) {
-    printf("Syntax: %s P in.lammps /path/to/liblammps.so\n", arg[0]);
+    printf("Syntax: simpleC P in.lammps /path/to/liblammps.so\n");
     exit(1);
   }
 
@@ -92,20 +86,8 @@ int main(int narg, char **arg)
       if (me == 0) printf("ERROR: Could not load shared LAMMPS library\n");
       MPI_Abort(MPI_COMM_WORLD,1);
     }
-    /* must match the plugin ABI version */
-    if (plugin->abiversion != LAMMPSPLUGIN_ABI_VERSION) {
-      if (me == 0) printf("ERROR: Plugin abi version does not match: %d vs %d\n",
-                          plugin->abiversion, LAMMPSPLUGIN_ABI_VERSION);
-      MPI_Abort(MPI_COMM_WORLD,1);
-    }
   }
-  if (lammps == 1) {
-    if (plugin->open == NULL) {
-      printf("ERROR: liblammpsmpi.c must be compiled with -DLAMMPS_LIB_MPI=1 for this program\n");
-      MPI_Abort(MPI_COMM_WORLD,2);
-    }
-    lmp = plugin->open(0,NULL,comm_lammps,NULL);
-  }
+  if (lammps == 1) plugin->open(0,NULL,comm_lammps,&lmp);
 
   while (1) {
     if (me == 0) {
@@ -130,25 +112,24 @@ int main(int narg, char **arg)
 
     int natoms = plugin->get_natoms(lmp);
     x = (double *) malloc(3*natoms*sizeof(double));
-    plugin->gather_atoms(lmp,(char *)"x",1,3,x);
+    plugin->gather_atoms(lmp,"x",1,3,x);
     v = (double *) malloc(3*natoms*sizeof(double));
-    plugin->gather_atoms(lmp,(char *)"v",1,3,v);
+    plugin->gather_atoms(lmp,"v",1,3,v);
     double epsilon = 0.1;
     x[0] += epsilon;
-    plugin->scatter_atoms(lmp,(char *)"x",1,3,x);
+    plugin->scatter_atoms(lmp,"x",1,3,x);
 
     plugin->command(lmp,"run 1");
   }
 
-  /* extract force on single atom two different ways */
+  // extract force on single atom two different ways
 
   if (lammps == 1) {
     double **f = (double **) plugin->extract_atom(lmp,"f");
     printf("Force on 1 atom via extract_atom: %g\n",f[0][0]);
 
-    double *fx = (double *) plugin->extract_variable(lmp,"fx",(char *)"all");
+    double *fx = (double *) plugin->extract_variable(lmp,"fx","all");
     printf("Force on 1 atom via extract_variable: %g\n",fx[0]);
-    plugin->free(fx);
   }
 
   /* use commands_string() and commands_list() to invoke more commands */
@@ -158,7 +139,7 @@ int main(int narg, char **arg)
 
   cmds[0] = (char *)"run 10";
   cmds[1] = (char *)"run 20";
-  if (lammps == 1) plugin->commands_list(lmp,2,(const char **)cmds);
+  if (lammps == 1) plugin->commands_list(lmp,2,cmds);
 
   /* delete all atoms
      create_atoms() to create new ones with old coords, vels
@@ -179,17 +160,16 @@ int main(int narg, char **arg)
   if (v) free(v);
   if (type) free(type);
 
-  /* close down LAMMPS */
+  // close down LAMMPS
 
   if (lammps == 1) {
     plugin->close(lmp);
-    MPI_Barrier(comm_lammps);
-    MPI_Comm_free(&comm_lammps);
     liblammpsplugin_release(plugin);
   }
 
   /* close down MPI */
 
+  if (lammps == 1) MPI_Comm_free(&comm_lammps);
   MPI_Barrier(MPI_COMM_WORLD);
   MPI_Finalize();
 }

@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    This software is distributed under the GNU General Public License.
 
@@ -19,7 +19,6 @@
 #include "comm.h"
 #include "domain.h"
 #include "error.h"
-#include "ewald_const.h"
 #include "force.h"
 #include "memory.h"
 #include "neigh_list.h"
@@ -29,9 +28,15 @@
 #include <cmath>
 
 #include "omp_compat.h"
-
 using namespace LAMMPS_NS;
-using namespace EwaldConst;
+
+#define EWALD_F   1.12837917
+#define EWALD_P   0.3275911
+#define A1        0.254829592
+#define A2       -0.284496736
+#define A3        1.421413741
+#define A4       -1.453152027
+#define A5        1.061405429
 
 /* ---------------------------------------------------------------------- */
 
@@ -385,7 +390,7 @@ void PairLJLongTIP4PLongOMP::compute_inner()
     loop_setup_thr(ifrom, ito, tid, inum, nthreads);
     ThrData *thr = fix->get_thr(tid);
     thr->timer(Timer::START);
-    ev_setup_thr(0, 0, nall, nullptr, nullptr, nullptr, thr);
+    ev_setup_thr(0, 0, nall, 0, 0, nullptr, thr);
     eval_inner(ifrom, ito, thr);
     thr->timer(Timer::PAIR);
 
@@ -410,7 +415,7 @@ void PairLJLongTIP4PLongOMP::compute_middle()
     loop_setup_thr(ifrom, ito, tid, inum, nthreads);
     ThrData *thr = fix->get_thr(tid);
     thr->timer(Timer::START);
-    ev_setup_thr(0, 0, nall, nullptr, nullptr, nullptr, thr);
+    ev_setup_thr(0, 0, nall, 0, 0, nullptr, thr);
     eval_middle(ifrom, ito, thr);
     thr->timer(Timer::PAIR);
 
@@ -713,8 +718,8 @@ template < const int EVFLAG, const int EFLAG,
            const int NEWTON_PAIR, const int CTABLE, const int LJTABLE, const int ORDER1, const int ORDER6 >
 void PairLJLongTIP4PLongOMP::eval(int iifrom, int iito, ThrData * const thr)
 {
-  const auto * _noalias const x = (dbl3_t *) atom->x[0];
-  auto * _noalias const f = (dbl3_t *) thr->get_f()[0];
+  const dbl3_t * _noalias const x = (dbl3_t *) atom->x[0];
+  dbl3_t * _noalias const f = (dbl3_t *) thr->get_f()[0];
   const double * _noalias const q = atom->q;
   const int * _noalias const type = atom->type;
   const tagint * _noalias const tag = atom->tag;
@@ -1090,8 +1095,8 @@ void PairLJLongTIP4PLongOMP::eval_inner(int iifrom, int iito, ThrData * const th
 {
   double rsq, r2inv, forcecoul = 0.0, forcelj, cforce;
 
-  const auto * _noalias const x = (dbl3_t *) atom->x[0];
-  auto * _noalias const f = (dbl3_t *) thr->get_f()[0];
+  const dbl3_t * _noalias const x = (dbl3_t *) atom->x[0];
+  dbl3_t * _noalias const f = (dbl3_t *) thr->get_f()[0];
   const double * _noalias const q = atom->q;
   const int * _noalias const type = atom->type;
   const tagint * _noalias const tag = atom->tag;
@@ -1347,8 +1352,8 @@ void PairLJLongTIP4PLongOMP::eval_middle(int iifrom, int iito, ThrData * const t
 {
   double rsq, r2inv, forcecoul,forcelj, cforce;
 
-  const auto * _noalias const x = (dbl3_t *) atom->x[0];
-  auto * _noalias const f = (dbl3_t *) thr->get_f()[0];
+  const dbl3_t * _noalias const x = (dbl3_t *) atom->x[0];
+  dbl3_t * _noalias const f = (dbl3_t *) thr->get_f()[0];
   const double * _noalias const q = atom->q;
   const int * _noalias const type = atom->type;
   const tagint * _noalias const tag = atom->tag;
@@ -1617,8 +1622,8 @@ void PairLJLongTIP4PLongOMP::eval_outer(int iifrom, int iito, ThrData * const th
   double v[6];
   dbl3_t x1,x2,xH1,xH2;
 
-  const auto * _noalias const x = (dbl3_t *) atom->x[0];
-  auto * _noalias const f = (dbl3_t *) thr->get_f()[0];
+  const dbl3_t * _noalias const x = (dbl3_t *) atom->x[0];
+  dbl3_t * _noalias const f = (dbl3_t *) thr->get_f()[0];
   const double * _noalias const q = atom->q;
   const int * _noalias const type = atom->type;
   const tagint * _noalias const tag = atom->tag;

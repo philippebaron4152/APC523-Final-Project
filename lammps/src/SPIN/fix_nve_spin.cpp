@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -45,18 +45,20 @@ using namespace LAMMPS_NS;
 using namespace FixConst;
 
 static const char cite_fix_nve_spin[] =
-  "fix nve/spin command: doi:10.1016/j.jcp.2018.06.042\n\n"
+  "fix nve/spin command:\n\n"
   "@article{tranchida2018massively,\n"
-  "title={Massively Parallel Symplectic Algorithm for Coupled Magnetic Spin "
-  "   Dynamics and Molecular Dynamics},\n"
-  "author={Tranchida, J and Plimpton, S J and Thibaudeau, P and Thompson, A P},\n"
+  "title={Massively parallel symplectic algorithm for coupled magnetic spin "
+  "dynamics and molecular dynamics},\n"
+  "author={Tranchida, J and Plimpton, SJ and Thibaudeau, P and Thompson, AP},\n"
   "journal={Journal of Computational Physics},\n"
   "volume={372},\n"
-  "pages={406--425},\n"
+  "pages={406-425},\n"
   "year={2018},\n"
   "publisher={Elsevier}\n"
   "doi={10.1016/j.jcp.2018.06.042}\n"
   "}\n\n";
+
+enum{NONE};
 
 /* ---------------------------------------------------------------------- */
 
@@ -69,9 +71,10 @@ FixNVESpin::FixNVESpin(LAMMPS *lmp, int narg, char **arg) :
 {
   if (lmp->citeme) lmp->citeme->add(cite_fix_nve_spin);
 
-  if (narg < 4) error->all(FLERR,"Illegal fix/nve/spin command");
+  if (narg < 4) error->all(FLERR,"Illegal fix/NVE/spin command");
 
   time_integrate = 1;
+  sector_flag = NONE;
   lattice_flag = 1;
   nlocal_max = 0;
   npairs = 0;
@@ -83,11 +86,16 @@ FixNVESpin::FixNVESpin(LAMMPS *lmp, int narg, char **arg) :
   // checking if map array or hash is defined
 
   if (atom->map_style == Atom::MAP_NONE)
-    error->all(FLERR,"Fix nve/spin requires an atom map, see atom_modify");
+    error->all(FLERR,"Fix NVE/spin requires an atom map, see atom_modify");
 
-  // define sector_flag
+  // defining sector_flag
 
-  sector_flag = (comm->nprocs > 1) ? 1 : 0;
+  int nprocs_tmp = comm->nprocs;
+  if (nprocs_tmp == 1) {
+    sector_flag = 0;
+  } else if (nprocs_tmp >= 1) {
+    sector_flag = 1;
+  } else error->all(FLERR,"Illegal fix/NVE/spin command");
 
   // defining lattice_flag
 
@@ -97,21 +105,25 @@ FixNVESpin::FixNVESpin(LAMMPS *lmp, int narg, char **arg) :
   int iarg = 3;
   while (iarg < narg) {
     if (strcmp(arg[iarg],"lattice") == 0) {
-      if (iarg+2 > narg) error->all(FLERR,"Illegal fix/nve/spin command");
-      const std::string latarg = arg[iarg+1];
-      if ((latarg == "no") || (latarg == "off") || (latarg == "false") || (latarg == "frozen"))
-        lattice_flag = 0;
-      else if ((latarg == "yes") || (latarg == "on") || (latarg == "true") || (latarg == "moving"))
-        lattice_flag = 1;
-      else error->all(FLERR,"Illegal fix/nve/spin command");
+      if (iarg+2 > narg) error->all(FLERR,"Illegal fix/NVE/spin command");
+      if (strcmp(arg[iarg+1],"no") == 0) lattice_flag = 0;
+      else if (strcmp(arg[iarg+1],"frozen") == 0) lattice_flag = 0;
+      else if (strcmp(arg[iarg+1],"yes") == 0) lattice_flag = 1;
+      else if (strcmp(arg[iarg+1],"moving") == 0) lattice_flag = 1;
+      else error->all(FLERR,"Illegal fix/NVE/spin command");
       iarg += 2;
-    } else error->all(FLERR,"Illegal fix/nve/spin command");
+    } else error->all(FLERR,"Illegal fix/NVE/spin command");
   }
 
   // check if the atom/spin style is defined
 
   if (!atom->sp_flag)
-    error->all(FLERR,"Fix nve/spin requires atom/spin style");
+    error->all(FLERR,"Fix NVE/spin requires atom/spin style");
+
+  // check if sector_flag is correctly defined
+
+  if (sector_flag == 0 && nprocs_tmp > 1)
+    error->all(FLERR,"Illegal fix/NVE/spin command");
 
   // initialize the magnetic interaction flags
 
@@ -165,7 +177,7 @@ void FixNVESpin::init()
   // loop 1: obtain # of Pairs, and # of Pair/Spin styles
 
   npairspin = 0;
-  PairHybrid *hybrid = dynamic_cast<PairHybrid *>(force->pair_match("^hybrid",0));
+  PairHybrid *hybrid = (PairHybrid *)force->pair_match("^hybrid",0);
   if (force->pair_match("^spin",0,0)) {        // only one Pair/Spin style
     pair = force->pair_match("^spin",0,0);
     if (hybrid == nullptr) npairs = 1;
@@ -193,11 +205,11 @@ void FixNVESpin::init()
   int count1 = 0;
   if (npairspin == 1) {
     count1 = 1;
-    spin_pairs[0] = dynamic_cast<PairSpin *>(force->pair_match("^spin",0,0));
+    spin_pairs[0] = (PairSpin *) force->pair_match("^spin",0,0);
   } else if (npairspin > 1) {
     for (int i = 0; i<npairs; i++) {
       if (force->pair_match("^spin",0,i)) {
-        spin_pairs[count1] = dynamic_cast<PairSpin *>(force->pair_match("^spin",0,i));
+        spin_pairs[count1] = (PairSpin *) force->pair_match("^spin",0,i);
         count1++;
       }
     }
@@ -241,7 +253,7 @@ void FixNVESpin::init()
     for (iforce = 0; iforce < modify->nfix; iforce++) {
       if (utils::strmatch(modify->fix[iforce]->style,"^precession/spin")) {
         precession_spin_flag = 1;
-        lockprecessionspin[count2] = dynamic_cast<FixPrecessionSpin *>(modify->fix[iforce]);
+        lockprecessionspin[count2] = (FixPrecessionSpin *) modify->fix[iforce];
         count2++;
       }
     }
@@ -274,7 +286,7 @@ void FixNVESpin::init()
     for (iforce = 0; iforce < modify->nfix; iforce++) {
       if (utils::strmatch(modify->fix[iforce]->style,"^langevin/spin")) {
         maglangevin_flag = 1;
-        locklangevinspin[count2] = dynamic_cast<FixLangevinSpin *>(modify->fix[iforce]);
+        locklangevinspin[count2] = (FixLangevinSpin *) modify->fix[iforce];
         count2++;
       }
     }
@@ -288,14 +300,14 @@ void FixNVESpin::init()
   for (iforce = 0; iforce < modify->nfix; iforce++) {
     if (utils::strmatch(modify->fix[iforce]->style,"^setforce/spin")) {
       setforce_spin_flag = 1;
-      locksetforcespin = dynamic_cast<FixSetForceSpin *>(modify->fix[iforce]);
+      locksetforcespin = (FixSetForceSpin *) modify->fix[iforce];
     }
   }
 
   // setting the sector variables/lists
 
   nsectors = 0;
-  memory->create(rsec,3,"nve/spin:rsec");
+  memory->create(rsec,3,"NVE/spin:rsec");
 
   // perform the sectoring operation
 
@@ -304,10 +316,10 @@ void FixNVESpin::init()
   // init. size of stacking lists (sectoring)
 
   nlocal_max = atom->nlocal;
-  memory->grow(stack_head,nsectors,"nve/spin:stack_head");
-  memory->grow(stack_foot,nsectors,"nve/spin:stack_foot");
-  memory->grow(backward_stacks,nlocal_max,"nve/spin:backward_stacks");
-  memory->grow(forward_stacks,nlocal_max,"nve/spin:forward_stacks");
+  memory->grow(stack_head,nsectors,"NVE/spin:stack_head");
+  memory->grow(stack_foot,nsectors,"NVE/spin:stack_foot");
+  memory->grow(backward_stacks,nlocal_max,"NVE/spin:backward_stacks");
+  memory->grow(forward_stacks,nlocal_max,"NVE/spin:forward_stacks");
 }
 
 /* ---------------------------------------------------------------------- */
@@ -365,8 +377,8 @@ void FixNVESpin::initial_integrate(int /*vflag*/)
         }
       }
     }
-  } else {                                       // serial seq. update
-    comm->forward_comm();                        // comm. positions of ghost atoms
+  } else if (sector_flag == 0) {                // serial seq. update
+    comm->forward_comm();                       // comm. positions of ghost atoms
     for (int i = 0; i < nlocal; i++) {           // advance quarter s for nlocal
       if (mask[i] & groupbit) {
         ComputeInteractionsSpin(i);
@@ -379,7 +391,7 @@ void FixNVESpin::initial_integrate(int /*vflag*/)
         AdvanceSingleSpin(i);
       }
     }
-  }
+  } else error->all(FLERR,"Illegal fix NVE/spin command");
 
   // update x for all particles
 
@@ -418,21 +430,22 @@ void FixNVESpin::initial_integrate(int /*vflag*/)
         }
       }
     }
-  } else {                                      // serial seq. update
+  } else if (sector_flag == 0) {                // serial seq. update
     comm->forward_comm();                       // comm. positions of ghost atoms
-    for (int i = 0; i < nlocal; i++) {          // advance quarter s for nlocal-1
+    for (int i = 0; i < nlocal; i++) {           // advance quarter s for nlocal-1
       if (mask[i] & groupbit) {
         ComputeInteractionsSpin(i);
         AdvanceSingleSpin(i);
       }
     }
-    for (int i = nlocal-1; i >= 0; i--) {       // advance quarter s for nlocal-1
+    for (int i = nlocal-1; i >= 0; i--) {        // advance quarter s for nlocal-1
       if (mask[i] & groupbit) {
         ComputeInteractionsSpin(i);
         AdvanceSingleSpin(i);
       }
     }
-  }
+  } else error->all(FLERR,"Illegal fix NVE/spin command");
+
 }
 
 /* ----------------------------------------------------------------------
@@ -455,8 +468,8 @@ void FixNVESpin::pre_neighbor()
 
   if (nlocal_max < nlocal) {                    // grow linked lists if necessary
     nlocal_max = nlocal;
-    memory->grow(backward_stacks,nlocal_max,"nve/spin:backward_stacks");
-    memory->grow(forward_stacks,nlocal_max,"nve/spin:forward_stacks");
+    memory->grow(backward_stacks,nlocal_max,"NVE/spin:backward_stacks");
+    memory->grow(forward_stacks,nlocal_max,"NVE/spin:forward_stacks");
   }
 
   for (int j = 0; j < nsectors; j++) {
@@ -597,7 +610,7 @@ void FixNVESpin::sectoring()
 
   nsectors = sec[0]*sec[1]*sec[2];
 
-  if (sector_flag && (nsectors != 8))
+  if (sector_flag == 1 && nsectors != 8)
     error->all(FLERR,"Illegal sectoring operation");
 
   rsec[0] = rsx;
@@ -681,7 +694,7 @@ void FixNVESpin::AdvanceSingleSpin(int i)
 
   // comm. sp[i] to atoms with same tag (for serial algo)
 
-  if (!sector_flag) {
+  if (sector_flag == 0) {
     if (sametag[i] >= 0) {
       j = sametag[i];
       while (j >= 0) {

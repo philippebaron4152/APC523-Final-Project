@@ -33,7 +33,7 @@ __kernel void k_lj_smooth(const __global numtyp4 *restrict x_,
                    const __global numtyp *restrict sp_lj,
                    const __global int * dev_nbor,
                    const __global int * dev_packed,
-                   __global acctyp3 *restrict ans,
+                   __global acctyp4 *restrict ans,
                    __global acctyp *restrict engv,
                    const int eflag, const int vflag, const int inum,
                    const int nbor_pitch, const int t_per_atom) {
@@ -43,7 +43,7 @@ __kernel void k_lj_smooth(const __global numtyp4 *restrict x_,
   int n_stride;
   local_allocate_store_pair();
 
-  acctyp3 f;
+  acctyp4 f;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
   acctyp energy, virial[6];
   if (EVFLAG) {
@@ -61,9 +61,8 @@ __kernel void k_lj_smooth(const __global numtyp4 *restrict x_,
 
     numtyp force, r6inv, factor_lj, forcelj;
     numtyp r, t, tsq, fskin;
-
+    
     for ( ; nbor<nbor_end; nbor+=n_stride) {
-      ucl_prefetch(dev_packed+nbor+n_stride);
 
       int j=dev_packed[nbor];
       factor_lj = sp_lj[sbmask(j)];
@@ -77,10 +76,10 @@ __kernel void k_lj_smooth(const __global numtyp4 *restrict x_,
       numtyp dely = ix.y-jx.y;
       numtyp delz = ix.z-jx.z;
       numtyp rsq = delx*delx+dely*dely+delz*delz;
-
+      
       int mtype=itype*lj_types+jtype;
       if (rsq<lj1[mtype].z) {
-
+        
         numtyp r2inv=ucl_recip(rsq);
         if (rsq < lj1[mtype].w) {
           r6inv = r2inv*r2inv*r2inv;
@@ -136,7 +135,7 @@ __kernel void k_lj_smooth_fast(const __global numtyp4 *restrict x_,
                         const __global numtyp *restrict sp_lj_in,
                         const __global int * dev_nbor,
                         const __global int * dev_packed,
-                        __global acctyp3 *restrict ans,
+                        __global acctyp4 *restrict ans,
                         __global acctyp *restrict engv,
                         const int eflag, const int vflag, const int inum,
                         const int nbor_pitch, const int t_per_atom) {
@@ -170,7 +169,7 @@ __kernel void k_lj_smooth_fast(const __global numtyp4 *restrict x_,
   int n_stride;
   local_allocate_store_pair();
 
-  acctyp3 f;
+  acctyp4 f;
   f.x=(acctyp)0; f.y=(acctyp)0; f.z=(acctyp)0;
   acctyp energy, virial[6];
   if (EVFLAG) {
@@ -195,7 +194,6 @@ __kernel void k_lj_smooth_fast(const __global numtyp4 *restrict x_,
 
     NOUNROLL
     for ( ; nbor<nbor_end; nbor+=n_stride) {
-      ucl_prefetch(dev_packed+nbor+n_stride);
       int j=dev_packed[nbor];
       #ifndef ONETYPE
       factor_lj = sp_lj[sbmask(j)];
@@ -238,7 +236,7 @@ __kernel void k_lj_smooth_fast(const __global numtyp4 *restrict x_,
           if (rsq < lj1[mtype].w)
             e = r6inv * (lj3[mtype].x*r6inv - lj3[mtype].y) - lj3[mtype].z;
           else
-            e = ljsw0[mtype].x - ljsw[mtype].x*t -
+            e = ljsw0[mtype].x - ljsw[mtype].x*t - 
               ljsw[mtype].y*tsq/2.0 - ljsw[mtype].z*tsq*t/3.0 -
               ljsw[mtype].w*tsq*tsq/4.0 - lj3[mtype].z; //???
 

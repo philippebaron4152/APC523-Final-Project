@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,10 +27,10 @@ namespace LAMMPS_NS {
 class ComputeXRD : public Compute {
  public:
   ComputeXRD(class LAMMPS *, int, char **);
-  ~ComputeXRD() override;
-  void init() override;
-  void compute_array() override;
-  double memory_usage() override;
+  ~ComputeXRD();
+  void init();
+  void compute_array();
+  double memory_usage();
 
  private:
   int me;

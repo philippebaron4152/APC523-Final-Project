@@ -12,7 +12,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -38,10 +38,10 @@ namespace LAMMPS_NS {
 class ComputeSMDULSPHStrainRate : public Compute {
  public:
   ComputeSMDULSPHStrainRate(class LAMMPS *, int, char **);
-  ~ComputeSMDULSPHStrainRate() override;
-  void init() override;
-  void compute_peratom() override;
-  double memory_usage() override;
+  ~ComputeSMDULSPHStrainRate();
+  void init();
+  void compute_peratom();
+  double memory_usage();
 
  private:
   int nmax;

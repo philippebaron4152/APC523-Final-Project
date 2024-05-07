@@ -20,8 +20,10 @@
 
 using namespace std;
 
-RigidBody::RigidBody() = default;
-RigidBody::~RigidBody() = default;
+RigidBody::RigidBody(){
+}
+RigidBody::~RigidBody(){
+}
 
 BodyType RigidBody::GetType(){
   return RIGIDBODY;

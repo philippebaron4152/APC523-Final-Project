@@ -1,7 +1,8 @@
+// clang-format off
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -26,25 +27,22 @@
 #include "force.h"
 #include "kspace.h"
 #include "math_const.h"
-#include "math_special.h"
 #include "memory.h"
 #include "neighbor.h"
 #include "suffix.h"
 #include "update.h"
+#include "fmt/chrono.h"
 
-#include <cfloat>     // IWYU pragma: keep
-#include <climits>    // IWYU pragma: keep
+#include <cfloat>    // IWYU pragma: keep
+#include <climits>   // IWYU pragma: keep
 #include <cmath>
 #include <cstring>
+#include <ctime>
 
 using namespace LAMMPS_NS;
-using MathConst::MY_ISPI4;
-using MathConst::THIRD;
-using MathSpecial::powint;
+using namespace MathConst;
 
-enum { NONE, RLINEAR, RSQ, BMP };
-static const std::string mixing_rule_names[Pair::SIXTHPOWER + 1] = {"geometric", "arithmetic",
-                                                                    "sixthpower"};
+enum{NONE,RLINEAR,RSQ,BMP};
 
 // allocate space for static class instance variable and initialize it
 
@@ -52,15 +50,7 @@ int Pair::instance_total = 0;
 
 /* ---------------------------------------------------------------------- */
 
-Pair::Pair(LAMMPS *lmp) :
-    Pointers(lmp), eatom(nullptr), vatom(nullptr), cvatom(nullptr), cutsq(nullptr),
-    setflag(nullptr), cutghost(nullptr), rtable(nullptr), drtable(nullptr), ftable(nullptr),
-    dftable(nullptr), ctable(nullptr), dctable(nullptr), etable(nullptr), detable(nullptr),
-    ptable(nullptr), dptable(nullptr), vtable(nullptr), dvtable(nullptr), rdisptable(nullptr),
-    drdisptable(nullptr), fdisptable(nullptr), dfdisptable(nullptr), edisptable(nullptr),
-    dedisptable(nullptr), pvector(nullptr), svector(nullptr), list(nullptr), listhalf(nullptr),
-    listfull(nullptr), list_tally_compute(nullptr), elements(nullptr), elem1param(nullptr),
-    elem2param(nullptr), elem3param(nullptr), map(nullptr)
+Pair::Pair(LAMMPS *lmp) : Pointers(lmp)
 {
   instance_me = instance_total++;
 
@@ -69,7 +59,6 @@ Pair::Pair(LAMMPS *lmp) :
   comm_forward = comm_reverse = comm_reverse_off = 0;
 
   single_enable = 1;
-  born_matrix_enable = 0;
   single_hessian_enable = 0;
   restartinfo = 1;
   respa_enable = 0;
@@ -79,10 +68,14 @@ Pair::Pair(LAMMPS *lmp) :
   finitecutflag = 0;
   ghostneigh = 0;
   unit_convert_flag = utils::NOCONVERT;
-  did_mix = false;
 
   nextra = 0;
+  pvector = nullptr;
   single_extra = 0;
+  svector = nullptr;
+
+  setflag = nullptr;
+  cutsq = nullptr;
 
   ewaldflag = pppmflag = msmflag = dispersionflag = tip4pflag = dipoleflag = spinflag = 0;
   reinitflag = 1;
@@ -101,29 +94,38 @@ Pair::Pair(LAMMPS *lmp) :
   ndisptablebits = 12;
   tabinner = sqrt(2.0);
   tabinner_disp = sqrt(2.0);
-  trim_flag = 1;
+  ftable = nullptr;
+  fdisptable = nullptr;
 
   allocated = 0;
   suffix_flag = Suffix::NONE;
 
   maxeatom = maxvatom = maxcvatom = 0;
+  eatom = nullptr;
+  vatom = nullptr;
+  cvatom = nullptr;
 
   num_tally_compute = 0;
-  did_tally_flag = 0;
+  list_tally_compute = nullptr;
 
   nelements = nparams = maxparam = 0;
+  elements = nullptr;
+  elem1param = nullptr;
+  elem2param = nullptr;
+  elem3param = nullptr;
+  map = nullptr;
 
   nondefault_history_transfer = 0;
   beyond_contact = 0;
 
-  // KOKKOS package
+  // KOKKOS per-fix data masks
 
   execution_space = Host;
   datamask_read = ALL_MASK;
   datamask_modify = ALL_MASK;
 
-  kokkosable = copymode = 0;
-  reverse_comm_device = fuse_force_clear_flag = 0;
+  kokkosable = 0;
+  copymode = 0;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -146,8 +148,6 @@ Pair::~Pair()
   memory->destroy(cvatom);
 }
 
-// clang-format off
-
 /* ----------------------------------------------------------------------
    modify parameters of the pair style
    pair_hybrid has its own version of this routine
@@ -156,57 +156,59 @@ Pair::~Pair()
 
 void Pair::modify_params(int narg, char **arg)
 {
-  if (narg == 0) utils::missing_cmd_args(FLERR, "pair_modify", error);
+  if (narg == 0) error->all(FLERR,"Illegal pair_modify command");
 
   int iarg = 0;
   while (iarg < narg) {
     if (strcmp(arg[iarg],"mix") == 0) {
-      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "pair_modify mix", error);
+      if (iarg+2 > narg) error->all(FLERR,"Illegal pair_modify command");
       if (strcmp(arg[iarg+1],"geometric") == 0) mix_flag = GEOMETRIC;
       else if (strcmp(arg[iarg+1],"arithmetic") == 0) mix_flag = ARITHMETIC;
       else if (strcmp(arg[iarg+1],"sixthpower") == 0) mix_flag = SIXTHPOWER;
-      else error->all(FLERR,"Unknown pair_modify mix argument: {}", arg[iarg+1]);
+      else error->all(FLERR,"Illegal pair_modify command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"shift") == 0) {
-      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "pair_modify shift", error);
-      offset_flag = utils::logical(FLERR,arg[iarg+1],false,lmp);
+      if (iarg+2 > narg) error->all(FLERR,"Illegal pair_modify command");
+      if (strcmp(arg[iarg+1],"yes") == 0) offset_flag = 1;
+      else if (strcmp(arg[iarg+1],"no") == 0) offset_flag = 0;
+      else error->all(FLERR,"Illegal pair_modify command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"table") == 0) {
-      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "pair_modify table", error);
+      if (iarg+2 > narg) error->all(FLERR,"Illegal pair_modify command");
       ncoultablebits = utils::inumeric(FLERR,arg[iarg+1],false,lmp);
       if (ncoultablebits > (int)sizeof(float)*CHAR_BIT)
         error->all(FLERR,"Too many total bits for bitmapped lookup table");
       iarg += 2;
     } else if (strcmp(arg[iarg],"table/disp") == 0) {
-      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "pair_modify table/disp", error);
+      if (iarg+2 > narg) error->all(FLERR,"Illegal pair_modify command");
       ndisptablebits = utils::inumeric(FLERR,arg[iarg+1],false,lmp);
       if (ndisptablebits > (int)sizeof(float)*CHAR_BIT)
         error->all(FLERR,"Too many total bits for bitmapped lookup table");
       iarg += 2;
     } else if (strcmp(arg[iarg],"tabinner") == 0) {
-      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "pair_modify tabinner", error);
+      if (iarg+2 > narg) error->all(FLERR,"Illegal pair_modify command");
       tabinner = utils::numeric(FLERR,arg[iarg+1],false,lmp);
       iarg += 2;
     } else if (strcmp(arg[iarg],"tabinner/disp") == 0) {
-      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "pair_modify tabinner/disp", error);
+      if (iarg+2 > narg) error->all(FLERR,"Illegal pair_modify command");
       tabinner_disp = utils::numeric(FLERR,arg[iarg+1],false,lmp);
       iarg += 2;
     } else if (strcmp(arg[iarg],"tail") == 0) {
-      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "pair_modify tail", error);
-      tail_flag = utils::logical(FLERR,arg[iarg+1],false,lmp);
+      if (iarg+2 > narg) error->all(FLERR,"Illegal pair_modify command");
+      if (strcmp(arg[iarg+1],"yes") == 0) tail_flag = 1;
+      else if (strcmp(arg[iarg+1],"no") == 0) tail_flag = 0;
+      else error->all(FLERR,"Illegal pair_modify command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"compute") == 0) {
-      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "pair_modify compute", error);
-      compute_flag = utils::logical(FLERR,arg[iarg+1],false,lmp);
+      if (iarg+2 > narg) error->all(FLERR,"Illegal pair_modify command");
+      if (strcmp(arg[iarg+1],"yes") == 0) compute_flag = 1;
+      else if (strcmp(arg[iarg+1],"no") == 0) compute_flag = 0;
+      else error->all(FLERR,"Illegal pair_modify command");
       iarg += 2;
     } else if (strcmp(arg[iarg],"nofdotr") == 0) {
       no_virial_fdotr_compute = 1;
       ++iarg;
-    } else if (strcmp(arg[iarg],"neigh/trim") == 0) {
-      if (iarg+2 > narg) utils::missing_cmd_args(FLERR, "pair_modify neigh/trim", error);
-      trim_flag = utils::logical(FLERR,arg[iarg+1],false,lmp);
-      iarg += 2;
-    } else error->all(FLERR,"Unknown pair_modify keyword: {}", arg[iarg]);
+    } else error->all(FLERR,"Illegal pair_modify command");
   }
 }
 
@@ -223,9 +225,11 @@ void Pair::init()
   if (tail_flag && domain->nonperiodic && comm->me == 0)
     error->warning(FLERR,"Using pair tail corrections with non-periodic system");
   if (!compute_flag && tail_flag && comm->me == 0)
-    error->warning(FLERR,"Using pair tail corrections with pair_modify compute no");
+    error->warning(FLERR,"Using pair tail corrections with "
+                   "pair_modify compute no");
   if (!compute_flag && offset_flag && comm->me == 0)
-    error->warning(FLERR,"Using pair potential shift with pair_modify compute no");
+    error->warning(FLERR,"Using pair potential shift with "
+                   "pair_modify compute no");
 
   // for manybody potentials
   // check if bonded exclusions could invalidate the neighbor list
@@ -263,18 +267,13 @@ void Pair::init()
   etail = ptail = 0.0;
   mixed_flag = 1;
   double cut;
-  int mixed_count = 0;
 
   for (i = 1; i <= atom->ntypes; i++)
     for (j = i; j <= atom->ntypes; j++) {
-      did_mix = false;
+      if ((i != j) && setflag[i][j]) mixed_flag = 0;
       cut = init_one(i,j);
       cutsq[i][j] = cutsq[j][i] = cut*cut;
       cutforce = MAX(cutforce,cut);
-      if (i != j) {
-        if (setflag[i][j]) mixed_flag = 0;
-        if (did_mix) ++mixed_count;
-      }
       if (tail_flag) {
         etail += etail_ij;
         ptail += ptail_ij;
@@ -284,20 +283,6 @@ void Pair::init()
         }
       }
     }
-
-  if (!manybody_flag && (comm->me == 0)) {
-    const int num_mixed_pairs = atom->ntypes * (atom->ntypes - 1) / 2;
-    // CLASS2 always applies sixthpower mixing to epsilon/sigma
-    if (utils::strmatch(force->pair_style,"^lj/class2"))
-      utils::logmesg(lmp,"Generated {} of {} mixed pair_coeff terms from {}/{} mixing rule\n",
-                     mixed_count, num_mixed_pairs, "sixthpower", mixing_rule_names[mix_flag]);
-    else
-      utils::logmesg(lmp,"Generated {} of {} mixed pair_coeff terms from {} mixing rule\n",
-                     mixed_count, num_mixed_pairs, mixing_rule_names[mix_flag]);
-  }
-
-  // for monitoring, if Pair::ev_tally() was called.
-  did_tally_flag = 0;
 }
 
 /* ----------------------------------------------------------------------
@@ -338,7 +323,7 @@ void Pair::reinit()
 
 void Pair::init_style()
 {
-  neighbor->add_request(this);
+  neighbor->request(this,instance_me);
 }
 
 /* ----------------------------------------------------------------------
@@ -704,16 +689,14 @@ void Pair::free_disp_tables()
 
 double Pair::mix_energy(double eps1, double eps2, double sig1, double sig2)
 {
-  did_mix = true;
   if (mix_flag == GEOMETRIC)
     return sqrt(eps1*eps2);
   else if (mix_flag == ARITHMETIC)
     return sqrt(eps1*eps2);
   else if (mix_flag == SIXTHPOWER)
-    return (2.0 * sqrt(eps1*eps2) * powint(sig1, 3) * powint(sig2, 3)
-            / (powint(sig1, 6) + powint(sig2, 6)));
-  else did_mix = false;
-  return 0.0;
+    return (2.0 * sqrt(eps1*eps2) *
+      pow(sig1,3.0) * pow(sig2,3.0) / (pow(sig1,6.0) + pow(sig2,6.0)));
+  else return 0.0;
 }
 
 /* ----------------------------------------------------------------------
@@ -727,7 +710,7 @@ double Pair::mix_distance(double sig1, double sig2)
   else if (mix_flag == ARITHMETIC)
     return (0.5 * (sig1+sig2));
   else if (mix_flag == SIXTHPOWER)
-    return pow((0.5 * (powint(sig1, 6) + powint(sig2, 6))), 1.0/6.0);
+    return pow((0.5 * (pow(sig1,6.0) + pow(sig2,6.0))),1.0/6.0);
   else return 0.0;
 }
 
@@ -775,7 +758,8 @@ void Pair::add_tally_callback(Compute *ptr)
   if (found < 0) {
     found = num_tally_compute;
     ++num_tally_compute;
-    void *p = memory->srealloc((void *)list_tally_compute, sizeof(Compute *) * num_tally_compute,
+    void *p = memory->srealloc((void *)list_tally_compute,
+                               sizeof(Compute *) * num_tally_compute,
                                "pair:list_tally_compute");
     list_tally_compute = (Compute **) p;
     list_tally_compute[num_tally_compute-1] = ptr;
@@ -821,7 +805,7 @@ void Pair::map_element2type(int narg, char **arg, bool update_setflag)
   // elements = list of element names
 
   if (narg != ntypes)
-    error->all(FLERR, "Number of element to type mappings does not match number of atom types");
+    error->all(FLERR,"Incorrect args for pair coefficients");
 
   if (elements) {
     for (i = 0; i < nelements; i++) delete[] elements[i];
@@ -987,7 +971,7 @@ void Pair::ev_setup(int eflag, int vflag, int alloc)
 /* ----------------------------------------------------------------------
    set all flags to zero for energy, virial computation
    called by some complicated many-body potentials that use individual flags
-   to ensure no holdover of flags from previous timestep
+   to insure no holdover of flags from previous timestep
 ------------------------------------------------------------------------- */
 
 void Pair::ev_unset()
@@ -1098,7 +1082,6 @@ void Pair::ev_tally(int i, int j, int nlocal, int newton_pair,
   }
 
   if (num_tally_compute > 0) {
-    did_tally_flag = 1;
     for (int k=0; k < num_tally_compute; ++k) {
       Compute *c = list_tally_compute[k];
       c->pair_tally_callback(i, j, nlocal, newton_pair,
@@ -1807,8 +1790,6 @@ void Pair::write_file(int narg, char **arg)
   else if (strcmp(arg[3],"bitmap") == 0) style = BMP;
   else error->all(FLERR,"Invalid style in pair_write command");
 
-  if (n < 2) error->all(FLERR, "Must have at least 2 table values");
-
   double inner = utils::numeric(FLERR,arg[4],false,lmp);
   double outer = utils::numeric(FLERR,arg[5],false,lmp);
   if (inner <= 0.0 || inner >= outer)
@@ -1827,7 +1808,7 @@ void Pair::write_file(int narg, char **arg)
     //   write out a line with "DATE:" and "UNITS:" tags
     // - if the file already exists, print a message about appending
     //   while printing the date and check that units are consistent.
-    if (platform::file_is_readable(table_file)) {
+    if (utils::file_is_readable(table_file)) {
       std::string units = utils::get_potential_units(table_file,"table");
       if (!units.empty() && (units != update->unit_style)) {
         error->one(FLERR,"Trying to append to a table file "
@@ -1835,17 +1816,21 @@ void Pair::write_file(int narg, char **arg)
                                      units, update->unit_style);
       }
       std::string date = utils::get_potential_date(table_file,"table");
-      utils::logmesg(lmp,"Appending to table file {} with DATE: {}\n", table_file, date);
+      utils::logmesg(lmp,"Appending to table file {} with DATE: {}\n",
+                     table_file, date);
       fp = fopen(table_file.c_str(),"a");
     } else {
-      utils::logmesg(lmp,"Creating table file {} with DATE: {}\n",
-                     table_file, utils::current_date());
+      time_t tv = time(nullptr);
+      std::tm current_date = fmt::localtime(tv);
+      utils::logmesg(lmp,"Creating table file {} with DATE: {:%Y-%m-%d}\n",
+                     table_file, current_date);
       fp = fopen(table_file.c_str(),"w");
-      if (fp) fmt::print(fp,"# DATE: {} UNITS: {} Created by pair_write\n",
-                         utils::current_date(), update->unit_style);
+      if (fp) fmt::print(fp,"# DATE: {:%Y-%m-%d} UNITS: {} Created by pair_write\n",
+                         current_date, update->unit_style);
     }
     if (fp == nullptr)
-      error->one(FLERR,"Cannot open pair_write file {}: {}",table_file, utils::getsyserror());
+      error->one(FLERR,"Cannot open pair_write file {}: {}",
+                                   table_file, utils::getsyserror());
     fprintf(fp,"# Pair potential %s for atom types %d %d: i,r,energy,force\n",
             force->pair_style,itype,jtype);
     if (style == RLINEAR)
@@ -1855,7 +1840,7 @@ void Pair::write_file(int narg, char **arg)
   }
 
   // initialize potentials before evaluating pair potential
-  // ensures all pair coeffs are set and force constants
+  // insures all pair coeffs are set and force constants
   // also initialize neighbor so that neighbor requests are processed
   // NOTE: might be safest to just do lmp->init()
 
@@ -1924,7 +1909,7 @@ void Pair::write_file(int narg, char **arg)
       e = single(0,1,itype,jtype,rsq,1.0,1.0,f);
       f *= r;
     } else e = f = 0.0;
-    if (comm->me == 0) fprintf(fp,"%8d %- 22.15g %- 22.15g %- 22.15g\n",i+1,r,e,f);
+    if (comm->me == 0) fprintf(fp,"%d %.15g %.15g %.15g\n",i+1,r,e,f);
   }
 
   // restore original vecs that were swapped in for
@@ -1953,18 +1938,19 @@ void Pair::init_bitmap(double inner, double outer, int ntablebits,
     error->warning(FLERR,"Table inner cutoff >= outer cutoff");
 
   int nlowermin = 1;
-  while ((powint(2.0, nlowermin) > inner*inner) || (powint(2.0, nlowermin+1) <= inner*inner)) {
-    if (powint(2.0, nlowermin) <= inner*inner) nlowermin++;
+  while (!((pow(double(2),(double)nlowermin) <= inner*inner) &&
+           (pow(double(2),(double)nlowermin+1.0) > inner*inner))) {
+    if (pow(double(2),(double)nlowermin) <= inner*inner) nlowermin++;
     else nlowermin--;
   }
 
   int nexpbits = 0;
-  double required_range = outer*outer / powint(2.0, nlowermin);
+  double required_range = outer*outer / pow(double(2),(double)nlowermin);
   double available_range = 2.0;
 
   while (available_range < required_range) {
     nexpbits++;
-    available_range = pow(2.0, powint(2.0, nexpbits));
+    available_range = pow(double(2),pow(double(2),(double)nexpbits));
   }
 
   int nmantbits = ntablebits - nexpbits;

@@ -6,7 +6,7 @@ fix heat command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID heat N eflux
 

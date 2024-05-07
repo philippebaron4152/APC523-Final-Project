@@ -41,21 +41,13 @@ elif (test $2 = "installed") then
     echo "Installed YES: package $1"
   fi
 
-# info, exit with true/false status depending on whether a package is installed
-
-elif (test $2 = "info") then
-  if (test $installed = 1) then
-    exit 0
-  else
-    exit 1
-  fi
-
 # update, only if installed
 # perform a re-install, but only if the package is already installed
 
 elif (test $2 = "update") then
+  echo "Updating src files from $1 package files"
   if (test $installed = 1) then
-     echo "Updating src files from $1 package files"
+    echo "  updating package $1"
     if (test -e Install.sh) then
       /bin/sh Install.sh 2
     else
@@ -63,14 +55,16 @@ elif (test $2 = "update") then
     fi
     cd ..
     /bin/sh Depend.sh $1
+  else
+    echo "  $1 package is not installed"
   fi
 
 # overwrite, only if installed
 # overwrite package file with src file, if the two are different
 
 elif (test $2 = "overwrite") then
+  echo "Overwriting $1 package files with src files"
   if (test $installed = 1) then
-     echo "Overwriting $1 package files with src files"
     for file in *.cpp *.h; do
       if (test ! -e ../$file) then
         continue

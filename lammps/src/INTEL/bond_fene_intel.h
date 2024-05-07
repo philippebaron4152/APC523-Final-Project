@@ -1,7 +1,8 @@
+// clang-format off
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -32,8 +33,9 @@ namespace LAMMPS_NS {
 class BondFENEIntel : public BondFENE {
  public:
   BondFENEIntel(class LAMMPS *);
-  void compute(int, int) override;
-  void init_style() override;
+  virtual ~BondFENEIntel();
+  virtual void compute(int, int);
+  virtual void init_style();
 
  protected:
   FixIntel *fix;
@@ -58,8 +60,8 @@ class BondFENEIntel : public BondFENE {
     } fc_packed1;
     fc_packed1 *fc;
 
-    ForceConst() : fc(nullptr), _nbondtypes(0) {}
-    ~ForceConst() noexcept(false) { set_ntypes(0, nullptr); }
+    ForceConst() : _nbondtypes(0) {}
+    ~ForceConst() { set_ntypes(0, nullptr); }
 
     void set_ntypes(const int nbondtypes, Memory *memory);
 
@@ -75,3 +77,11 @@ class BondFENEIntel : public BondFENE {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Incorrect args for bond coefficients
+
+Self-explanatory.  Check the input script or data file.
+
+*/

@@ -4,8 +4,17 @@
 {% endblock %}
 {% block body %}
   <div id="search-results">
-    <script async src="https://cse.google.com/cse.js?cx=000956471495417073164:5ggs_m6ymw0">
-    </script>
-    <div class="gcse-search"></div>
+<script>
+  (function() {
+    var cx = '012685039201307511604:um7if1hinba';
+    var gcse = document.createElement('script');
+    gcse.type = 'text/javascript';
+    gcse.async = true;
+    gcse.src = 'https://cse.google.com/cse.js?cx=' + cx;
+    var s = document.getElementsByTagName('script')[0];
+    s.parentNode.insertBefore(gcse, s);
+  })();
+</script>
+<gcse:searchresults-only></gcse:searchresults-only>
   </div>
 {% endblock %}

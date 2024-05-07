@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -37,20 +37,19 @@
 #include <cstring>
 
 using namespace LAMMPS_NS;
-using MathConst::MY_PI;
 
-enum { NONE, RLINEAR, RSQ };
-static constexpr int MAXLINE = 1024;
+enum{NONE,RLINEAR,RSQ};
+
+#define MAXLINE 1024
 
 static const char cite_pair_multi_lucy[] =
-  "pair_style multi/lucy command: doi:10.1063/1.4942520\n\n"
+  "pair_style multi/lucy command:\n\n"
   "@Article{Moore16,\n"
-  " author = {J. D. Moore and B. C. Barnes and S. Izvekov and M. Lisal and M. S. Sellers and D. E. Taylor and J. K. Brennan},\n"
-  " title = {A Coarse-Grain Force Field for {RDX}:  Density Dependent and Energy Conserving},\n"
-  " journal = {J.~Chem.\\ Phys.},\n"
+  " author = {J.D. Moore, B.C. Barnes, S. Izvekov, M. Lisal, M.S. Sellers, D.E. Taylor and J. K. Brennan},\n"
+  " title = {A coarse-grain force field for RDX:  Density dependent and energy conserving},\n"
+  " journal = {J. Chem. Phys.},\n"
   " year =    2016,\n"
   " volume =  144\n"
-  " number =  10,\n"
   " pages =   {104501}\n"
   "}\n\n";
 
@@ -105,6 +104,7 @@ void PairMultiLucy::compute(int eflag, int vflag)
   int nlocal = atom->nlocal;
   int newton_pair = force->newton_pair;
 
+  double pi = MathConst::MY_PI;
   double A_i;
   double A_j;
   double fraction_i,fraction_j;
@@ -198,7 +198,7 @@ void PairMultiLucy::compute(int eflag, int vflag)
       evdwl = tb->e[itable] + fraction_i*tb->de[itable];
     } else error->one(FLERR,"Only LOOKUP and LINEAR table styles have been implemented for pair multi/lucy");
 
-    evdwl *=(MY_PI*cutsq[itype][itype]*cutsq[itype][itype])/84.0;
+    evdwl *=(pi*cutsq[itype][itype]*cutsq[itype][itype])/84.0;
 
     if (evflag) ev_tally(0,0,nlocal,newton_pair,
                          evdwl,0.0,0.0,0.0,0.0,0.0);
@@ -286,7 +286,7 @@ void PairMultiLucy::coeff(int narg, char **arg)
   else tb->cut = tb->rfile[tb->ninput-1];
 
   // error check on table parameters
-  // ensure cutoff is within table
+  // insure cutoff is within table
 
   if (tb->ninput <= 1) error->one(FLERR,"Invalid pair table length");
   double rlo;
@@ -343,7 +343,7 @@ double PairMultiLucy::init_one(int i, int j)
 
 void PairMultiLucy::read_table(Table *tb, char *file, char *keyword)
 {
-  char line[MAXLINE] = {'\0'};
+  char line[MAXLINE];
 
   // open file
 
@@ -356,7 +356,7 @@ void PairMultiLucy::read_table(Table *tb, char *file, char *keyword)
 
   // loop until section found with matching keyword
 
-  while (true) {
+  while (1) {
     if (fgets(line,MAXLINE,fp) == nullptr)
       error->one(FLERR,"Did not find keyword in table file");
     if (strspn(line," \t\n\r") == strlen(line)) continue;  // blank line
@@ -623,7 +623,7 @@ void PairMultiLucy::spline(double *x, double *y, int n,
 {
   int i,k;
   double p,qn,sig,un;
-  auto u = new double[n];
+  double *u = new double[n];
 
   if (yp1 > 0.99e30) y2[0] = u[0] = 0.0;
   else {
@@ -733,6 +733,7 @@ void PairMultiLucy::computeLocalDensity()
   numneigh = list->numneigh;
   firstneigh = list->firstneigh;
 
+  double pi = MathConst::MY_PI;
   double *rho = atom->rho;
 
  // zero out density
@@ -765,7 +766,7 @@ void PairMultiLucy::computeLocalDensity()
 
       if (rsq < cutsq[itype][jtype]) {
         double rcut = sqrt(cutsq[itype][jtype]);
-        factor= (84.0/(5.0*MY_PI*rcut*rcut*rcut))*(1.0+3.0*sqrt(rsq)/(2.0*rcut))*(1.0-sqrt(rsq)/rcut)*(1.0-sqrt(rsq)/rcut)*(1.0-sqrt(rsq)/rcut)*(1.0-sqrt(rsq)/rcut);
+        factor= (84.0/(5.0*pi*rcut*rcut*rcut))*(1.0+3.0*sqrt(rsq)/(2.0*rcut))*(1.0-sqrt(rsq)/rcut)*(1.0-sqrt(rsq)/rcut)*(1.0-sqrt(rsq)/rcut)*(1.0-sqrt(rsq)/rcut);
         rho[i] += factor;
         if (newton_pair || j < nlocal) {
           rho[j] += factor;
@@ -773,9 +774,9 @@ void PairMultiLucy::computeLocalDensity()
       }
     }
   }
-  if (newton_pair) comm->reverse_comm(this);
+  if (newton_pair) comm->reverse_comm_pair(this);
 
-  comm->forward_comm(this);
+  comm->forward_comm_pair(this);
 
 }
 /* ---------------------------------------------------------------------- */

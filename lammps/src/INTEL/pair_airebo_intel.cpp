@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,11 +21,11 @@
 #include "atom.h"
 #include "comm.h"
 #include "error.h"
-#include "force.h"
 #include "math_const.h"
 #include "memory.h"
 #include "modify.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "neighbor.h"
 #include "suffix.h"
 
@@ -180,12 +180,16 @@ PairAIREBOIntel::~PairAIREBOIntel()
 void PairAIREBOIntel::init_style()
 {
   PairAIREBO::init_style();
+  neighbor->find_request(this)->intel = 1;
 
   if (utils::strmatch(force->pair_style,"^hybrid"))
     error->all(FLERR, "Cannot yet use airebo/intel with hybrid.");
 
-  fix = static_cast<FixIntel *>(modify->get_fix_by_id("package_intel"));
-  if (!fix) error->all(FLERR, "The 'package intel' command is required for /intel styles");
+  int ifix = modify->find_fix("package_intel");
+  if (ifix < 0)
+    error->all(FLERR,
+               "The 'package intel' command is required for /intel styles");
+  fix = static_cast<FixIntel *>(modify->fix[ifix]);
 
   fix->pair_init_check();
   #ifdef _LMP_INTEL_OFFLOAD
@@ -237,17 +241,17 @@ PairAIREBOIntelParam<flt_t,acc_t> PairAIREBOIntel::get_param()
   PairAIREBOIntelParam<flt_t,acc_t> fc;
 
 #define A(a)                                                           \
-  for (size_t i = 0; i < sizeof(this->a)/sizeof(double); i++) {        \
+  for (int i = 0; i < sizeof(this->a)/sizeof(double); i++) {           \
     reinterpret_cast<flt_t*>(&fc.a)[i] =                               \
       reinterpret_cast<double*>(&this->a)[i];                          \
   }
 #define A0(a)                                                           \
-  for (size_t i = 0; i < sizeof(fc.a)/sizeof(flt_t); i++) {             \
+  for (int i = 0; i < sizeof(fc.a)/sizeof(flt_t); i++) {                \
     reinterpret_cast<flt_t*>(&fc.a)[i] =                                \
       reinterpret_cast<double*>(this->a[0])[i];                         \
   }
 #define B(a)                                                            \
-  for (size_t i = 0; i < sizeof(this->a)/sizeof(double); i++) {         \
+  for (int i = 0; i < sizeof(this->a)/sizeof(double); i++) {            \
     reinterpret_cast<acc_t*>(&fc.a)[i] =                                \
       reinterpret_cast<double*>(&this->a)[i];                           \
   }
@@ -409,7 +413,7 @@ void PairAIREBOIntel::eval(
   ATOM_T * _noalias const x = buffers->get_x(offload);
   const int * _noalias const numneighhalf = buffers->get_atombin();
   const int * _noalias const numneigh = list->numneigh;
-  const int ** _noalias const firstneigh = (const int **)list->firstneigh;  // NOLINT
+  const int ** _noalias const firstneigh = (const int **)list->firstneigh;
   tagint * const tag = atom->tag;
 
   const int ntypes = atom->ntypes + 1;
@@ -570,7 +574,7 @@ void PairAIREBOIntel::eval(
   if (EVFLAG)
     fix->add_result_array(f_start, ev_global, offload, eatom, 0, vflag);
   else
-    fix->add_result_array(f_start, nullptr, offload);
+    fix->add_result_array(f_start, 0, offload);
 }
 
 /* ---------------------------------------------------------------------- */
@@ -633,8 +637,9 @@ namespace overloaded {
     compared to original code.
    ---------------------------------------------------------------------- */
 
-enum { CARBON, HYDROGEN };
-static constexpr double TOL = 1.0e-9;
+#define CARBON 0
+#define HYDROGEN 1
+#define TOL 1.0e-9
 
 template<typename T>
 inline T fmin_nonan(T a, T b) {
@@ -904,7 +909,7 @@ inline flt_t frebo_pij(KernelArgsAIREBOT<flt_t,acc_t> * ka, int i, int j,
       flt_t rho_k = ka->params.rho[ktype][1];
       flt_t rho_j = ka->params.rho[jtype][1];
       flt_t lamdajik = 4 * itype * ((rho_k - rikmag) - (rho_j - rijmag));
-      flt_t ex_lam = overloaded::exp(lamdajik);
+      flt_t ex_lam = exp(lamdajik);
       flt_t rcminik = ka->params.rcmin[itype][ktype];
       flt_t rcmaxik = ka->params.rcmax[itype][ktype];
       flt_t dwik;
@@ -918,7 +923,7 @@ inline flt_t frebo_pij(KernelArgsAIREBOT<flt_t,acc_t> * ka, int i, int j,
       if (pass == 0) {
         sum_pij += wik * g * ex_lam;
         sum_dpij_dN += wik * dgdN * ex_lam;
-        auto  cutN = Sp<flt_t>(Nki, Nmin, Nmax, nullptr);
+        flt_t cutN = Sp<flt_t>(Nki, Nmin, Nmax, nullptr);
         *sum_N += (1 - ktype) * wik * cutN;
       } else {
         flt_t tmp = -0.5 * pij * pij * pij;
@@ -1500,17 +1505,17 @@ inline flt_t ref_lennard_jones_bondorder(KernelArgsAIREBOT<flt_t,acc_t> * ka,
   flt_t Nji = ka->nH[j] + ka->nC[j] - wij;
   flt_t NconjtmpI;
   acc_t fijc[3] = {0}, fjic[3] = {0};
-  auto  pij = frebo_pij<flt_t,acc_t>(ka, i, j, delx * scale, dely * scale,
+  flt_t pij = frebo_pij<flt_t,acc_t>(ka, i, j, delx * scale, dely * scale,
     delz * scale, the_r, wij, 0.0, &NconjtmpI, fijc);
   flt_t NconjtmpJ;
-  auto  pji = frebo_pij<flt_t,acc_t>(ka, j, i, -delx * scale, -dely * scale,
+  flt_t pji = frebo_pij<flt_t,acc_t>(ka, j, i, -delx * scale, -dely * scale,
     -delz * scale, the_r, wij, 0.0, &NconjtmpJ, fjic);
   flt_t Nijconj = 1.0 + (NconjtmpI * NconjtmpI) + (NconjtmpJ * NconjtmpJ);
   flt_t dN3_pi_rc[3];
-  auto  pi_rc = frebo_pi_rc<flt_t,acc_t>(ka, itype, jtype, Nij, Nji, Nijconj,
+  flt_t pi_rc = frebo_pi_rc<flt_t,acc_t>(ka, itype, jtype, Nij, Nji, Nijconj,
     dN3_pi_rc);
   flt_t dN3_Tij[3];
-  auto  Tij = frebo_Tij<flt_t,acc_t>(ka, itype, jtype, Nij, Nji, Nijconj,
+  flt_t Tij = frebo_Tij<flt_t,acc_t>(ka, itype, jtype, Nij, Nji, Nijconj,
     dN3_Tij);
   flt_t sum_omega = 0;
   if (fabs(Tij) > TOL) {
@@ -1521,12 +1526,12 @@ inline flt_t ref_lennard_jones_bondorder(KernelArgsAIREBOT<flt_t,acc_t> * ka,
   flt_t pi_dh = Tij * sum_omega;
   flt_t bij = 0.5 * (pij + pji) + pi_rc + pi_dh;
   flt_t dStb;
-  auto  Stb = Sp2<flt_t>(bij, ka->params.bLJmin[itype][jtype],
+  flt_t Stb = Sp2<flt_t>(bij, ka->params.bLJmin[itype][jtype],
     ka->params.bLJmax[itype][jtype], &dStb);
   if (dStb != 0) {
-    auto  pij_reverse = frebo_pij<flt_t,acc_t>(ka, i, j, delx * scale,
+    flt_t pij_reverse = frebo_pij<flt_t,acc_t>(ka, i, j, delx * scale,
       dely * scale, delz * scale, the_r, wij, VA * dStb, &NconjtmpI, fijc);
-    auto  pji_reverse = frebo_pij<flt_t,acc_t>(ka, j, i, -delx * scale,
+    flt_t pji_reverse = frebo_pij<flt_t,acc_t>(ka, j, i, -delx * scale,
       -dely * scale, -delz * scale, the_r, wij, VA * dStb, &NconjtmpJ, fjic);
     fijc[0] -= fjic[0];
     fijc[1] -= fjic[1];
@@ -1536,7 +1541,7 @@ inline flt_t ref_lennard_jones_bondorder(KernelArgsAIREBOT<flt_t,acc_t> * ka,
     frebo_N_spline_force<flt_t,acc_t>(ka, j, i, VA * dStb, dN3_pi_rc[1],
       dN3_pi_rc[2], NconjtmpJ);
     if (fabs(Tij) > TOL) {
-      auto  sum_omega_reverse = frebo_sum_omega<flt_t,acc_t>(ka, i, j,
+      flt_t sum_omega_reverse = frebo_sum_omega<flt_t,acc_t>(ka, i, j,
         delx * scale, dely * scale, delz * scale, the_r, VA * dStb * Tij, fijc);
       frebo_N_spline_force(ka, i, j, VA * dStb * sum_omega, dN3_Tij[0],
         dN3_Tij[2], NconjtmpI);
@@ -1602,6 +1607,9 @@ void ref_torsion_single_interaction(KernelArgsAIREBOT<flt_t,acc_t> * ka, int i,
   flt_t thmin = ka->params.thmin;
   flt_t thmax = ka->params.thmax;
   int itype = map[x[i].w];
+  flt_t xtmp = x[i].x;
+  flt_t ytmp = x[i].y;
+  flt_t ztmp = x[i].z;
   int * REBO_neighs_i = &ka->neigh_rebo.entries[ka->neigh_rebo.offset[i]];
   int jnum = ka->neigh_rebo.num[i];
   int jtype = map[x[j].w];
@@ -1964,7 +1972,7 @@ void ref_frebo_single_interaction(KernelArgsAIREBOT<flt_t,acc_t> * ka, int i,
   flt_t Aij = ka->params.A[itype][jtype];
   flt_t alphaij = ka->params.alpha[itype][jtype];
 
-  flt_t exp_alphar = overloaded::exp(-alphaij * rij);
+  flt_t exp_alphar = exp(-alphaij * rij);
   flt_t VR_by_wij = (1.0 + (Qij / rij)) * Aij * exp_alphar;
   flt_t VR = wij * VR_by_wij;
   flt_t pre = wij * Aij * exp_alphar;
@@ -2104,7 +2112,7 @@ void ref_lennard_jones_single_interaction(KernelArgsAIREBOT<flt_t,acc_t> * ka,
 
   flt_t vdw, dvdw;
   if (morseflag) {
-    const flt_t exr = overloaded::exp(-rij * ka->params.lj4[itype][jtype]);
+    const flt_t exr = exp(-rij * ka->params.lj4[itype][jtype]);
     vdw = ka->params.lj1[itype][jtype] * exr *
       (ka->params.lj2[itype][jtype]*exr - 2);
     dvdw = ka->params.lj3[itype][jtype] * exr *
@@ -4460,8 +4468,10 @@ static void aut_lj_with_bo(
  }
 exceed_limits:
   for (int l = 0; l < fvec::VL; l++) {
-    ref_lennard_jones_single_interaction(ka, ivec::at(i, l), ivec::at(j, l), MORSEFLAG);
+    ref_lennard_jones_single_interaction(ka, ivec::at(i, l), ivec::at(j, l),
+                                         MORSEFLAG);
   }
+  return;
 }
 
 /*

@@ -6,7 +6,7 @@ fix_modify AtC fe_md_boundary command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> fe_md_boundary <faceset|interpolate|no_boundary>
 

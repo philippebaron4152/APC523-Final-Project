@@ -6,7 +6,7 @@ fix nve/awpmd command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID nve/awpmd
 

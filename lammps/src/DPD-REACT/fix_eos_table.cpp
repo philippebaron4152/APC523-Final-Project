@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -24,7 +24,7 @@
 
 #include <cstring>
 
-static constexpr int MAXLINE = 1024;
+#define MAXLINE 1024
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
@@ -194,7 +194,7 @@ void FixEOStable::free_table(Table *tb)
 
 void FixEOStable::read_table(Table *tb, Table *tb2, char *file, char *keyword)
 {
-  char line[MAXLINE] = {'\0'};
+  char line[MAXLINE];
 
   // open file
 
@@ -207,7 +207,7 @@ void FixEOStable::read_table(Table *tb, Table *tb2, char *file, char *keyword)
 
   // loop until section found with matching keyword
 
-  while (true) {
+  while (1) {
     if (fgets(line,MAXLINE,fp) == nullptr)
       error->one(FLERR,"Did not find keyword in table file");
     if (strspn(line," \t\n\r") == strlen(line)) continue;    // blank line
@@ -349,7 +349,7 @@ void FixEOStable::spline(double *x, double *y, int n,
 {
   int i,k;
   double p,qn,sig,un;
-  auto u = new double[n];
+  double *u = new double[n];
 
   if (yp1 > 0.99e30) y2[0] = u[0] = 0.0;
   else {
@@ -398,7 +398,7 @@ double FixEOStable::splint(double *xa, double *ya, double *y2a, int n, double x)
 
 /* ----------------------------------------------------------------------
    calculate internal energy u at temperature t
-   ensure t is between min/max
+   insure t is between min/max
 ------------------------------------------------------------------------- */
 
 void FixEOStable::energy_lookup(double t, double &u)
@@ -420,7 +420,7 @@ void FixEOStable::energy_lookup(double t, double &u)
 }
 /* ----------------------------------------------------------------------
    calculate temperature t at energy u
-   ensure u is between min/max
+   insure u is between min/max
 ------------------------------------------------------------------------- */
 
 void FixEOStable::temperature_lookup(double u, double &t)

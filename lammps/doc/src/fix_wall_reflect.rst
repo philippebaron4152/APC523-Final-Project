@@ -9,7 +9,7 @@ Accelerator Variants: *wall/reflect/kk*
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID wall/reflect face arg ... keyword value ...
 

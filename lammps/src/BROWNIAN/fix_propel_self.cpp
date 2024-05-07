@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -23,11 +23,14 @@
 
 #include "atom.h"
 #include "atom_vec_ellipsoid.h"
+#include "comm.h"
 #include "domain.h"
 #include "error.h"
+#include "force.h"
 #include "math_extra.h"
+#include "memory.h"
+#include "update.h"
 
-#include <cmath>
 #include <cstring>
 
 using namespace LAMMPS_NS;
@@ -35,7 +38,7 @@ using namespace FixConst;
 
 enum { DIPOLE, VELOCITY, QUAT };
 
-static constexpr double TOL = 1e-14;
+#define TOL 1e-14
 
 /* ---------------------------------------------------------------------- */
 
@@ -100,7 +103,7 @@ void FixPropelSelf::init()
     error->all(FLERR, "Fix propel/self requires atom attribute mu with option dipole");
 
   if (mode == QUAT) {
-    avec = dynamic_cast<AtomVecEllipsoid *>(atom->style_match("ellipsoid"));
+    avec = (AtomVecEllipsoid *) atom->style_match("ellipsoid");
     if (!avec) error->all(FLERR, "Fix propel/self requires atom style ellipsoid with option quat");
 
     // check that all particles are finite-size ellipsoids

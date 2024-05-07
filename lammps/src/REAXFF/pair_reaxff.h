@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -25,6 +25,7 @@
 #ifdef PAIR_CLASS
 // clang-format off
 PairStyle(reaxff,PairReaxFF);
+PairStyle(reax/c,PairReaxFF);
 // clang-format on
 #else
 
@@ -43,13 +44,13 @@ namespace LAMMPS_NS {
 class PairReaxFF : public Pair {
  public:
   PairReaxFF(class LAMMPS *);
-  ~PairReaxFF() override;
-  void compute(int, int) override;
-  void settings(int, char **) override;
-  void coeff(int, char **) override;
-  void init_style() override;
-  double init_one(int, int) override;
-  void *extract(const char *, int &) override;
+  ~PairReaxFF();
+  void compute(int, int);
+  void settings(int, char **);
+  void coeff(int, char **);
+  virtual void init_style();
+  double init_one(int, int);
+  void *extract(const char *, int &);
   int fixbond_flag, fixspecies_flag;
   int **tmpid;
   double **tmpbo, **tmpr;
@@ -62,14 +63,13 @@ class PairReaxFF : public Pair {
   double cutmax;
   class FixReaxFF *fix_reaxff;
 
-  double *chi, *eta, *gamma, *bcut_acks2;
+  double *chi, *eta, *gamma;
   int qeqflag;
   int setup_flag;
   int firstwarn;
-  int list_blocking_flag;
 
   void allocate();
-  void setup() override;
+  void setup();
   void create_compute();
   void create_fix();
   void write_reax_atoms();
@@ -81,10 +81,20 @@ class PairReaxFF : public Pair {
 
   int nmax;
   void FindBond();
-  double memory_usage() override;
+  double memory_usage();
 };
 
 }    // namespace LAMMPS_NS
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Too many ghost atoms
+
+Number of ghost atoms has increased too much during simulation and has exceeded
+the size of reaxff arrays.  Increase safe_zone and min_cap in pair_style reaxff
+command
+
+*/

@@ -79,7 +79,7 @@ int zbl_gpu_init(const int ntypes, double **cutsq, double **host_sw1,
                          cut_globalsq, cut_innersq, cut_inner,
                          inum, nall, max_nbors, maxspecial, cell_size, gpu_split, screen);
 
-    ZBLMF.device->serialize_init();
+    ZBLMF.device->gpu_barrier();
     if (message)
       fprintf(screen,"Done.\n");
   }

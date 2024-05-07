@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -15,6 +15,7 @@
 /* ----------------------------------------------------------------------
    Contributing author: Andres Jaramillo-Botero (Caltech)
 ------------------------------------------------------------------------- */
+
 
 #include "fix_nh_eff.h"
 
@@ -32,7 +33,7 @@ enum{NOBIAS,BIAS};
 FixNHEff::FixNHEff(LAMMPS *lmp, int narg, char **arg) : FixNH(lmp, narg, arg)
 {
   if (!atom->electron_flag)
-    error->all(FLERR,"Fix {} requires atom style electron", style);
+    error->all(FLERR,"Fix nvt/nph/npt/eff requires atom style electron");
 }
 
 /* ----------------------------------------------------------------------
@@ -61,7 +62,7 @@ void FixNHEff::nve_v()
     if (mask[i] & groupbit) {
       if (abs(spin[i])==1) {
         dtfm = dtf / mass[type[i]];
-        ervel[i] += dtfm * erforce[i] / mefactor;
+        ervel[i] = dtfm * erforce[i] / mefactor;
       }
     }
   }
@@ -78,26 +79,15 @@ void FixNHEff::nve_x()
   FixNH::nve_x();
 
   double *eradius = atom->eradius;
-  double *erforce = atom->erforce;
   double *ervel = atom->ervel;
-  double *mass = atom->mass;
-  int *type = atom->type;
   int *spin = atom->spin;
   int *mask = atom->mask;
   int nlocal = atom->nlocal;
   if (igroup == atom->firstgroup) nlocal = atom->nfirst;
 
-  double mefactor = domain->dimension/4.0;
-  double dtfm;
-
   for (int i = 0; i < nlocal; i++)
-    if (mask[i] & groupbit) {
-      dtfm = dtf / mass[type[i]];
-      if (abs(spin[i])==1) {
-        ervel[i] += dtfm * erforce[i] / mefactor;
-        eradius[i] += dtv * ervel[i];
-      }
-    }
+    if (mask[i] & groupbit)
+      if (abs(spin[i])==1) eradius[i] += dtv * ervel[i];
 }
 
 /* ----------------------------------------------------------------------

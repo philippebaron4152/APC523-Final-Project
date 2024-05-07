@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    This software is distributed under the GNU General Public License.
 
@@ -32,7 +32,7 @@
 using namespace LAMMPS_NS;
 using MathExtra::dot3;
 
-static constexpr int MAXNEIGH = 24;
+#define MAXNEIGH 24
 
 /* ---------------------------------------------------------------------- */
 
@@ -384,6 +384,7 @@ void PairCombOMP::eval(int iifrom, int iito, ThrData * const thr)
 
 double PairCombOMP::yasu_char(double *qf_fix, int &igroup)
 {
+  int ii;
   double potal,fac11,fac11e;
 
   const double * const * const x = atom->x;
@@ -400,7 +401,7 @@ double PairCombOMP::yasu_char(double *qf_fix, int &igroup)
   const int groupbit = group->bitmask[igroup];
 
   qf = qf_fix;
-  for (int ii = 0; ii < inum; ii++) {
+  for (ii = 0; ii < inum; ii++) {
     const int i = ilist[ii];
     if (mask[i] & groupbit)
       qf[i] = 0.0;
@@ -408,7 +409,7 @@ double PairCombOMP::yasu_char(double *qf_fix, int &igroup)
 
   // communicating charge force to all nodes, first forward then reverse
 
-  comm->forward_comm(this);
+  comm->forward_comm_pair(this);
 
   // self energy correction term: potal
 
@@ -416,9 +417,9 @@ double PairCombOMP::yasu_char(double *qf_fix, int &igroup)
 
   // loop over full neighbor list of my atoms
 #if defined(_OPENMP)
-#pragma omp parallel for LMP_DEFAULT_NONE LMP_SHARED(potal,fac11e)
+#pragma omp parallel for private(ii) LMP_DEFAULT_NONE LMP_SHARED(potal,fac11e)
 #endif
-  for (int ii = 0; ii < inum; ii ++) {
+  for (ii = 0; ii < inum; ii ++) {
     double fqi,fqij,fqji,fqjj,delr1[3];
     double sr1,sr2,sr3;
     int mr1,mr2,mr3;
@@ -527,12 +528,12 @@ double PairCombOMP::yasu_char(double *qf_fix, int &igroup)
     }
   }
 
-  comm->reverse_comm(this);
+  comm->reverse_comm_pair(this);
 
   // sum charge force on each node and return it
 
   double eneg = 0.0;
-  for (int ii = 0; ii < inum; ii++) {
+  for (ii = 0; ii < inum; ii++) {
     const int i = ilist[ii];
     if (mask[i] & groupbit)
       eneg += qf[i];

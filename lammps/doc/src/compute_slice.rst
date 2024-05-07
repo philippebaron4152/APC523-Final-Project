@@ -6,7 +6,7 @@ compute slice command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    compute ID group-ID slice Nstart Nstop Nskip input1 input2 ...
 

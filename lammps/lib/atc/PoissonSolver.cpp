@@ -111,7 +111,7 @@ PoissonSolver::~PoissonSolver()
 // --------------------------------------------------------------------
 //  Initialize
 // --------------------------------------------------------------------
-void PoissonSolver::initialize()
+void PoissonSolver::initialize(void)
 {
   nNodes_ = feEngine_->num_nodes();
 

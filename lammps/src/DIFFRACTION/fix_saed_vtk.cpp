@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -31,7 +31,6 @@
 
 #include <cstring>
 #include <cmath>
-
 using namespace LAMMPS_NS;
 using namespace FixConst;
 
@@ -67,7 +66,7 @@ FixSAEDVTK::FixSAEDVTK(LAMMPS *lmp, int narg, char **arg) :
     error->all(FLERR,"Compute ID for fix saed/vtk does not exist");
 
   // Check that specified compute is for SAED
-  compute_saed = dynamic_cast<ComputeSAED *>(modify->compute[icompute]);
+  compute_saed = (ComputeSAED *) modify->compute[icompute];
   if (strcmp(compute_saed->style,"saed") != 0)
     error->all(FLERR,"Fix saed/vtk has invalid compute assigned");
 
@@ -100,6 +99,8 @@ FixSAEDVTK::FixSAEDVTK(LAMMPS *lmp, int narg, char **arg) :
   if (nevery <= 0 || nrepeat <= 0 || nfreq <= 0)
     error->all(FLERR,"Illegal fix saed/vtk command");
   if (nfreq % nevery || nrepeat*nevery > nfreq)
+    error->all(FLERR,"Illegal fix saed/vtk command");
+  if (ave != RUNNING && overwrite)
     error->all(FLERR,"Illegal fix saed/vtk command");
 
   // allocate memory for averaging
@@ -314,7 +315,7 @@ void FixSAEDVTK::invoke_vector(bigint ntimestep)
 
   if (irepeat == 0)
     for (int i = 0; i < nrows; i++)
-      vector[i] = 0.0;
+       vector[i] = 0.0;
 
   // accumulate results of computes,fixes,variables to local copy
   // compute/fix/variable may invoke computes so wrap with clear/add
@@ -368,7 +369,7 @@ void FixSAEDVTK::invoke_vector(bigint ntimestep)
     for (int i = 0; i < nrows; i++) {
       vector_total[i] += vector[i];
       if (window_limit) vector_total[i] -= vector_list[iwindow][i];
-      vector_list[iwindow][i] = vector[i];
+        vector_list[iwindow][i] = vector[i];
     }
 
     iwindow++;
@@ -390,7 +391,8 @@ void FixSAEDVTK::invoke_vector(bigint ntimestep)
       fp = fopen(nName.c_str(),"w");
 
       if (fp == nullptr)
-        error->one(FLERR,"Cannot open fix saed/vtk file {}: {}", nName,utils::getsyserror());
+        error->one(FLERR,"Cannot open fix saed/vtk file {}: {}",
+                                     nName,utils::getsyserror());
     }
 
     fprintf(fp,"# vtk DataFile Version 3.0 c_%s\n",ids);
@@ -404,62 +406,71 @@ void FixSAEDVTK::invoke_vector(bigint ntimestep)
     fprintf(fp,"SCALARS intensity float\n");
     fprintf(fp,"LOOKUP_TABLE default\n");
 
+    filepos = ftell(fp);
 
-    // Finding the intersection of the reciprical space and Ewald sphere
-    int NROW1 = 0;
-    double dinv2 = 0.0;
-    double r = 0.0;
-    double K[3];
+    if (overwrite) fseek(fp,filepos,SEEK_SET);
 
-    // Zone flag to capture entire recrocal space volume
-    if ((Zone[0] == 0) && (Zone[1] == 0) && (Zone[2] == 0)) {
-      for (int k = Knmin[2]; k <= Knmax[2]; k++) {
-        for (int j = Knmin[1]; j <= Knmax[1]; j++) {
-          for (int i = Knmin[0]; i <= Knmax[0]; i++) {
-            K[0] = i * dK[0];
-            K[1] = j * dK[1];
-            K[2] = k * dK[2];
-            dinv2 = (K[0] * K[0] + K[1] * K[1] + K[2] * K[2]);
-            if (dinv2 < Kmax * Kmax) {
-              fprintf(fp,"%g\n",vector_total[NROW1]/norm);
-              fflush(fp);
-              NROW1++;
-            } else {
+     // Finding the intersection of the reciprical space and Ewald sphere
+      int NROW1 = 0;
+      int NROW2 = 0;
+      double dinv2 = 0.0;
+      double r = 0.0;
+      double K[3];
+
+      // Zone flag to capture entire recrocal space volume
+      if ((Zone[0] == 0) && (Zone[1] == 0) && (Zone[2] == 0)) {
+        for (int k = Knmin[2]; k <= Knmax[2]; k++) {
+          for (int j = Knmin[1]; j <= Knmax[1]; j++) {
+            for (int i = Knmin[0]; i <= Knmax[0]; i++) {
+              K[0] = i * dK[0];
+              K[1] = j * dK[1];
+              K[2] = k * dK[2];
+              dinv2 = (K[0] * K[0] + K[1] * K[1] + K[2] * K[2]);
+              if (dinv2 < Kmax * Kmax) {
+                 fprintf(fp,"%g\n",vector_total[NROW1]/norm);
+                 fflush(fp);
+                 NROW1++;
+                 NROW2++;
+              } else {
               fprintf(fp,"%d\n",-1);
               fflush(fp);
+              NROW2++;
+              }
             }
           }
         }
-      }
-    } else {
-      for (int k = Knmin[2]; k <= Knmax[2]; k++) {
-        for (int j = Knmin[1]; j <= Knmax[1]; j++) {
-          for (int i = Knmin[0]; i <= Knmax[0]; i++) {
-            K[0] = i * dK[0];
-            K[1] = j * dK[1];
-            K[2] = k * dK[2];
-            dinv2 = (K[0] * K[0] + K[1] * K[1] + K[2] * K[2]);
-            if (dinv2 < Kmax * Kmax) {
-              r=0.0;
-              for (int m=0; m<3; m++) r += pow(K[m] - Zone[m],2.0);
-              r = sqrt(r);
-              if  ( (r >  (R_Ewald - dR_Ewald) ) && (r < (R_Ewald + dR_Ewald) )) {
-                fprintf(fp,"%g\n",vector_total[NROW1]/norm);
-                fflush(fp);
-                NROW1++;
+      } else {
+        for (int k = Knmin[2]; k <= Knmax[2]; k++) {
+          for (int j = Knmin[1]; j <= Knmax[1]; j++) {
+            for (int i = Knmin[0]; i <= Knmax[0]; i++) {
+              K[0] = i * dK[0];
+              K[1] = j * dK[1];
+              K[2] = k * dK[2];
+              dinv2 = (K[0] * K[0] + K[1] * K[1] + K[2] * K[2]);
+              if (dinv2 < Kmax * Kmax) {
+                r=0.0;
+                for (int m=0; m<3; m++) r += pow(K[m] - Zone[m],2.0);
+                r = sqrt(r);
+                if  ( (r >  (R_Ewald - dR_Ewald) ) && (r < (R_Ewald + dR_Ewald) )) {
+                 fprintf(fp,"%g\n",vector_total[NROW1]/norm);
+                 fflush(fp);
+                 NROW2++;
+                 NROW1++;
+                } else {
+                  fprintf(fp,"%d\n",-1);
+                  fflush(fp);
+                  NROW2++;
+                }
               } else {
-                fprintf(fp,"%d\n",-1);
-                fflush(fp);
-              }
-            } else {
               fprintf(fp,"%d\n",-1);
               fflush(fp);
+              NROW2++;
+             }
             }
           }
         }
       }
     }
-  }
   nOutput++;
 }
 
@@ -486,6 +497,7 @@ void FixSAEDVTK::options(int narg, char **arg)
   fp = nullptr;
   ave = ONE;
   startstep = 0;
+  overwrite = 0;
 
   // optional args
   int iarg = 7;
@@ -522,6 +534,9 @@ void FixSAEDVTK::options(int narg, char **arg)
       if (iarg+2 > narg) error->all(FLERR,"Illegal fix saed/vtk command");
       startstep = utils::inumeric(FLERR,arg[iarg+1],false,lmp);
       iarg += 2;
+    } else if (strcmp(arg[iarg],"overwrite") == 0) {
+      overwrite = 1;
+      iarg += 1;
     } else error->all(FLERR,"Illegal fix saed/vtk command");
   }
 }

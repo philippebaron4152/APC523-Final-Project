@@ -404,7 +404,7 @@ namespace ATC {
   // -------------------------------------------------------------
   //   initialize
   // -------------------------------------------------------------
-  void FE_Mesh::initialize()
+  void FE_Mesh::initialize(void)
   {
 
     bool aligned = is_aligned();
@@ -469,7 +469,7 @@ namespace ATC {
   // -------------------------------------------------------------
   //   test whether almost structured
   // -------------------------------------------------------------
-  bool FE_Mesh::is_aligned() const
+  bool FE_Mesh::is_aligned(void) const
   {
     vector<bool> foundBestMatch(nSD_,false);
     vector<DENS_VEC> tangents(nSD_);
@@ -518,7 +518,7 @@ namespace ATC {
   // -------------------------------------------------------------
   //   element_type
   // -------------------------------------------------------------
-  string FE_Mesh::element_type() const  {
+  string FE_Mesh::element_type(void) const  {
       int npe = feElement_->num_elt_nodes();
       if      (npe == 4)  { return "TET4"; }
       else if (npe == 8)  { return "HEX8"; }
@@ -1915,7 +1915,7 @@ namespace ATC {
     return true;
   }
 
-  void FE_3DMesh::set_unique_connectivity()
+  void FE_3DMesh::set_unique_connectivity(void)
   {
     int numEltNodes = feElement_->num_elt_nodes();
     connectivityUnique_.reset(numEltNodes, nElts_);

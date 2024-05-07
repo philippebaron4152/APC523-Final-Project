@@ -12,7 +12,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -38,15 +38,15 @@ namespace LAMMPS_NS {
 class PairHertz : public Pair {
  public:
   PairHertz(class LAMMPS *);
-  ~PairHertz() override;
-  void compute(int, int) override;
-  void settings(int, char **) override;
-  void coeff(int, char **) override;
-  double init_one(int, int) override;
-  void init_style() override;
-  void init_list(int, class NeighList *) override;
-  double memory_usage() override;
-  void *extract(const char *, int &) override;
+  virtual ~PairHertz();
+  virtual void compute(int, int);
+  void settings(int, char **);
+  void coeff(int, char **);
+  double init_one(int, int);
+  void init_style();
+  void init_list(int, class NeighList *);
+  virtual double memory_usage();
+  void *extract(const char *, int &);
 
  protected:
   double **bulkmodulus;

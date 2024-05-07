@@ -6,7 +6,7 @@ fix gle command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID id-group gle Ns Tstart Tstop seed Amatrix [noneq Cmatrix] [every stride]
 
@@ -159,7 +159,7 @@ Related commands
 
 .. _GLE4MD:
 
-**(GLE4MD)** `https://gle4md.org/ <https://gle4md.org/>`_
+**(GLE4MD)** `http://gle4md.org/ <http://gle4md.org/>`_
 
 .. _Ceriotti2:
 

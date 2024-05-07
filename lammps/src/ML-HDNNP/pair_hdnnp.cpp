@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/ Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -26,27 +26,26 @@
 #include "error.h"
 #include "memory.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "neighbor.h"
 #include "update.h"
-
-#include <cstring>
 
 #include "InterfaceLammps.h"    // n2p2 interface header
 
 using namespace LAMMPS_NS;
 
 static const char cite_user_hdnnp_package[] =
-    "ML-HDNNP package: doi:10.1021/acs.jctc.8b00770\n\n"
+    "ML-HDNNP package: 10.1021/acs.jctc.8b00770\n\n"
     "@Article{Singraber19,\n"
     " author = {Singraber, Andreas and Behler, J{\"o}rg and Dellago, Christoph},\n"
-    " title = {Library-Based {LAMMPS} Implementation of High-Dimensional\n"
-    "    Neural Network Potentials},\n"
+    " title = {Library-{{Based LAMMPS Implementation}} of {{High}}-{{Dimensional Neural Network "
+    "Potentials}}},\n"
     " year = {2019},\n"
     " month = mar,\n"
     " volume = {15},\n"
     " pages = {1827--1840},\n"
     " doi = {10.1021/acs.jctc.8b00770},\n"
-    " journal = {J.~Chem.\\ Theory Comput.},\n"
+    " journal = {J.~Chem.~Theory~Comput.},\n"
     " number = {3}\n"
     "}\n\n";
 
@@ -96,7 +95,7 @@ void PairHDNNP::compute(int eflag, int vflag)
   interface->process();
 
   // Do all stuff related to extrapolation warnings.
-  if (showew || showewsum > 0 || maxew >= 0) { handleExtrapolationWarnings(); }
+  if (showew == true || showewsum > 0 || maxew >= 0) { handleExtrapolationWarnings(); }
 
   // Calculate forces of local and ghost atoms.
   interface->getForces(atom->f);
@@ -147,7 +146,12 @@ void PairHDNNP::settings(int narg, char **arg)
       // show extrapolation warnings
     } else if (strcmp(arg[iarg], "showew") == 0) {
       if (iarg + 2 > narg) error->all(FLERR, "Illegal pair_style command");
-      showew = utils::logical(FLERR, arg[iarg + 1], false, lmp) == 1;
+      if (strcmp(arg[iarg + 1], "yes") == 0)
+        showew = true;
+      else if (strcmp(arg[iarg + 1], "no") == 0)
+        showew = false;
+      else
+        error->all(FLERR, "Illegal pair_style command");
       iarg += 2;
       // show extrapolation warning summary
     } else if (strcmp(arg[iarg], "showewsum") == 0) {
@@ -162,7 +166,12 @@ void PairHDNNP::settings(int narg, char **arg)
       // reset extrapolation warning counter
     } else if (strcmp(arg[iarg], "resetew") == 0) {
       if (iarg + 2 > narg) error->all(FLERR, "Illegal pair_style command");
-      resetew = utils::logical(FLERR, arg[iarg + 1], false, lmp) == 1;
+      if (strcmp(arg[iarg + 1], "yes") == 0)
+        resetew = true;
+      else if (strcmp(arg[iarg + 1], "no") == 0)
+        resetew = false;
+      else
+        error->all(FLERR, "Illegal pair_style command");
       iarg += 2;
       // length unit conversion factor
     } else if (strcmp(arg[iarg], "cflength") == 0) {
@@ -200,7 +209,7 @@ void PairHDNNP::coeff(int narg, char **arg)
   emap = "";
   for (int i = 2; i < narg; i++) {
     if (strcmp(arg[i], "NULL") != 0) {
-      if (!emap.empty()) emap += ",";
+      if (i != 2) emap += ",";
       emap += std::to_string(i - 1) + ":" + arg[i];
       map[i - 1] = 1;
     }
@@ -225,7 +234,9 @@ void PairHDNNP::coeff(int narg, char **arg)
 
 void PairHDNNP::init_style()
 {
-  neighbor->add_request(this, NeighConst::REQ_FULL);
+  int irequest = neighbor->request((void *) this);
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
 
   // Return immediately if HDNNP setup is already completed.
   if (interface->isInitialized()) return;
@@ -319,7 +330,7 @@ void PairHDNNP::handleExtrapolationWarnings()
           MPI_Status ms;
           // Get buffer size.
           MPI_Recv(&bs, 1, MPI_LONG, i, 0, world, &ms);
-          auto buf = new char[bs];
+          char *buf = new char[bs];
           // Receive buffer.
           MPI_Recv(buf, bs, MPI_BYTE, i, 0, world, &ms);
           interface->extractEWBuffer(buf, bs);
@@ -331,7 +342,7 @@ void PairHDNNP::handleExtrapolationWarnings()
       // Get desired buffer length for all extrapolation warning entries.
       long bs = interface->getEWBufferSize();
       // Allocate and fill buffer.
-      auto buf = new char[bs];
+      char *buf = new char[bs];
       interface->fillEWBuffer(buf, bs);
       // Send buffer size and buffer.
       MPI_Send(&bs, 1, MPI_LONG, 0, 0, world);

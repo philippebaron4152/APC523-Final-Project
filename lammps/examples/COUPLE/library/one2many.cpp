@@ -1,7 +1,7 @@
 #include <mpi.h>
 #include <cstdlib>
 #include "one2many.h"
-#include "memorylib.h"
+#include "memory.h"
 
 #include <map>
 
@@ -13,7 +13,7 @@ One2Many::One2Many(MPI_Comm caller_comm)
   MPI_Comm_rank(comm,&me);
   MPI_Comm_size(comm,&nprocs);
   
-  memory = new MemoryLib(comm);
+  memory = new Memory(comm);
   hash = new std::map<int,int>();
 }
 

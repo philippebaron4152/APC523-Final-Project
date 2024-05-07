@@ -916,12 +916,12 @@ namespace ATC {
   }
 
   //-------------------------------------------------------------------
-  void ATC_Transfer::compute_bond_matrix()
+  void ATC_Transfer::compute_bond_matrix(void)
   {
      bondMatrix_->reset();
   }
   //-------------------------------------------------------------------
-  void ATC_Transfer::compute_fields()
+  void ATC_Transfer::compute_fields(void)
   {
 
     // keep per-atom computes fresh. JAZ and REJ not sure why;

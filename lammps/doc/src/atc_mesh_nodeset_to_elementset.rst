@@ -6,7 +6,7 @@ fix_modify AtC mesh nodeset_to_elementset command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> mesh nodeset_to_elementset <nodeset_id> <elementset_id> <max/min>
 

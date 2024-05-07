@@ -1,7 +1,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -31,7 +31,7 @@ using namespace LAMMPS_NS;
 enum { NONE, NEIGH, PAIR, BOND, ANGLE, DIHEDRAL, IMPROPER };
 enum { TYPE, RADIUS };
 
-static constexpr int DELTA = 10000;
+#define DELTA 10000
 
 /* ---------------------------------------------------------------------- */
 
@@ -264,10 +264,12 @@ void ComputePropertyLocal::init()
   // this should enable it to always be a copy list  (e.g. for granular pstyle)
 
   if (kindflag == NEIGH || kindflag == PAIR) {
-    int neighflags = NeighConst::REQ_OCCASIONAL;
-    auto pairrequest = neighbor->find_request(force->pair);
-    if (pairrequest && pairrequest->get_size()) neighflags |= NeighConst::REQ_SIZE;
-    neighbor->add_request(this, neighflags);
+    int irequest = neighbor->request(this, instance_me);
+    neighbor->requests[irequest]->pair = 0;
+    neighbor->requests[irequest]->compute = 1;
+    neighbor->requests[irequest]->occasional = 1;
+    NeighRequest *pairrequest = neighbor->find_request((void *) force->pair);
+    if (pairrequest) neighbor->requests[irequest]->size = pairrequest->size;
   }
 
   // do initial memory allocation so that memory_usage() is correct
@@ -380,7 +382,7 @@ int ComputePropertyLocal::count_pairs(int allflag, int forceflag)
   // loop over neighbors of my atoms
   // skip if I or J are not in group
   // for newton = 0 and J = ghost atom,
-  //   need to ensure I,J pair is only output by one proc
+  //   need to insure I,J pair is only output by one proc
   //   use same itag,jtag logic as in Neighbor::neigh_half_nsq()
 
   double **cutsq = force->pair->cutsq;
@@ -405,7 +407,6 @@ int ComputePropertyLocal::count_pairs(int allflag, int forceflag)
       if (!(mask[j] & groupbit)) continue;
 
       // itag = jtag is possible for long cutoffs that include images of self
-      // do not need triclinic logic here b/c neighbor list itself is correct
 
       if (newton_pair == 0 && j >= nlocal) {
         jtag = tag[j];

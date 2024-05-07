@@ -1,4 +1,4 @@
-// -*- Mode:c++; c-basic-offset: 4; -*-
+// -*- c++ -*-
 
 // This file is part of the Collective Variables module (Colvars).
 // The original version of Colvars and its updates are located at:
@@ -21,7 +21,6 @@
 // only for colvar module!
 // when integrated into other code, just remove this line and "...cvm::backup_file(...)"
 #include "colvarmodule.h"
-#include "colvarproxy.h"
 
 namespace UIestimator {
     const int Y_SIZE = 21;            // defines the range of extended CV with respect to a given CV
@@ -64,15 +63,15 @@ namespace UIestimator {
             temp.resize(dimension);
         }
 
-        int get_value(const std::vector<double> & x, const std::vector<double> & y) {
+        int inline get_value(const std::vector<double> & x, const std::vector<double> & y) {
             return matrix[convert_x(x)][convert_y(x, y)];
         }
 
-        void set_value(const std::vector<double> & x, const std::vector<double> & y, const int value) {
+        void inline set_value(const std::vector<double> & x, const std::vector<double> & y, const int value) {
             matrix[convert_x(x)][convert_y(x,y)] = value;
         }
 
-        void increase_value(const std::vector<double> & x, const std::vector<double> & y, const int value) {
+        void inline increase_value(const std::vector<double> & x, const std::vector<double> & y, const int value) {
             matrix[convert_x(x)][convert_y(x,y)] += value;
         }
 
@@ -165,18 +164,17 @@ namespace UIestimator {
             temp.resize(dimension);
         }
 
-        T & get_value(const std::vector<double> & x) {
+        const T inline get_value(const std::vector<double> & x) {
             return vector[convert_x(x)];
         }
 
-        void set_value(const std::vector<double> & x, const T value) {
+        void inline set_value(const std::vector<double> & x, const T value) {
             vector[convert_x(x)] = value;
         }
 
-        void increase_value(const std::vector<double> & x, const T value) {
+        void inline increase_value(const std::vector<double> & x, const T value) {
             vector[convert_x(x)] += value;
         }
-
     private:
         std::vector<double> lowerboundary;
         std::vector<double> upperboundary;
@@ -303,8 +301,7 @@ namespace UIestimator {
         ~UIestimator() {}
 
         // called from MD engine every step
-        bool update(cvm::step_number /* step */,
-                    std::vector<double> x, std::vector<double> y) {
+        bool update(cvm::step_number step, std::vector<double> x, std::vector<double> y) {
 
             int i;
 
@@ -381,8 +378,6 @@ namespace UIestimator {
     public:
         // calculate gradients from the internal variables
         void calc_pmf() {
-            colvarproxy *proxy = cvm::main()->proxy;
-
             int norm;
             int i, j, k;
 
@@ -458,7 +453,7 @@ namespace UIestimator {
                 std::vector<double> grad_temp(dimension, 0);
                 for (k = 0; k < dimension; k++) {
                     diff_av[k] /= (norm > 0 ? norm : 1);
-                    av[k] = proxy->boltzmann() * temperature * av[k] / (norm > 0 ? norm : 1);
+                    av[k] = cvm::boltzmann() * temperature * av[k] / (norm > 0 ? norm : 1);
                     grad_temp[k] = av[k] - krestr[k] * diff_av[k];
                 }
                 grad.set_value(loop_flag_x, grad_temp);
@@ -518,16 +513,15 @@ namespace UIestimator {
             // only for colvars module!
             if (written_1D) cvm::backup_file(pmf_filename.c_str());
 
-            std::ostream &ofile_pmf = cvm::proxy->output_stream(pmf_filename,
-                                                                "PMF file");
+            std::ostream* ofile_pmf = cvm::proxy->output_stream(pmf_filename.c_str());
 
             std::vector<double> position(1, 0);
             for (double i = lowerboundary[0]; i < upperboundary[0] + EPSILON; i += width[0]) {
-                ofile_pmf << i << " ";
+                *ofile_pmf << i << " ";
                 position[0] = i + EPSILON;
-                ofile_pmf << oneD_pmf.get_value(position) << std::endl;
+                *ofile_pmf << oneD_pmf.get_value(position) << std::endl;
             }
-            cvm::proxy->close_output_stream(pmf_filename);
+            cvm::proxy->close_output_stream(pmf_filename.c_str());
 
             written_1D = true;
         }
@@ -545,8 +539,7 @@ namespace UIestimator {
         void write_interal_data() {
             std::string internal_filename = output_filename + ".UI.internal";
 
-            std::ostream &ofile_internal = cvm::proxy->output_stream(internal_filename,
-                                                                     "UI internal file");
+            std::ostream* ofile_internal = cvm::proxy->output_stream(internal_filename.c_str());
 
             std::vector<double> loop_flag(dimension, 0);
             for (int i = 0; i < dimension; i++) {
@@ -556,11 +549,11 @@ namespace UIestimator {
             int n = 0;
             while (n >= 0) {
                 for (int j = 0; j < dimension; j++) {
-                    ofile_internal << loop_flag[j] + 0.5 * width[j] << " ";
+                    *ofile_internal << loop_flag[j] + 0.5 * width[j] << " ";
                 }
 
                 for (int k = 0; k < dimension; k++) {
-                    ofile_internal << grad.get_value(loop_flag)[k] << " ";
+                    *ofile_internal << grad.get_value(loop_flag)[k] << " ";
                 }
 
                 std::vector<double> ii(dimension,0);
@@ -568,10 +561,10 @@ namespace UIestimator {
                     for (double j = loop_flag[1] - 10; j< loop_flag[1] + 10 + EPSILON; j+=width[1]) {
                         ii[0] = i;
                         ii[1] = j;
-                        ofile_internal << i <<" "<<j<<" "<< distribution_x_y.get_value(loop_flag,ii)<< " ";
+                        *ofile_internal << i <<" "<<j<<" "<< distribution_x_y.get_value(loop_flag,ii)<< " ";
                     }
                 }
-                ofile_internal << std::endl;
+                *ofile_internal << std::endl;
 
                 // iterate over any dimensions
                 n = dimension - 1;
@@ -601,16 +594,13 @@ namespace UIestimator {
             //if (written) cvm::backup_file(hist_filename.c_str());
             if (written) cvm::backup_file(count_filename.c_str());
 
-            std::ostream &ofile = cvm::proxy->output_stream(grad_filename,
-                                                            "gradient file");
-            std::ostream &ofile_hist = cvm::proxy->output_stream(hist_filename,
-                                                                 "gradient history file");
-            std::ostream &ofile_count = cvm::proxy->output_stream(count_filename,
-                                                                  "count file");
+            std::ostream* ofile = cvm::proxy->output_stream(grad_filename.c_str());
+            std::ostream* ofile_hist = cvm::proxy->output_stream(hist_filename.c_str(), std::ios::app);
+            std::ostream* ofile_count = cvm::proxy->output_stream(count_filename.c_str());
 
-            writehead(ofile);
-            writehead(ofile_hist);
-            writehead(ofile_count);
+            writehead(*ofile);
+            writehead(*ofile_hist);
+            writehead(*ofile_count);
 
             if (dimension == 1) {
                 calc_1D_pmf();
@@ -625,19 +615,19 @@ namespace UIestimator {
             i = 0;
             while (i >= 0) {
                 for (j = 0; j < dimension; j++) {
-                    ofile << loop_flag[j] + 0.5 * width[j] << " ";
-                    ofile_hist << loop_flag[j] + 0.5 * width[j] << " ";
-                    ofile_count << loop_flag[j] + 0.5 * width[j] << " ";
+                    *ofile << loop_flag[j] + 0.5 * width[j] << " ";
+                    *ofile_hist << loop_flag[j] + 0.5 * width[j] << " ";
+                    *ofile_count << loop_flag[j] + 0.5 * width[j] << " ";
                 }
 
                 if (restart == false) {
                     for (j = 0; j < dimension; j++) {
-                        ofile << grad.get_value(loop_flag)[j] << " ";
-                        ofile_hist << grad.get_value(loop_flag)[j] << " ";
+                        *ofile << grad.get_value(loop_flag)[j] << " ";
+                        *ofile_hist << grad.get_value(loop_flag)[j] << " ";
                     }
-                    ofile << std::endl;
-                    ofile_hist << std::endl;
-                    ofile_count << count.get_value(loop_flag) << " " <<std::endl;
+                    *ofile << std::endl;
+                    *ofile_hist << std::endl;
+                    *ofile_count << count.get_value(loop_flag) << " " <<std::endl;
                 }
                 else {
                     double final_grad = 0;
@@ -647,12 +637,12 @@ namespace UIestimator {
                             final_grad = grad.get_value(loop_flag)[j];
                         else
                             final_grad = ((grad.get_value(loop_flag)[j] * count.get_value(loop_flag) + input_grad.get_value(loop_flag)[j] * input_count.get_value(loop_flag)) / total_count_temp);
-                        ofile << final_grad << " ";
-                        ofile_hist << final_grad << " ";
+                        *ofile << final_grad << " ";
+                        *ofile_hist << final_grad << " ";
                     }
-                    ofile << std::endl;
-                    ofile_hist << std::endl;
-                    ofile_count << (count.get_value(loop_flag) + input_count.get_value(loop_flag)) << " " <<std::endl;
+                    *ofile << std::endl;
+                    *ofile_hist << std::endl;
+                    *ofile_count << (count.get_value(loop_flag) + input_count.get_value(loop_flag)) << " " <<std::endl;
                 }
 
                 // iterate over any dimensions
@@ -662,16 +652,16 @@ namespace UIestimator {
                     if (loop_flag[i] > upperboundary[i] - width[i] + EPSILON) {
                         loop_flag[i] = lowerboundary[i];
                         i--;
-                        ofile << std::endl;
-                        ofile_hist << std::endl;
-                        ofile_count << std::endl;
+                        *ofile << std::endl;
+                        *ofile_hist << std::endl;
+                        *ofile_count << std::endl;
                     }
                     else
                         break;
                 }
             }
             cvm::proxy->close_output_stream(grad_filename.c_str());
-            // cvm::proxy->close_output_stream(hist_filename.c_str());
+            cvm::proxy->close_output_stream(hist_filename.c_str());
             cvm::proxy->close_output_stream(count_filename.c_str());
 
             written = true;
@@ -685,7 +675,6 @@ namespace UIestimator {
             int dimension_temp;
             int i, j, k, l, m;
 
-            colvarproxy *proxy = cvm::main()->proxy;
             std::vector<double> loop_bin_size(dimension, 0);
             std::vector<double> position_temp(dimension, 0);
             std::vector<double> grad_temp(dimension, 0);
@@ -696,14 +685,8 @@ namespace UIestimator {
                 std::string count_filename = filename[i] + ".UI.count";
                 std::string grad_filename = filename[i] + ".UI.grad";
 
-                std::istream &count_file =
-                    proxy->input_stream(count_filename, "count filename");
-                std::istream &grad_file =
-                    proxy->input_stream(grad_filename, "gradient filename");
-
-                if (!count_file || !grad_file) {
-                    return;
-                }
+                std::ifstream count_file(count_filename.c_str(), std::ios::in);
+                std::ifstream grad_file(grad_filename.c_str(), std::ios::in);
 
                 count_file >> sharp >> dimension_temp;
                 grad_file >> sharp >> dimension_temp;
@@ -739,8 +722,8 @@ namespace UIestimator {
                     input_count.increase_value(position_temp, count_temp);
                 }
 
-                proxy->close_input_stream(count_filename);
-                proxy->close_input_stream(grad_filename);
+                count_file.close();
+                grad_file.close();
             }
         }
     };

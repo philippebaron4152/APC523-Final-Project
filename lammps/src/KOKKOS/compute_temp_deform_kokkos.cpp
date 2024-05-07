@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -24,6 +24,7 @@
 #include "domain_kokkos.h"
 #include "error.h"
 #include "force.h"
+#include "memory_kokkos.h"
 #include "update.h"
 
 using namespace LAMMPS_NS;
@@ -43,6 +44,13 @@ ComputeTempDeformKokkos<DeviceType>::ComputeTempDeformKokkos(LAMMPS *lmp, int na
   datamask_modify = EMPTY_MASK;
 
   maxbias = 0;
+}
+
+template<class DeviceType>
+ComputeTempDeformKokkos<DeviceType>::~ComputeTempDeformKokkos()
+{
+
+
 }
 
 /* ---------------------------------------------------------------------- */

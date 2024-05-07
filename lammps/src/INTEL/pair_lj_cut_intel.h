@@ -2,7 +2,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -35,8 +35,8 @@ class PairLJCutIntel : public PairLJCut {
  public:
   PairLJCutIntel(class LAMMPS *);
 
-  void compute(int, int) override;
-  void init_style() override;
+  virtual void compute(int, int);
+  void init_style();
 
  private:
   FixIntel *fix;
@@ -69,7 +69,7 @@ class PairLJCutIntel : public PairLJCut {
     fc_packed2 **lj34;
 
     ForceConst() : _ntypes(0) {}
-    ~ForceConst() noexcept(false) { set_ntypes(0, nullptr, _cop); }
+    ~ForceConst() { set_ntypes(0, nullptr, _cop); }
 
     void set_ntypes(const int ntypes, Memory *memory, const int cop);
 
@@ -85,3 +85,11 @@ class PairLJCutIntel : public PairLJCut {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: The 'package intel' command is required for /intel styles
+
+Self-explanatory.
+
+*/

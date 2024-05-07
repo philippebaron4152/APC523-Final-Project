@@ -33,9 +33,11 @@ protected:
 
     void SetUp() override
     {
-        LAMMPS::argv args = {testbinary, "-log", "none", "-echo", "screen", "-nocite"};
+        const char *args[] = {testbinary, "-log", "none", "-echo", "screen", "-nocite"};
+        char **argv        = (char **)args;
+        int argc           = sizeof(args) / sizeof(char *);
         if (!verbose) ::testing::internal::CaptureStdout();
-        lmp = new LAMMPS(args, MPI_COMM_WORLD);
+        lmp = new LAMMPS(argc, argv, MPI_COMM_WORLD);
         InitSystem();
         if (!verbose) ::testing::internal::GetCapturedStdout();
     }

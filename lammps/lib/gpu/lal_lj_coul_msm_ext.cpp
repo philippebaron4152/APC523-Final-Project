@@ -83,7 +83,7 @@ int ljcm_gpu_init(const int ntypes, double **cutsq, double **host_lj1,
                           cell_size, gpu_split, screen, host_cut_ljsq,
                           host_cut_coulsq, host_special_coul, order, qqrd2e);
 
-    LJCMLMF.device->serialize_init();
+    LJCMLMF.device->gpu_barrier();
     if (message)
       fprintf(screen,"Done.\n");
   }

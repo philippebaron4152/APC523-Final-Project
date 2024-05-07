@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    This software is distributed under the GNU General Public License.
 
@@ -18,7 +18,6 @@
 
 #include "atom.h"
 #include "comm.h"
-#include "error.h"
 #include "force.h"
 #include "memory.h"
 #include "modify.h"
@@ -29,9 +28,6 @@
 
 #include <cmath>
 
-#if defined(_OPENMP)
-#include <omp.h>
-#endif
 using namespace LAMMPS_NS;
 
 #define LMP_MKL_RNG VSL_BRNG_MT19937
@@ -179,12 +175,12 @@ void PairDPDIntel::eval(const int offload, const int vflag,
 
   ATOM_T * _noalias const x = buffers->get_x(offload);
   typedef struct { double x, y, z; } lmp_vt;
-  auto *v = (lmp_vt *)atom->v[0];
-  const flt_t dtinvsqrt = 1.0/std::sqrt(update->dt);
+  lmp_vt *v = (lmp_vt *)atom->v[0];
+  const flt_t dtinvsqrt = 1.0/sqrt(update->dt);
 
   const int * _noalias const ilist = list->ilist;
   const int * _noalias const numneigh = list->numneigh;
-  const int ** _noalias const firstneigh = (const int **)list->firstneigh;  // NOLINT
+  const int ** _noalias const firstneigh = (const int **)list->firstneigh;
   const FC_PACKED1_T * _noalias const param = fc.param[0];
   const flt_t * _noalias const special_lj = fc.special_lj;
   int * _noalias const rngi_thread = fc.rngi;
@@ -312,24 +308,21 @@ void PairDPDIntel::eval(const int offload, const int vflag,
             sbindex = jlist[jj] >> SBBITS & 3;
             j = jlist[jj] & NEIGHMASK;
           } else
-            j = IP_PRE_dword_index(jlist[jj]);
+            j = jlist[jj];
 
           const flt_t delx = xtmp - x[j].x;
           const flt_t dely = ytmp - x[j].y;
           const flt_t delz = ztmp - x[j].z;
           if (!ONETYPE) {
-            jtype = IP_PRE_dword_index(x[j].w);
+            jtype = x[j].w;
             icut = parami[jtype].icut;
           }
           const flt_t rsq = delx * delx + dely * dely + delz * delz;
-          const flt_t rinv = (flt_t)1.0/std::sqrt(rsq);
+          const flt_t rinv = (flt_t)1.0/sqrt(rsq);
 
           if (rinv > icut) {
-            flt_t factor_dpd, factor_sqrt;
-            if (!ONETYPE) {
-              factor_dpd = special_lj[sbindex];
-              factor_sqrt = special_lj[sbindex];
-            }
+            flt_t factor_dpd;
+            if (!ONETYPE) factor_dpd = special_lj[sbindex];
 
             flt_t delvx = vxtmp - v[j].x;
             flt_t delvy = vytmp - v[j].y;
@@ -345,11 +338,8 @@ void PairDPDIntel::eval(const int offload, const int vflag,
               gamma = parami[jtype].gamma;
               sigma = parami[jtype].sigma;
             }
-            flt_t fpair = a0 - iwd * gamma * dot;
-            if (!ONETYPE) {
-              fpair *= factor_dpd;
-              fpair += factor_sqrt * sigma * randnum * dtinvsqrt;
-            } else fpair += sigma * randnum * dtinvsqrt;
+            flt_t fpair = a0 - iwd * gamma * dot + sigma * randnum * dtinvsqrt;
+            if (!ONETYPE) fpair *= factor_dpd;
             fpair *= iwd;
 
             const flt_t fpx = fpair * delx;
@@ -434,7 +424,7 @@ void PairDPDIntel::eval(const int offload, const int vflag,
   if (EFLAG || vflag)
     fix->add_result_array(f_start, ev_global, offload, eatom, 0, vflag);
   else
-    fix->add_result_array(f_start, nullptr, offload);
+    fix->add_result_array(f_start, 0, offload);
 }
 
 /* ----------------------------------------------------------------------
@@ -490,16 +480,25 @@ void PairDPDIntel::settings(int narg, char **arg) {
 void PairDPDIntel::init_style()
 {
   PairDPD::init_style();
-  if (force->newton_pair == 0)
-    neighbor->find_request(this)->enable_full();
+  auto request = neighbor->find_request(this);
 
-  fix = static_cast<FixIntel *>(modify->get_fix_by_id("package_intel"));
-  if (!fix) error->all(FLERR, "The 'package intel' command is required for /intel styles");
+  if (force->newton_pair == 0) {
+    request->half = 0;
+    request->full = 1;
+  }
+  request->intel = 1;
+
+  int ifix = modify->find_fix("package_intel");
+  if (ifix < 0)
+    error->all(FLERR,
+               "The 'package intel' command is required for /intel styles");
+  fix = static_cast<FixIntel *>(modify->fix[ifix]);
 
   fix->pair_init_check();
   #ifdef _LMP_INTEL_OFFLOAD
   if (fix->offload_balance() != 0.0)
-    error->all(FLERR, "Offload for dpd/intel is not yet available. Set balance to 0.");
+    error->all(FLERR,
+          "Offload for dpd/intel is not yet available. Set balance to 0.");
   #endif
 
   if (fix->precision() == FixIntel::PREC_MODE_MIXED)

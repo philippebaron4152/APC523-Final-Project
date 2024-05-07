@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -19,6 +19,9 @@
 
 #include "pair_vashishta.h"
 
+#include <cmath>
+
+#include <cstring>
 #include "atom.h"
 #include "comm.h"
 #include "error.h"
@@ -26,14 +29,14 @@
 #include "memory.h"
 #include "neighbor.h"
 #include "neigh_list.h"
-#include "potential_file_reader.h"
+#include "neigh_request.h"
 
-#include <cmath>
-#include <cstring>
+#include "tokenizer.h"
+#include "potential_file_reader.h"
 
 using namespace LAMMPS_NS;
 
-static constexpr int DELTA = 4;
+#define DELTA 4
 
 /* ---------------------------------------------------------------------- */
 
@@ -269,7 +272,9 @@ void PairVashishta::init_style()
 
   // need a full neighbor list
 
-  neighbor->add_request(this, NeighConst::REQ_FULL);
+  int irequest = neighbor->request(this);
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
 }
 
 /* ----------------------------------------------------------------------
@@ -410,13 +415,11 @@ void PairVashishta::setup_params()
         for (m = 0; m < nparams; m++) {
           if (i == params[m].ielement && j == params[m].jelement &&
               k == params[m].kelement) {
-            if (n >= 0) error->all(FLERR,"Potential file has a duplicate entry for: {} {} {}",
-                                   elements[i], elements[j], elements[k]);
+            if (n >= 0) error->all(FLERR,"Potential file has duplicate entry");
             n = m;
           }
         }
-        if (n < 0) error->all(FLERR,"Potential file is missing an entry for: {} {} {}",
-                              elements[i], elements[j], elements[k]);
+        if (n < 0) error->all(FLERR,"Potential file is missing an entry");
         elem3param[i][j][k] = n;
       }
 

@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -67,23 +67,21 @@ void RespaOMP::init()
 void RespaOMP::setup(int flag)
 {
   if (comm->me == 0 && screen) {
-    std::string mesg = "Setting up r-RESPA/omp run ...\n";
+    fprintf(screen,"Setting up r-RESPA/omp run ...\n");
     if (flag) {
-      mesg += fmt::format("  Unit style    : {}\n", update->unit_style);
-      mesg += fmt::format("  Current step  : {}\n", update->ntimestep);
-
-      mesg += "  Time steps    :";
-      for (int ilevel = 0; ilevel < nlevels; ++ilevel)
-        mesg += fmt::format(" {}:{}", ilevel + 1, step[ilevel]);
-
-      mesg += "\n  r-RESPA fixes :";
-      for (int l = 0; l < modify->n_post_force_respa_any; ++l) {
-        Fix *f = modify->get_fix_by_index(modify->list_post_force_respa[l]);
+      fprintf(screen,"  Unit style    : %s\n", update->unit_style);
+      fprintf(screen,"  Current step  : " BIGINT_FORMAT "\n", update->ntimestep);
+      fprintf(screen,"  Time steps    :");
+      for (int ilevel=0; ilevel < nlevels; ++ilevel)
+        fprintf(screen," %d:%g",ilevel+1, step[ilevel]);
+      fprintf(screen,"\n  r-RESPA fixes :");
+      for (int l=0; l < modify->n_post_force_respa; ++l) {
+        Fix *f = modify->fix[modify->list_post_force_respa[l]];
         if (f->respa_level >= 0)
-          mesg += fmt::format(" {}:{}[{}]", MIN(f->respa_level + 1, nlevels), f->style, f->id);
+          fprintf(screen," %d:%s[%s]",
+                  MIN(f->respa_level+1,nlevels),f->style,f->id);
       }
-      mesg += "\n";
-      fputs(mesg.c_str(), screen);
+      fprintf(screen,"\n");
       timer->print_timeout(screen);
     }
   }
@@ -117,7 +115,7 @@ void RespaOMP::setup(int flag)
   ev_set(update->ntimestep);
 
   for (int ilevel = 0; ilevel < nlevels; ilevel++) {
-    force_clear();
+    force_clear(newton[ilevel]);
     modify->setup_pre_force_respa(vflag,ilevel);
 
     if (nhybrid_styles > 0) {
@@ -211,7 +209,7 @@ void RespaOMP::setup_minimal(int flag)
   ev_set(update->ntimestep);
 
   for (int ilevel = 0; ilevel < nlevels; ilevel++) {
-    force_clear();
+    force_clear(newton[ilevel]);
     modify->setup_pre_force_respa(vflag,ilevel);
 
     if (nhybrid_styles > 0) {
@@ -343,7 +341,7 @@ void RespaOMP::recurse(int ilevel)
     // so that any order dependencies are the same
     // when potentials are invoked at same level
 
-    force_clear();
+    force_clear(newton[ilevel]);
     if (modify->n_pre_force_respa) {
       timer->stamp();
       modify->pre_force_respa(vflag,ilevel,iloop);
@@ -420,7 +418,7 @@ void RespaOMP::recurse(int ilevel)
       timer->stamp(Timer::COMM);
     }
     timer->stamp();
-    if (modify->n_post_force_respa_any)
+    if (modify->n_post_force_respa)
       modify->post_force_respa(vflag,ilevel,iloop);
     modify->final_integrate_respa(ilevel,iloop);
     timer->stamp(Timer::MODIFY);

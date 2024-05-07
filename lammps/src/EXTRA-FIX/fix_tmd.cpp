@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,18 +27,16 @@
 #include "memory.h"
 #include "modify.h"
 #include "respa.h"
-#include "tokenizer.h"
 #include "update.h"
 
 #include <cmath>
 #include <cstring>
-#include <exception>
 
 using namespace LAMMPS_NS;
 using namespace FixConst;
 
-static constexpr int CHUNK = 1000;
-static constexpr int MAXLINE = 256;
+#define CHUNK 1000
+#define MAXLINE 256
 
 /* ---------------------------------------------------------------------- */
 
@@ -58,7 +56,7 @@ nfileevery(0), fp(nullptr), xf(nullptr), xold(nullptr)
   // perform initial allocation of atom-based arrays
   // register with Atom class
 
-  FixTMD::grow_arrays(atom->nmax);
+  grow_arrays(atom->nmax);
   atom->add_callback(Atom::GROW);
 
   // make sure an atom map exists before reading in target coordinates
@@ -125,10 +123,7 @@ nfileevery(0), fp(nullptr), xf(nullptr), xold(nullptr)
 
 FixTMD::~FixTMD()
 {
-  if (nfileevery && me == 0) {
-    if (compressed) platform::pclose(fp);
-    else fclose(fp);
-  }
+  if (nfileevery && me == 0) fclose(fp);
 
   // unregister callbacks to this fix from Atom class
 
@@ -168,7 +163,7 @@ void FixTMD::init()
   dtv = update->dt;
   dtf = update->dt * force->ftm2v;
   if (utils::strmatch(update->integrate_style,"^respa"))
-    step_respa = (dynamic_cast<Respa *>(update->integrate))->step;
+    step_respa = ((Respa *) update->integrate)->step;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -270,8 +265,10 @@ void FixTMD::initial_integrate(int /*vflag*/)
     work_lambda += lambda*(rho_target - rho_old);
     if (!(update->ntimestep % nfileevery) &&
         (previous_stat != update->ntimestep)) {
-      fmt::print(fp, "{} {} {} {} {} {} {} {}\n", update->ntimestep,rho_target,rho_old,
-                 gamma_back,gamma_forward,lambda,work_lambda,work_analytical);
+      fprintf(fp,
+              BIGINT_FORMAT " %g %g %g %g %g %g %g\n",
+              update->ntimestep,rho_target,rho_old,
+              gamma_back,gamma_forward,lambda,work_lambda,work_analytical);
       fflush(fp);
       previous_stat = update->ntimestep;
     }
@@ -390,9 +387,9 @@ void FixTMD::readfile(char *file)
   int *mask = atom->mask;
   int nlocal = atom->nlocal;
 
-  auto buffer = new char[CHUNK*MAXLINE];
+  char *buffer = new char[CHUNK*MAXLINE];
   char *next,*bufptr;
-  int i,m,nlines,imageflag,ix,iy,iz;
+  int i,m,n,nlines,imageflag,ix,iy,iz;
   tagint itag;
   double x,y,z,xprd,yprd,zprd;
 
@@ -422,66 +419,53 @@ void FixTMD::readfile(char *file)
     for (i = 0; i < nlines; i++) {
       next = strchr(bufptr,'\n');
       *next = '\0';
-      // trim comments and skip empty lines
-      char *comment = strchr(bufptr,'#');
-      if (comment) *comment = '\0';
-      if (!strlen(bufptr)) {
-        bufptr = next + 1;
-        continue;
-      }
 
       if (firstline) {
-        try {
-          ValueTokenizer values(bufptr);
-
-          if (utils::strmatch(bufptr,"^\\s*\\f+\\s+\\f+\\s+xlo\\s+xhi")) {
-            auto lo = values.next_double();
-            auto hi = values.next_double();
-            xprd = hi - lo;
-            bufptr = next + 1;
-            continue;
-          } else if (utils::strmatch(bufptr,"^\\s*\\f+\\s+\\f+\\s+ylo\\s+yhi")) {
-            auto lo = values.next_double();
-            auto hi = values.next_double();
-            yprd = hi - lo;
-            bufptr = next + 1;
-            continue;
-          } else if (utils::strmatch(bufptr,"^\\s*\\f+\\s+\\f+\\s+zlo\\s+zhi")) {
-            auto lo = values.next_double();
-            auto hi = values.next_double();
-            zprd = hi - lo;
-            bufptr = next + 1;
-            continue;
-          } else if (utils::trim_and_count_words(bufptr) == 4) {
-            if (xprd >= 0.0 || yprd >= 0.0 || zprd >= 0.0)
-              throw TokenizerException("must use imageflags when providing box boundaries", bufptr);
-            imageflag = 0;
-            firstline = 0;
-          } else if (utils::trim_and_count_words(bufptr) == 7) {
-            if (xprd < 0.0 || yprd < 0.0 || zprd < 0.0)
-              throw TokenizerException("Invalid box boundaries","");
-            imageflag = 1;
-            firstline = 0;
-          } else throw TokenizerException("unknown data", bufptr);
-        }
-        catch (std::exception &e) {
-          error->all(FLERR,"Incorrect format in TMD target file: {}", e.what());
-        }
+        if (utils::strmatch(bufptr,"^\\s*\\f+\\s+\\f+\\s+xlo\\s+xhi")) {
+          double lo,hi;
+          n = sscanf(bufptr,"%lg %lg",&lo,&hi);
+          if (n != 2)
+            error->all(FLERR,"Incorrect format in TMD target file");
+          xprd = hi - lo;
+          bufptr = next + 1;
+          continue;
+        } else if (utils::strmatch(bufptr,"^\\s*\\f+\\s+\\f+\\s+ylo\\s+yhi")) {
+          double lo,hi;
+          n = sscanf(bufptr,"%lg %lg",&lo,&hi);
+          if (n != 2)
+            error->all(FLERR,"Incorrect format in TMD target file");
+          yprd = hi - lo;
+          bufptr = next + 1;
+          continue;
+        } else if (utils::strmatch(bufptr,"^\\s*\\f+\\s+\\f+\\s+zlo\\s+zhi")) {
+          double lo,hi;
+          n = sscanf(bufptr,"%lg %lg",&lo,&hi);
+          if (n != 2)
+            error->all(FLERR,"Incorrect format in TMD target file");
+          zprd = hi - lo;
+          bufptr = next + 1;
+          continue;
+        } else if (utils::trim_and_count_words(bufptr) == 4) {
+          if (xprd >= 0.0 || yprd >= 0.0 || zprd >= 0.0)
+            error->all(FLERR,"Incorrect format in TMD target file");
+          imageflag = 0;
+          firstline = 0;
+        } else if (utils::trim_and_count_words(bufptr) == 7) {
+          if (xprd < 0.0 || yprd < 0.0 || zprd < 0.0)
+            error->all(FLERR,"Incorrect format in TMD target file");
+          imageflag = 1;
+          firstline = 0;
+        } else error->all(FLERR,"Incorrect format in TMD target file");
       }
 
-      try {
-        ValueTokenizer values(bufptr);
-        itag = values.next_tagint();
-        x = values.next_double();
-        y = values.next_double();
-        z = values.next_double();
-        if (imageflag) {
-          ix = values.next_int();
-          iy = values.next_int();
-          iz = values.next_int();
-        }
-      } catch (std::exception &e) {
-        error->all(FLERR,"Incorrectly formatted line in TMD target file: {}", e.what());
+      if (imageflag)
+        n = 7 - sscanf(bufptr,TAGINT_FORMAT " %lg %lg %lg %d %d %d",
+                       &itag,&x,&y,&z,&ix,&iy,&iz);
+      else
+        n = 4 - sscanf(bufptr,TAGINT_FORMAT " %lg %lg %lg",&itag,&x,&y,&z);
+
+      if (n != 0) {
+        error->all(FLERR,"Incorrectly formatted line in TMD target file");
         bufptr = next + 1;
         continue;
       }
@@ -508,7 +492,7 @@ void FixTMD::readfile(char *file)
   delete [] buffer;
 
   if (me == 0) {
-    if (compressed) platform::pclose(fp);
+    if (compressed) pclose(fp);
     else fclose(fp);
   }
 
@@ -530,21 +514,33 @@ void FixTMD::readfile(char *file)
 
 /* ----------------------------------------------------------------------
    proc 0 opens TMD data file
-   test if compressed
+   test if gzipped
 ------------------------------------------------------------------------- */
 
-void FixTMD::open(const std::string &file)
+void FixTMD::open(char *file)
 {
-  if (platform::has_compress_extension(file)) {
+  if (utils::strmatch(file,"\\.gz$")) {
     compressed = 1;
-    fp = platform::compressed_read(file);
-    if (!fp) error->one(FLERR,"Cannot open compressed file for reading");
+
+#ifdef LAMMPS_GZIP
+    auto gunzip = fmt::format("gzip -c -d {}",file);
+
+#ifdef _WIN32
+    fp = _popen(gunzip.c_str(),"rb");
+#else
+    fp = popen(gunzip.c_str(),"r");
+#endif
+
+#else
+    error->one(FLERR,"Cannot open gzipped file without gzip support");
+#endif
   } else {
     compressed = 0;
-    fp = fopen(file.c_str(),"r");
+    fp = fopen(file,"r");
   }
 
-  if (!fp) error->one(FLERR,"Cannot open file {}: {}", file, utils::getsyserror());
+  if (fp == nullptr)
+    error->one(FLERR,"Cannot open file {}: {}",file, utils::getsyserror());
 }
 
 /* ---------------------------------------------------------------------- */

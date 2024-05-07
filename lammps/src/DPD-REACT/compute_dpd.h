@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,9 +27,9 @@ namespace LAMMPS_NS {
 class ComputeDpd : public Compute {
  public:
   ComputeDpd(class LAMMPS *, int, char **);
-  ~ComputeDpd() override;
-  void init() override {}
-  void compute_vector() override;
+  ~ComputeDpd();
+  void init() {}
+  void compute_vector();
 
  private:
   double *dpdU;
@@ -39,3 +39,17 @@ class ComputeDpd : public Compute {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal ... command
+
+Self-explanatory.  Check the input script syntax and compare to the
+documentation for the command.  You can use -echo screen as a
+command-line option when running LAMMPS to see the offending line.
+
+E: compute dpd requires atom_style with internal temperature and energies (e.g. dpd)
+
+Self-explanatory.
+
+*/

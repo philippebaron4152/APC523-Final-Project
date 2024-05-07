@@ -10,8 +10,6 @@ This section documents the following functions:
 - :cpp:func:`lammps_mpi_init`
 - :cpp:func:`lammps_mpi_finalize`
 - :cpp:func:`lammps_kokkos_finalize`
-- :cpp:func:`lammps_python_finalize`
-- :cpp:func:`lammps_error`
 
 --------------------
 
@@ -22,7 +20,7 @@ as the "handle" argument in subsequent function calls until that
 instance is destroyed by calling :cpp:func:`lammps_close`.  Here is a
 simple example demonstrating its use:
 
-.. code-block:: c
+.. code-block:: C
 
    #include "library.h"
    #include <stdio.h>
@@ -35,7 +33,7 @@ simple example demonstrating its use:
      int lmpargc = sizeof(lmpargv)/sizeof(const char *);
 
      /* create LAMMPS instance */
-     handle = lammps_open_no_mpi(lmpargc, (char **)lmpargv, NULL);
+     handle = lammps_open_no_mpi(lmpargc, lmpargv, NULL);
      if (handle == NULL) {
        printf("LAMMPS initialization failed");
        lammps_mpi_finalize();
@@ -105,19 +103,4 @@ calling program.
 -----------------------
 
 .. doxygenfunction:: lammps_mpi_finalize
-   :project: progguide
-
------------------------
-
-.. doxygenfunction:: lammps_kokkos_finalize
-   :project: progguide
-
------------------------
-
-.. doxygenfunction:: lammps_python_finalize
-   :project: progguide
-
------------------------
-
-.. doxygenfunction:: lammps_error
    :project: progguide

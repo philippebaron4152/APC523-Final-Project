@@ -6,7 +6,7 @@ fix eos/cv command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID eos/cv cv
 

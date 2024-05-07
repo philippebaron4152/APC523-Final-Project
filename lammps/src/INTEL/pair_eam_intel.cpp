@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -34,6 +34,8 @@
 
 using namespace LAMMPS_NS;
 
+#define MAXLINE 1024
+
 #define FC_PACKED1_T typename ForceConst<flt_t>::fc_packed1
 #define FC_PACKED2_T typename ForceConst<flt_t>::fc_packed2
 
@@ -42,7 +44,7 @@ using namespace LAMMPS_NS;
 PairEAMIntel::PairEAMIntel(LAMMPS *lmp) : PairEAM(lmp)
 {
   suffix_flag |= Suffix::INTEL;
-  fp_float = nullptr;
+  fp_float = 0;
 }
 
 /* ---------------------------------------------------------------------- */
@@ -195,7 +197,7 @@ void PairEAMIntel::eval(const int offload, const int vflag,
 
   const int * _noalias const ilist = list->ilist;
   const int * _noalias const numneigh = list->numneigh;
-  const int ** _noalias const firstneigh = (const int **)list->firstneigh;  // NOLINT
+  const int ** _noalias const firstneigh = (const int **)list->firstneigh;
   const FC_PACKED1_T * _noalias const rhor_spline_f = fc.rhor_spline_f;
   const FC_PACKED1_T * _noalias const rhor_spline_e = fc.rhor_spline_e;
   const FC_PACKED2_T * _noalias const z2r_spline_t = fc.z2r_spline_t;
@@ -234,6 +236,7 @@ void PairEAMIntel::eval(const int offload, const int vflag,
   const int istride = fc.rhor_istride();
   const int jstride = fc.rhor_jstride();
   const int fstride = fc.frho_stride();
+
   {
     #if defined(__MIC__) && defined(_LMP_INTEL_OFFLOAD)
     *timer_compute = MIC_Wtime();
@@ -303,7 +306,7 @@ void PairEAMIntel::eval(const int offload, const int vflag,
         const flt_t ytmp = x[i].y;
         const flt_t ztmp = x[i].z;
 
-        auto  rhoi = (acc_t)0.0;
+        acc_t rhoi = (acc_t)0.0;
         int ej = 0;
         #if defined(LMP_SIMD_COMPILER)
         #pragma vector aligned
@@ -337,22 +340,21 @@ void PairEAMIntel::eval(const int offload, const int vflag,
           const int j = tj[jj] & NEIGHMASK;
           if (!ONETYPE) jtype = tjtype[jj];
           const flt_t rsq = trsq[jj];
-          flt_t p = std::sqrt(rsq)*frdr + (flt_t)1.0;
+          flt_t p = sqrt(rsq)*frdr + (flt_t)1.0;
           int m = static_cast<int> (p);
           m = MIN(m,nr-1);
           p -= m;
           p = MIN(p,(flt_t)1.0);
           if (!ONETYPE)
             rhor_joff = rhor_ioff + jtype * jstride;
-          const int joff = IP_PRE_dword_index(rhor_joff + m);
+          const int joff = rhor_joff + m;
           flt_t ra;
           ra = ((rhor_spline_e[joff].a*p + rhor_spline_e[joff].b) * p +
                 rhor_spline_e[joff].c) * p + rhor_spline_e[joff].d;
           rhoi += ra;
           if (NEWTON_PAIR) {
             if (!ONETYPE) {
-              const int ioff = IP_PRE_dword_index(jtype * istride + itype *
-                                                  jstride + m);
+              const int ioff = jtype * istride + itype * jstride + m;
               ra = ((rhor_spline_e[ioff].a*p + rhor_spline_e[ioff].b)*p +
                     rhor_spline_e[ioff].c) * p + rhor_spline_e[ioff].d;
             }
@@ -414,7 +416,7 @@ void PairEAMIntel::eval(const int offload, const int vflag,
 
       if (NEWTON_PAIR) {
         if (tid == 0)
-          comm->reverse_comm(this);
+          comm->reverse_comm_pair(this);
       }
       #if defined(_OPENMP)
       #pragma omp barrier
@@ -437,7 +439,7 @@ void PairEAMIntel::eval(const int offload, const int vflag,
       #pragma vector aligned
       #endif
       for (int ii = iifrom; ii < iito; ++ii) {
-        const int i = IP_PRE_dword_index(ilist[ii]);
+        const int i = ilist[ii];
         int itype;
         if (!ONETYPE) itype = x[i].w;
         flt_t p = rho[i]*frdrho + (flt_t)1.0;
@@ -446,7 +448,7 @@ void PairEAMIntel::eval(const int offload, const int vflag,
         p -= m;
         p = MIN(p,(flt_t)1.0);
         if (!ONETYPE) frho_ioff = itype * fstride;
-        const int ioff = IP_PRE_dword_index(frho_ioff + m);
+        const int ioff = frho_ioff + m;
         fp_f[i] = (frho_spline_f[ioff].a*p + frho_spline_f[ioff].b)*p +
           frho_spline_f[ioff].c;
         if (EFLAG) {
@@ -472,7 +474,7 @@ void PairEAMIntel::eval(const int offload, const int vflag,
       #endif
 
       if (tid == 0)
-        comm->forward_comm(this);
+        comm->forward_comm_pair(this);
 
       #if defined(_OPENMP)
       #pragma omp barrier
@@ -543,7 +545,7 @@ void PairEAMIntel::eval(const int offload, const int vflag,
           const int j = tj[jj] & NEIGHMASK;
           if (!ONETYPE) jtype = tjtype[jj];
           const flt_t rsq = trsq[jj];
-          const flt_t r = std::sqrt(rsq);
+          const flt_t r = sqrt(rsq);
           flt_t p = r*frdr + (flt_t)1.0;
           int m = static_cast<int> (p);
           m = MIN(m,nr-1);
@@ -551,23 +553,24 @@ void PairEAMIntel::eval(const int offload, const int vflag,
           p = MIN(p,(flt_t)1.0);
           if (!ONETYPE)
             rhor_joff = rhor_ioff + jtype * jstride;
-          const int joff = IP_PRE_dword_index(rhor_joff + m);
+          const int joff = rhor_joff + m;
           const flt_t rhojp = (rhor_spline_f[joff].a*p +
                                rhor_spline_f[joff].b)*p +
             rhor_spline_f[joff].c;
           flt_t rhoip;
           if (!ONETYPE) {
-            const int ioff = IP_PRE_dword_index(jtype * istride +
-                                                itype * jstride + m);
+            const int ioff = jtype * istride + itype * jstride + m;
             rhoip = (rhor_spline_f[ioff].a*p + rhor_spline_f[ioff].b)*p +
               rhor_spline_f[ioff].c;
           } else
             rhoip = rhojp;
           const flt_t z2p = (z2r_spline_t[joff].a*p +
-                             z2r_spline_t[joff].b)*p + z2r_spline_t[joff].c;
+                             z2r_spline_t[joff].b)*p +
+            z2r_spline_t[joff].c;
           const flt_t z2 = ((z2r_spline_t[joff].d*p +
                              z2r_spline_t[joff].e)*p +
-                            z2r_spline_t[joff].f)*p + z2r_spline_t[joff].g;
+                            z2r_spline_t[joff].f)*p +
+            z2r_spline_t[joff].g;
 
           const flt_t recip = (flt_t)1.0/r;
           const flt_t phi = z2*recip;
@@ -653,7 +656,7 @@ void PairEAMIntel::eval(const int offload, const int vflag,
   if (EFLAG || vflag)
     fix->add_result_array(f_start, ev_global, offload, eatom, 0, vflag);
   else
-    fix->add_result_array(f_start, nullptr, offload);
+    fix->add_result_array(f_start, 0, offload);
 }
 
 /* ----------------------------------------------------------------------
@@ -663,11 +666,19 @@ void PairEAMIntel::eval(const int offload, const int vflag,
 void PairEAMIntel::init_style()
 {
   PairEAM::init_style();
-  if (force->newton_pair == 0)
-    neighbor->find_request(this)->enable_full();
+  auto request = neighbor->find_request(this);
 
-  fix = static_cast<FixIntel *>(modify->get_fix_by_id("package_intel"));
-  if (!fix) error->all(FLERR, "The 'package intel' command is required for /intel styles");
+  if (force->newton_pair == 0) {
+    request->half = 0;
+    request->full = 1;
+  }
+  request->intel = 1;
+
+  int ifix = modify->find_fix("package_intel");
+  if (ifix < 0)
+    error->all(FLERR,
+               "The 'package intel' command is required for /intel styles");
+  fix = static_cast<FixIntel *>(modify->fix[ifix]);
 
   fix->pair_init_check();
   #ifdef _LMP_INTEL_OFFLOAD
@@ -846,3 +857,4 @@ void PairEAMIntel::unpack_forward_comm(int n, int first, double *buf,
   last = first + n;
   for (i = first; i < last; i++) fp_f[i] = buf[m++];
 }
+

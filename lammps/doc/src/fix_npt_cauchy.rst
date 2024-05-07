@@ -6,14 +6,14 @@ fix npt/cauchy command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID style_name keyword value ...
 
 * ID, group-ID are documented in :doc:`fix <fix>` command
 * style_name = *npt/cauchy*
 * one or more keyword/value pairs may be appended
-* keyword = *temp* or *iso* or *aniso* or *tri* or *x* or *y* or *z* or *xy* or *yz* or *xz* or *couple* or *tchain* or *pchain* or *mtk* or *tloop* or *ploop* or *nreset* or *drag* or *dilate* or *scalexy* or *scaleyz* or *scalexz* or *flip* or *alpha* or *continue* or *fixedpoint*
+* keyword = *temp* or *iso* or *aniso* or *tri* or *x* or *y* or *z* or *xy* or *yz* or *xz* or *couple* or *tchain* or *pchain* or *mtk* or *tloop* or *ploop* or *nreset* or *drag* or *dilate* or *scalexy* or *scaleyz* or *scalexz* or *flip* or *fixedpoint*
 
   .. parsed-literal::
 
@@ -311,7 +311,7 @@ flipping the box when it is exceeded.  If the *flip* value is set to
 applied stress induces large deformations (e.g. in a liquid), this
 means the box shape can tilt dramatically and LAMMPS will run less
 efficiently, due to the large volume of communication needed to
-acquire ghost atoms around a processor's irregular-shaped subdomain.
+acquire ghost atoms around a processor's irregular-shaped sub-domain.
 For extreme values of tilt, LAMMPS may also lose atoms and generate an
 error.
 
@@ -400,20 +400,19 @@ temperature or pressure during thermodynamic output via the
 compute-ID.  It also means that changing attributes of *thermo_temp*
 or *thermo_press* will have no effect on this fix.
 
-Like other fixes that perform thermostatting, this fix can be used
-with :doc:`compute commands <compute>` that remove a "bias" from the
-atom velocities.  E.g. to apply the thermostat only to atoms within a
-spatial :doc:`region <region>`, or to remove the center-of-mass
-velocity from a group of atoms, or to remove the x-component of
-velocity from the calculation.
-
-This is not done by default, but only if the :doc:`fix_modify
-<fix_modify>` command is used to assign a temperature compute to this
-fix that includes such a bias term.  See the doc pages for individual
-:doc:`compute temp commands <compute>` to determine which ones include
-a bias.  In this case, the thermostat works in the following manner:
-bias is removed from each atom, thermostatting is performed on the
-remaining thermal degrees of freedom, and the bias is added back in.
+Like other fixes that perform thermostatting, fix npt/cauchy can
+be used with :doc:`compute commands <compute>` that calculate a
+temperature after removing a "bias" from the atom velocities.
+E.g. removing the center-of-mass velocity from a group of atoms or
+only calculating temperature on the x-component of velocity or only
+calculating temperature for atoms in a geometric region.  This is not
+done by default, but only if the :doc:`fix_modify <fix_modify>` command
+is used to assign a temperature compute to this fix that includes such
+a bias term.  See the doc pages for individual :doc:`compute commands <compute>` to determine which ones include a bias.  In
+this case, the thermostat works in the following manner: the current
+temperature is calculated taking the bias into account, bias is
+removed from each atom, thermostatting is performed on the remaining
+thermal degrees of freedom, and the bias is added back in.
 
 ----------
 

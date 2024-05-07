@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -19,29 +19,24 @@
 
 #include "improper_fourier.h"
 
+#include <cmath>
 #include "atom.h"
 #include "comm.h"
-#include "error.h"
-#include "force.h"
-#include "memory.h"
 #include "neighbor.h"
+#include "force.h"
+#include "update.h"
+#include "memory.h"
+#include "error.h"
 
-#include <cmath>
 
 using namespace LAMMPS_NS;
 
-static constexpr double TOLERANCE = 0.05;
-static constexpr double SMALL =     0.001;
+#define TOLERANCE 0.05
+#define SMALL     0.001
 
 /* ---------------------------------------------------------------------- */
 
-ImproperFourier::ImproperFourier(LAMMPS *lmp) : Improper(lmp)
-{
-  // the first and fourth atoms in the quadruplet are the atoms of symmetry
-
-  symmatoms[0] = 1;
-  symmatoms[3] = 2;
-}
+ImproperFourier::ImproperFourier(LAMMPS *lmp) : Improper(lmp) {}
 
 /* ---------------------------------------------------------------------- */
 

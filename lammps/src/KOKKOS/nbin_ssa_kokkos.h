@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -38,9 +38,9 @@ class NBinSSAKokkos : public NBinStandard {
   typedef ArrayTypes<DeviceType> AT;
 
   NBinSSAKokkos(class LAMMPS *);
-
-  void bin_atoms_setup(int) override;
-  void bin_atoms() override;
+  ~NBinSSAKokkos() {}
+  void bin_atoms_setup(int);
+  void bin_atoms();
 
    // temporary array to hold the binID for each atom
   DAT::tdual_int_1d k_binID;
@@ -199,8 +199,8 @@ struct NPairSSAKokkosBinIDAtomsFunctor {
   }
 
   KOKKOS_INLINE_FUNCTION
-  void join (value_type& dst,
-             const value_type& src) const {
+  void join (volatile value_type& dst,
+             const volatile value_type& src) const {
     if (dst < src) dst = src;
   }
 
@@ -226,8 +226,8 @@ struct NPairSSAKokkosBinIDGhostsFunctor {
   }
 
   KOKKOS_INLINE_FUNCTION
-  void join (value_type& dst,
-             const value_type& src) const {
+  void join (volatile value_type& dst,
+             const volatile value_type& src) const {
     if (dst < src) dst = src;
   }
 
@@ -242,3 +242,6 @@ struct NPairSSAKokkosBinIDGhostsFunctor {
 #endif
 #endif
 
+/* ERROR/WARNING messages:
+
+*/

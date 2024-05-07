@@ -18,7 +18,7 @@ WeakEquationElectronContinuity::WeakEquationElectronContinuity()
 //--------------------------------------------------------------
 //  Destructor
 //---------------------------------------------------------------------
-WeakEquationElectronContinuity::~WeakEquationElectronContinuity()
+WeakEquationElectronContinuity::~WeakEquationElectronContinuity(void)
 {}
 
 //---------------------------------------------------------------------
@@ -66,7 +66,7 @@ WeakEquationElectronEquilibrium::WeakEquationElectronEquilibrium()
 //--------------------------------------------------------------
 //  Destructor
 //---------------------------------------------------------------------
-WeakEquationElectronEquilibrium::~WeakEquationElectronEquilibrium()
+WeakEquationElectronEquilibrium::~WeakEquationElectronEquilibrium(void)
 {}
 
 //---------------------------------------------------------------------

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,11 +27,11 @@ namespace LAMMPS_NS {
 class PairLJGromacsGPU : public PairLJGromacs {
  public:
   PairLJGromacsGPU(LAMMPS *lmp);
-  ~PairLJGromacsGPU() override;
+  ~PairLJGromacsGPU();
   void cpu_compute(int, int, int, int, int *, int *, int **);
-  void compute(int, int) override;
-  void init_style() override;
-  double memory_usage() override;
+  void compute(int, int);
+  void init_style();
+  double memory_usage();
 
   enum { GPU_FORCE, GPU_NEIGH, GPU_HYB_NEIGH };
 
@@ -43,3 +43,16 @@ class PairLJGromacsGPU : public PairLJGromacs {
 }    // namespace LAMMPS_NS
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Insufficient memory on accelerator
+
+There is insufficient memory on one of the devices specified for the gpu
+package
+
+E: Cannot use newton pair with lj/gromacs/gpu pair style
+
+Self-explanatory.
+
+*/

@@ -6,7 +6,7 @@ partition command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    partition style N command ...
 

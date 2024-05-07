@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -20,7 +20,6 @@
 #include "domain.h"
 #include "error.h"
 #include "fix.h"
-#include "input.h"
 #include "lattice.h"
 #include "math_const.h"
 #include "math_extra.h"
@@ -30,7 +29,6 @@
 #include "random_park.h"
 #include "region.h"
 #include "update.h"
-#include "variable.h"
 
 #include <cmath>
 #include <cstring>
@@ -42,7 +40,7 @@ using namespace MathConst;
 enum{ATOM,MOLECULE};
 enum{DIST_UNIFORM,DIST_GAUSSIAN};
 
-static constexpr double EPSILON = 1.0e6;
+#define EPSILON 1.0e6
 
 /* ---------------------------------------------------------------------- */
 
@@ -53,7 +51,6 @@ FixDeposit::FixDeposit(LAMMPS *lmp, int narg, char **arg) :
 {
   if (narg < 7) error->all(FLERR,"Illegal fix deposit command");
 
-  scalar_flag = 1;
   restart_global = 1;
   time_depend = 1;
 
@@ -77,18 +74,18 @@ FixDeposit::FixDeposit(LAMMPS *lmp, int narg, char **arg) :
 
   // error checks on region and its extent being inside simulation box
 
-  if (!iregion) error->all(FLERR,"Must specify a region in fix deposit");
-  if (iregion->bboxflag == 0)
+  if (iregion == -1) error->all(FLERR,"Must specify a region in fix deposit");
+  if (domain->regions[iregion]->bboxflag == 0)
     error->all(FLERR,"Fix deposit region does not support a bounding box");
-  if (iregion->dynamic_check())
+  if (domain->regions[iregion]->dynamic_check())
     error->all(FLERR,"Fix deposit region cannot be dynamic");
 
-  xlo = iregion->extent_xlo;
-  xhi = iregion->extent_xhi;
-  ylo = iregion->extent_ylo;
-  yhi = iregion->extent_yhi;
-  zlo = iregion->extent_zlo;
-  zhi = iregion->extent_zhi;
+  xlo = domain->regions[iregion]->extent_xlo;
+  xhi = domain->regions[iregion]->extent_xhi;
+  ylo = domain->regions[iregion]->extent_ylo;
+  yhi = domain->regions[iregion]->extent_yhi;
+  zlo = domain->regions[iregion]->extent_zlo;
+  zhi = domain->regions[iregion]->extent_zhi;
 
   if (domain->triclinic == 0) {
     if (xlo < domain->boxlo[0] || xhi > domain->boxhi[0] ||
@@ -120,7 +117,7 @@ FixDeposit::FixDeposit(LAMMPS *lmp, int narg, char **arg) :
       if (atom->molecular == Atom::TEMPLATE && onemols != atom->avec->onemols)
         error->all(FLERR,"Fix deposit molecule template ID must be same "
                    "as atom_style template ID");
-      onemols[i]->check_attributes();
+      onemols[i]->check_attributes(0);
 
       // fix deposit uses geoemetric center of molecule for insertion
 
@@ -211,10 +208,6 @@ FixDeposit::~FixDeposit()
   delete [] idrigid;
   delete [] idshake;
   delete [] idregion;
-  delete [] vstr;
-  delete [] xstr;
-  delete [] ystr;
-  delete [] zstr;
   memory->destroy(coords);
   memory->destroy(imageflags);
 }
@@ -232,23 +225,25 @@ int FixDeposit::setmask()
 
 void FixDeposit::init()
 {
-  warnflag = 1;
-
   // set index and check validity of region
 
-  iregion = domain->get_region_by_id(idregion);
-  if (!iregion) error->all(FLERR,"Region ID {} for fix deposit does not exist", idregion);
+  iregion = domain->find_region(idregion);
+  if (iregion == -1)
+    error->all(FLERR,"Region ID for fix deposit does not exist");
 
   // if rigidflag defined, check for rigid/small fix
   // its molecule template must be same as this one
 
   fixrigid = nullptr;
   if (rigidflag) {
-    fixrigid = modify->get_fix_by_id(idrigid);
-    if (!fixrigid) error->all(FLERR,"Fix deposit rigid fix ID {} does not exist", idrigid);
+    int ifix = modify->find_fix(idrigid);
+    if (ifix < 0) error->all(FLERR,"Fix deposit rigid fix does not exist");
+    fixrigid = modify->fix[ifix];
     int tmp;
     if (onemols != (Molecule **) fixrigid->extract("onemol",tmp))
-      error->all(FLERR, "Fix deposit and rigid fix are not using the same molecule template ID");
+      error->all(FLERR,
+                 "Fix deposit and fix rigid/small not using "
+                 "same molecule template ID");
   }
 
   // if shakeflag defined, check for SHAKE fix
@@ -256,11 +251,13 @@ void FixDeposit::init()
 
   fixshake = nullptr;
   if (shakeflag) {
-    fixshake = modify->get_fix_by_id(idshake);
-    if (!fixshake) error->all(FLERR,"Fix deposit shake fix ID {} does not exist", idshake);
+    int ifix = modify->find_fix(idshake);
+    if (ifix < 0) error->all(FLERR,"Fix deposit shake fix does not exist");
+    fixshake = modify->fix[ifix];
     int tmp;
     if (onemols != (Molecule **) fixshake->extract("onemol",tmp))
-      error->all(FLERR,"Fix deposit and fix shake are not using the same molecule template ID");
+      error->all(FLERR,"Fix deposit and fix shake not using "
+                 "same molecule template ID");
   }
 
   // for finite size spherical particles:
@@ -360,16 +357,14 @@ void FixDeposit::pre_exchange()
         coord[0] = xlo + random->uniform() * (xhi-xlo);
         coord[1] = ylo + random->uniform() * (yhi-ylo);
         coord[2] = zlo + random->uniform() * (zhi-zlo);
-      } while (iregion->match(coord[0],coord[1],coord[2]) == 0);
+      } while (domain->regions[iregion]->match(coord[0],coord[1],coord[2]) == 0);
     } else if (distflag == DIST_GAUSSIAN) {
       do {
         coord[0] = xmid + random->gaussian() * sigma;
         coord[1] = ymid + random->gaussian() * sigma;
         coord[2] = zmid + random->gaussian() * sigma;
-      } while (iregion->match(coord[0],coord[1],coord[2]) == 0);
+      } while (domain->regions[iregion]->match(coord[0],coord[1],coord[2]) == 0);
     } else error->all(FLERR,"Unknown particle distribution in fix deposit");
-
-    if (varflag && vartest(coord[0],coord[1],coord[2]) == 0) continue;
 
     // adjust vertical coord by offset
 
@@ -580,12 +575,10 @@ void FixDeposit::pre_exchange()
     //   coord is new position of geometric center of mol, not COM
     // FixShake::set_molecule stores shake info for molecule
 
-    if (mode == MOLECULE) {
-      if (rigidflag)
-        fixrigid->set_molecule(nlocalprev,maxtag_all,imol,coord,vnew,quat);
-      else if (shakeflag)
-        fixshake->set_molecule(nlocalprev,maxtag_all,imol,coord,vnew,quat);
-    }
+    if (rigidflag)
+      fixrigid->set_molecule(nlocalprev,maxtag_all,imol,coord,vnew,quat);
+    else if (shakeflag)
+      fixshake->set_molecule(nlocalprev,maxtag_all,imol,coord,vnew,quat);
 
     success = 1;
     break;
@@ -593,10 +586,8 @@ void FixDeposit::pre_exchange()
 
   // warn if not successful b/c too many attempts
 
-  if (warnflag && !success && comm->me == 0) {
-    error->warning(FLERR,"One or more particle depositions were unsuccessful");
-    warnflag = 0;
-  }
+  if (!success && comm->me == 0)
+    error->warning(FLERR,"Particle deposition was unsuccessful");
 
   // reset global natoms,nbonds,etc
   // increment maxtag_all and maxmol_all if necessary
@@ -671,10 +662,8 @@ void FixDeposit::options(int narg, char **arg)
 {
   // defaults
 
-  iregion = nullptr;
+  iregion = -1;
   idregion = nullptr;
-  varflag = 0;
-  vstr = xstr = ystr = zstr = nullptr;
   mode = ATOM;
   molfrac = nullptr;
   rigidflag = 0;
@@ -694,7 +683,6 @@ void FixDeposit::options(int narg, char **arg)
   scaleflag = 1;
   targetflag = 0;
   orientflag = 0;
-  warnflag = 1;
   rx = 0.0;
   ry = 0.0;
   rz = 0.0;
@@ -703,36 +691,17 @@ void FixDeposit::options(int narg, char **arg)
   while (iarg < narg) {
     if (strcmp(arg[iarg],"region") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal fix deposit command");
-      iregion = domain->get_region_by_id(arg[iarg+1]);
-      if (!iregion) error->all(FLERR,"Region ID {} for fix deposit does not exist",arg[iarg+1]);
+      iregion = domain->find_region(arg[iarg+1]);
+      if (iregion == -1)
+        error->all(FLERR,"Region ID for fix deposit does not exist");
       idregion = utils::strdup(arg[iarg+1]);
       iarg += 2;
-
-    } else if (strcmp(arg[iarg], "var") == 0) {
-      if (iarg + 2 > narg) utils::missing_cmd_args(FLERR, "fix deposit var", error);
-      delete[] vstr;
-      vstr = utils::strdup(arg[iarg + 1]);
-      varflag = 1;
-      iarg += 2;
-    } else if (strcmp(arg[iarg], "set") == 0) {
-      if (iarg + 3 > narg) utils::missing_cmd_args(FLERR, "fix deposit set", error);
-      if (strcmp(arg[iarg + 1], "x") == 0) {
-        delete[] xstr;
-        xstr = utils::strdup(arg[iarg + 2]);
-      } else if (strcmp(arg[iarg + 1], "y") == 0) {
-        delete[] ystr;
-        ystr = utils::strdup(arg[iarg + 2]);
-      } else if (strcmp(arg[iarg + 1], "z") == 0) {
-        delete[] zstr;
-        zstr = utils::strdup(arg[iarg + 2]);
-      } else
-        error->all(FLERR, "Unknown fix deposit set option {}", arg[iarg + 2]);
-      iarg += 3;
 
     } else if (strcmp(arg[iarg],"mol") == 0) {
       if (iarg+2 > narg) error->all(FLERR,"Illegal fix deposit command");
       int imol = atom->find_molecule(arg[iarg+1]);
-      if (imol == -1) error->all(FLERR,"Molecule template ID for fix deposit does not exist");
+      if (imol == -1)
+        error->all(FLERR,"Molecule template ID for fix deposit does not exist");
       mode = MOLECULE;
       onemols = &atom->molecules[imol];
       nmol = onemols[0]->nset;
@@ -851,48 +820,6 @@ void FixDeposit::options(int narg, char **arg)
       iarg += 4;
     } else error->all(FLERR,"Illegal fix deposit command");
   }
-
-  // error check and further setup for variable test
-
-  if (!vstr && (xstr || ystr || zstr))
-    error->all(FLERR, "Incomplete use of variables in fix deposit command");
-  if (vstr && (!xstr && !ystr && !zstr))
-    error->all(FLERR, "Incomplete use of variables in fix deposit command");
-
-  if (varflag) {
-    vvar = input->variable->find(vstr);
-    if (vvar < 0) error->all(FLERR, "Variable {} for fix deposit does not exist", vstr);
-    if (!input->variable->equalstyle(vvar))
-      error->all(FLERR, "Variable for fix deposit is invalid style");
-
-    if (xstr) {
-      xvar = input->variable->find(xstr);
-      if (xvar < 0) error->all(FLERR, "Variable {} for fix deposit does not exist", xstr);
-      if (!input->variable->internalstyle(xvar))
-        error->all(FLERR, "Variable for fix deposit is invalid style");
-    }
-    if (ystr) {
-      yvar = input->variable->find(ystr);
-      if (yvar < 0) error->all(FLERR, "Variable {} for fix deposit does not exist", ystr);
-      if (!input->variable->internalstyle(yvar))
-        error->all(FLERR, "Variable for fix deposit is invalid style");
-    }
-    if (zstr) {
-      zvar = input->variable->find(zstr);
-      if (zvar < 0) error->all(FLERR, "Variable {} for fix deposit does not exist", zstr);
-      if (!input->variable->internalstyle(zvar))
-        error->all(FLERR, "Variable for fix deposit is invalid style");
-    }
-  }
-}
-
-/* ----------------------------------------------------------------------
-   output number of successful insertions
-------------------------------------------------------------------------- */
-
-double FixDeposit::compute_scalar()
-{
-  return ninserted;
 }
 
 /* ----------------------------------------------------------------------
@@ -923,7 +850,7 @@ void FixDeposit::write_restart(FILE *fp)
 void FixDeposit::restart(char *buf)
 {
   int n = 0;
-  auto list = (double *) buf;
+  double *list = (double *) buf;
 
   seed = static_cast<int>(list[n++]);
   ninserted = static_cast<int>(list[n++]);
@@ -976,21 +903,4 @@ void *FixDeposit::extract(const char *str, int &itype)
   }
 
   return nullptr;
-}
-
-/* ----------------------------------------------------------------------
-   test a generated atom position against variable evaluation
-   first set x,y,z values in internal variables
-------------------------------------------------------------------------- */
-
-int FixDeposit::vartest(double x, double y, double z)
-{
-  if (xstr) input->variable->internal_set(xvar, x);
-  if (ystr) input->variable->internal_set(yvar, y);
-  if (zstr) input->variable->internal_set(zvar, z);
-
-  double value = input->variable->compute_equal(vvar);
-
-  if (value == 0.0) return 0;
-  return 1;
 }

@@ -8,10 +8,10 @@ Packages are supported by either the LAMMPS developers or the
 contributing authors and written in a syntax and style consistent with
 the rest of LAMMPS.
 
-The "Examples" column is a subdirectory in the examples directory of the
-distribution which has one or more input scripts that use the package.
+The "Example" column is a sub-directory in the examples directory of the
+distribution which has an input script that uses the package.
 E.g. "peptide" refers to the examples/peptide directory; PACKAGES/atc refers
-to the examples/PACKAGES/atc directory.  The "Lib" column indicates
+to the examples/PACKAGES/atc directory.  The "Library" column indicates
 whether an extra library is needed to build and use the package:
 
 * no  = no library
@@ -26,18 +26,13 @@ whether an extra library is needed to build and use the package:
    * - Package
      - Description
      - Doc page
-     - Examples
-     - Lib
+     - Example
+     - Library
    * - :ref:`ADIOS <PKG-ADIOS>`
      - dump output via ADIOS
      - :doc:`dump adios <dump_adios>`
      - PACKAGES/adios
      - ext
-   * - :ref:`AMOEBA <PKG-AMOEBA>`
-     - AMOEBA and HIPPO force fields
-     - :doc:`AMOEBA and HIPPO howto <Howto_amoeba>`
-     - amoeba
-     - no
    * - :ref:`ASPHERE <PKG-ASPHERE>`
      - aspherical particle models
      - :doc:`Howto spherical <Howto_spherical>`
@@ -63,11 +58,6 @@ whether an extra library is needed to build and use the package:
      - :doc:`Howto body <Howto_body>`
      - body
      - no
-   * - :ref:`BPM <PKG-BPM>`
-     - bonded particle models
-     - :doc:`Howto bpm <Howto_bpm>`
-     - bpm
-     - no
    * - :ref:`BROWNIAN <PKG-BROWNIAN>`
      - Brownian dynamics, self-propelled particles
      - :doc:`fix brownian <fix_brownian>`, :doc:`fix propel/self <fix_propel_self>`
@@ -78,10 +68,10 @@ whether an extra library is needed to build and use the package:
      - src/CG-DNA/README
      - PACKAGES/cgdna
      - no
-   * - :ref:`CG-SPICA <PKG-CG-SPICA>`
-     - SPICA (SDK) coarse-graining model
-     - :doc:`pair_style lj/spica <pair_spica>`
-     - PACKAGES/cgspica
+   * - :ref:`CG-SDK <PKG-CG-SDK>`
+     - SDK coarse-graining model
+     - :doc:`pair_style lj/sdk <pair_sdk>`
+     - PACKAGES/cgsdk
      - no
    * - :ref:`CLASS2 <PKG-CLASS2>`
      - class 2 force fields
@@ -94,7 +84,7 @@ whether an extra library is needed to build and use the package:
      - colloid
      - no
    * - :ref:`COLVARS <PKG-COLVARS>`
-     - `Colvars collective variables library <https://colvars.github.io/>`_
+     - collective variables library
      - :doc:`fix colvars <fix_colvars>`
      - PACKAGES/colvars
      - int
@@ -125,7 +115,7 @@ whether an extra library is needed to build and use the package:
      - no
    * - :ref:`DPD-BASIC <PKG-DPD-BASIC>`
      - basic DPD models
-     - :doc:`pair_styles dpd <pair_dpd>` :doc:`dpd/ext <pair_dpd_ext>`
+     - :doc:`pair_styles dpd dpd/tstat <pair_dpd>` :doc:`dpd/ext dpd/ext/tstat <pair_dpd_ext>`
      - PACKAGES/dpd-basic
      - no
    * - :ref:`DPD-MESO <PKG-DPD-MESO>`
@@ -152,11 +142,6 @@ whether an extra library is needed to build and use the package:
      - electron force field
      - :doc:`pair_style eff/cut <pair_eff>`
      - PACKAGES/eff
-     - no
-   * - :ref:`ELECTRODE <PKG-ELECTRODE>`
-     - electrode charges to match potential
-     - :doc:`fix electrode/conp <fix_electrode>`
-     - PACKAGES/electrode
      - no
    * - :ref:`EXTRA-COMPUTE <PKG-EXTRA-COMPUTE>`
      - additional compute styles
@@ -233,11 +218,11 @@ whether an extra library is needed to build and use the package:
      - :doc:`fix lb/fluid <fix_lb_fluid>`
      - PACKAGES/latboltz
      - no
-   * - :ref:`LEPTON <PKG-LEPTON>`
-     - evaluate strings as potential function
-     - :doc:`pair_style lepton <pair_lepton>`
-     - PACKAGES/lepton
-     - int
+   * - :ref:`LATTE <PKG-LATTE>`
+     - quantum DFTB forces via LATTE
+     - :doc:`fix latte <fix_latte>`
+     - latte
+     - ext
    * - :ref:`MACHDYN <PKG-MACHDYN>`
      - smoothed Mach dynamics
      - `SMD User Guide <PDF/MACHDYN_LAMMPS_userguide.pdf>`_
@@ -259,7 +244,7 @@ whether an extra library is needed to build and use the package:
      - n/a
      - no
    * - :ref:`MDI <PKG-MDI>`
-     - client-server code coupling
+     - client-server coupling
      - :doc:`MDI Howto <Howto_mdi>`
      - PACKAGES/mdi
      - ext
@@ -270,9 +255,14 @@ whether an extra library is needed to build and use the package:
      - no
    * - :ref:`MESONT <PKG-MESONT>`
      - mesoscopic tubular potential model
-     - pair styles :doc:`mesocnt <pair_mesocnt>`
+     - pair styles :doc:`mesont/tpm <pair_mesont_tpm>`, :doc:`mesocnt <pair_mesocnt>`
      - PACKAGES/mesont
-     - no
+     - int
+   * - :ref:`MESSAGE <PKG-MESSAGE>`
+     - client/server messaging
+     - :doc:`message <message>`
+     - message
+     - int
    * - :ref:`MGPT <PKG-MGPT>`
      - fast MGPT multi-ion potentials
      - :doc:`pair_style mgpt <pair_mgpt>`
@@ -297,11 +287,6 @@ whether an extra library is needed to build and use the package:
      - Atomic Cluster Expansion potential
      - :doc:`pair pace <pair_pace>`
      - PACKAGES/pace
-     - ext
-   * - :ref:`ML-POD <PKG-ML-POD>`
-     - Proper orthogonal decomposition potentials
-     - :doc:`pair pod <pair_pod>`
-     - pod
      - ext
    * - :ref:`ML-QUIP <PKG-ML-QUIP>`
      - QUIP/libatoms interface
@@ -332,6 +317,16 @@ whether an extra library is needed to build and use the package:
      - `VMD <VMD_>`_ molfile plug-ins
      - :doc:`dump molfile <dump_molfile>`
      - n/a
+     - ext
+   * - :ref:`MPIIO <PKG-MPIIO>`
+     - MPI parallel I/O dump and restart
+     - :doc:`dump <dump>`
+     - n/a
+     - no
+   * - :ref:`MSCG <PKG-MSCG>`
+     - multi-scale coarse-graining wrapper
+     - :doc:`fix mscg <fix_mscg>`
+     - mscg
      - ext
    * - :ref:`NETCDF <PKG-NETCDF>`
      - dump output via NetCDF
@@ -369,7 +364,7 @@ whether an extra library is needed to build and use the package:
      - plugins
      - no
    * - :ref:`PLUMED <PKG-PLUMED>`
-     - `PLUMED free energy library <https://www.plumed.org>`_
+     - :ref:`PLUMED <PLUMED>` free energy library
      - :doc:`fix plumed <fix_plumed>`
      - PACKAGES/plumed
      - ext
@@ -434,8 +429,8 @@ whether an extra library is needed to build and use the package:
      - n/a
      - no
    * - :ref:`SMTBQ <PKG-SMTBQ>`
-     - second moment tight binding potentials
-     - pair styles :doc:`smtbq <pair_smtbq>`, :doc:`smatb <pair_smatb>`
+     - second moment tight binding potential
+     - :doc:`pair_style smtbq <pair_smtbq>`
      - PACKAGES/smtbq
      - no
    * - :ref:`SPH <PKG-SPH>`

@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -34,11 +34,28 @@
 #ifndef LMP_MANIFOLD_FACTORY_H
 #define LMP_MANIFOLD_FACTORY_H
 
+#include <cstddef>
+#include <cstring>
+
 namespace LAMMPS_NS {
 class LAMMPS;
+
 namespace user_manifold {
+
+  // forward declaration
   class manifold;
+
+  // Templated, so needs to be in header.
+  template <typename m_type>
+  void make_manifold_if(manifold **man_ptr, const char *name, LAMMPS *lmp, int narg, char **arg)
+  {
+    if (strcmp(m_type::type(), name) == 0) {
+      if (*man_ptr == nullptr) { *man_ptr = new m_type(lmp, narg, arg); }
+    }
+  }
+
   manifold *create_manifold(const char *, LAMMPS *, int, char **);
+
 }    // namespace user_manifold
 }    // namespace LAMMPS_NS
 

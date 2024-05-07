@@ -1,7 +1,8 @@
+// clang-format off
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -21,43 +22,55 @@
 #include "comm.h"
 #include "error.h"
 #include "force.h"
+#include "group.h"
 #include "kspace.h"
 #include "memory.h"
 #include "neigh_list.h"
+#include "neigh_request.h"
 #include "neighbor.h"
+#include "respa.h"
 #include "update.h"
 
 #include <cmath>
-#include <cstring>
 
 using namespace LAMMPS_NS;
 
 /* ---------------------------------------------------------------------- */
 
-FixQEqPoint::FixQEqPoint(LAMMPS *lmp, int narg, char **arg) : FixQEq(lmp, narg, arg)
-{
+FixQEqPoint::FixQEqPoint(LAMMPS *lmp, int narg, char **arg) :
+  FixQEq(lmp, narg, arg) {
   if (narg == 10) {
-    if (strcmp(arg[8], "warn") == 0) {
-      maxwarn = utils::logical(FLERR, arg[9], false, lmp);
-    } else
-      error->all(FLERR, "Illegal fix qeq/point command");
-  } else if (narg > 8)
-    error->all(FLERR, "Illegal fix qeq/point command");
+    if (strcmp(arg[8],"warn") == 0) {
+      if (strcmp(arg[9],"no") == 0) maxwarn = 0;
+      else if (strcmp(arg[9],"yes") == 0) maxwarn = 1;
+      else error->all(FLERR,"Illegal fix qeq/point command");
+    } else error->all(FLERR,"Illegal fix qeq/point command");
+  } else if (narg > 8) error->all(FLERR,"Illegal fix qeq/point command");
 }
 
 /* ---------------------------------------------------------------------- */
 
 void FixQEqPoint::init()
 {
-  FixQEq::init();
+  if (!atom->q_flag)
+    error->all(FLERR,"Fix qeq/point requires atom attribute q");
 
-  neighbor->add_request(this, NeighConst::REQ_FULL);
+  ngroup = group->count(igroup);
+  if (ngroup == 0) error->all(FLERR,"Fix qeq/point group has no atoms");
+
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->pair = 0;
+  neighbor->requests[irequest]->fix  = 1;
+  neighbor->requests[irequest]->half = 0;
+  neighbor->requests[irequest]->full = 1;
 
   int ntypes = atom->ntypes;
-  memory->create(shld, ntypes + 1, ntypes + 1, "qeq:shielding");
-}
+  memory->create(shld,ntypes+1,ntypes+1,"qeq:shielding");
 
-// clang-format off
+  if (utils::strmatch(update->integrate_style,"^respa"))
+    nlevels_respa = ((Respa *) update->integrate)->nlevels;
+
+}
 
 /* ---------------------------------------------------------------------- */
 
@@ -105,9 +118,9 @@ void FixQEqPoint::init_matvec()
   }
 
   pack_flag = 2;
-  comm->forward_comm(this); //Dist_vector(s);
+  comm->forward_comm_fix(this); //Dist_vector(s);
   pack_flag = 3;
-  comm->forward_comm(this); //Dist_vector(t);
+  comm->forward_comm_fix(this); //Dist_vector(t);
 }
 
 /* ---------------------------------------------------------------------- */

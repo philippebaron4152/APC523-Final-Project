@@ -8,11 +8,10 @@
 #            can be in any order
 #         -b dumpfile = background atoms (optional)
 #            first snapshot in this file used as static non-NEB atoms
-# Author:  Steve Plimpton (Sandia), sjplimp at gmail.com
 
 import sys,os
 path = os.environ["LAMMPS_PYTHON_TOOLS"]
-sys.path.insert(1,path)
+sys.path.append(path)
 from dump import dump
 
 # parse args
@@ -39,7 +38,8 @@ while iarg < narg:
   else: break
 
 if iarg < narg or not outfile or not rfiles:
-  sys.exit("Syntax: neb_combine.py -o outfile -b backfile -r dump1 dump2 ...")
+  print "Syntax: neb_combine.py -o outfile -b backfile -r dump1 dump2 ..."
+  sys.exit()
 
 if os.path.exists(outfile): os.remove(outfile)
 

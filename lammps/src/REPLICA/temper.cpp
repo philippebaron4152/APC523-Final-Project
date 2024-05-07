@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -33,10 +33,11 @@
 #include "update.h"
 
 #include <cmath>
+#include <cstring>
 
 using namespace LAMMPS_NS;
 
-#define TEMPER_DEBUG 0
+// #define TEMPER_DEBUG 1
 
 /* ---------------------------------------------------------------------- */
 
@@ -49,10 +50,10 @@ Temper::~Temper()
   MPI_Comm_free(&roots);
   if (ranswap) delete ranswap;
   delete ranboltz;
-  delete[] set_temp;
-  delete[] temp2world;
-  delete[] world2temp;
-  delete[] world2root;
+  delete [] set_temp;
+  delete [] temp2world;
+  delete [] world2temp;
+  delete [] world2root;
 }
 
 /* ----------------------------------------------------------------------
@@ -62,10 +63,11 @@ Temper::~Temper()
 void Temper::command(int narg, char **arg)
 {
   if (universe->nworlds == 1)
-    error->universe_all(FLERR,"More than one processor partition required for temper command");
+    error->all(FLERR,"Must have more than one processor partition to temper");
   if (domain->box_exist == 0)
-    error->universe_all(FLERR,"Temper command before simulation box is defined");
-  if (narg != 6 && narg != 7) error->universe_all(FLERR,"Illegal temper command");
+    error->all(FLERR,"Temper command before simulation box is defined");
+  if (narg != 6 && narg != 7)
+    error->universe_all(FLERR,"Illegal temper command");
 
   int nsteps = utils::inumeric(FLERR,arg[0],false,lmp);
   nevery = utils::inumeric(FLERR,arg[1],false,lmp);
@@ -75,9 +77,10 @@ void Temper::command(int narg, char **arg)
 
   if (timer->is_timeout()) return;
 
-  whichfix = modify->get_fix_by_id(arg[3]);
-  if (!whichfix)
-    error->universe_all(FLERR,fmt::format("Tempering fix ID {} is not defined", arg[3]));
+  for (whichfix = 0; whichfix < modify->nfix; whichfix++)
+    if (strcmp(arg[3],modify->fix[whichfix]->id) == 0) break;
+  if (whichfix == modify->nfix)
+    error->universe_all(FLERR,"Tempering fix ID is not defined");
 
   seed_swap = utils::inumeric(FLERR,arg[4],false,lmp);
   seed_boltz = utils::inumeric(FLERR,arg[5],false,lmp);
@@ -85,7 +88,7 @@ void Temper::command(int narg, char **arg)
   my_set_temp = universe->iworld;
   if (narg == 7) my_set_temp = utils::inumeric(FLERR,arg[6],false,lmp);
   if ((my_set_temp < 0) || (my_set_temp >= universe->nworlds))
-    error->universe_one(FLERR,"Invalid temperature index value");
+    error->universe_one(FLERR,"Illegal temperature index");
 
   // swap frequency must evenly divide total # of timesteps
 
@@ -98,11 +101,11 @@ void Temper::command(int narg, char **arg)
   // fix style must be appropriate for temperature control, i.e. it needs
   // to provide a working Fix::reset_target() and must not change the volume.
 
-  if ((!utils::strmatch(whichfix->style,"^nvt")) &&
-      (!utils::strmatch(whichfix->style,"^langevin")) &&
-      (!utils::strmatch(whichfix->style,"^gl[de]$")) &&
-      (!utils::strmatch(whichfix->style,"^rigid/nvt")) &&
-      (!utils::strmatch(whichfix->style,"^temp/")))
+  if ((!utils::strmatch(modify->fix[whichfix]->style,"^nvt")) &&
+      (!utils::strmatch(modify->fix[whichfix]->style,"^langevin")) &&
+      (!utils::strmatch(modify->fix[whichfix]->style,"^gl[de]$")) &&
+      (!utils::strmatch(modify->fix[whichfix]->style,"^rigid/nvt")) &&
+      (!utils::strmatch(modify->fix[whichfix]->style,"^temp/")))
     error->universe_all(FLERR,"Tempering temperature fix is not supported");
 
   // setup for long tempering run
@@ -113,7 +116,8 @@ void Temper::command(int narg, char **arg)
   update->nsteps = nsteps;
   update->beginstep = update->firststep = update->ntimestep;
   update->endstep = update->laststep = update->firststep + nsteps;
-  if (update->laststep < 0) error->all(FLERR,"Too many timesteps");
+  if (update->laststep < 0)
+    error->all(FLERR,"Too many timesteps");
 
   lmp->init();
 
@@ -128,9 +132,9 @@ void Temper::command(int narg, char **arg)
   // pe_compute = ptr to thermo_pe compute
   // notify compute it will be called at first swap
 
-  Compute *pe_compute = modify->get_compute_by_id("thermo_pe");
-  if (!pe_compute) error->all(FLERR,"Tempering could not find thermo_pe compute");
-
+  int id = modify->find_compute("thermo_pe");
+  if (id < 0) error->all(FLERR,"Tempering could not find thermo_pe compute");
+  Compute *pe_compute = modify->compute[id];
   pe_compute->addstep(update->ntimestep + nevery);
 
   // create MPI communicator for root proc from each world
@@ -179,7 +183,7 @@ void Temper::command(int narg, char **arg)
 
   if (narg == 7) {
     double new_temp = set_temp[my_set_temp];
-    whichfix->reset_target(new_temp);
+    modify->fix[whichfix]->reset_target(new_temp);
   }
 
   // setup tempering runs
@@ -285,12 +289,13 @@ void Temper::command(int narg, char **arg)
       else
         MPI_Recv(&swap,1,MPI_INT,partner,0,universe->uworld,MPI_STATUS_IGNORE);
 
-#if TEMPER_DEBUG
+#ifdef TEMPER_DEBUG
       if (me_universe < partner)
-        fprintf(universe->uscreen,"SWAP %d & %d: yes = %d,Ts = %d %d, PEs = %g %g, Bz = %g %g\n",
-                me_universe,partner,swap,my_set_temp,partner_set_temp,
-                pe,pe_partner,boltz_factor,exp(boltz_factor));
+        printf("SWAP %d & %d: yes = %d,Ts = %d %d, PEs = %g %g, Bz = %g %g\n",
+               me_universe,partner,swap,my_set_temp,partner_set_temp,
+               pe,pe_partner,boltz_factor,exp(boltz_factor));
 #endif
+
     }
 
     // bcast swap result to other procs in my world
@@ -305,7 +310,7 @@ void Temper::command(int narg, char **arg)
 
     if (swap) {
       new_temp = set_temp[partner_set_temp];
-      whichfix->reset_target(new_temp);
+      modify->fix[whichfix]->reset_target(new_temp);
     }
 
     // update my_set_temp and temp2world on every proc
@@ -361,15 +366,17 @@ void Temper::scale_velocities(int t_partner, int t_me)
 
 void Temper::print_status()
 {
-  std::string status = std::to_string(update->ntimestep);
-  for (int i = 0; i < nworlds; i++)
-    status += " " + std::to_string(world2temp[i]);
-
-  status += "\n";
-
-  if (universe->uscreen) fputs(status.c_str(), universe->uscreen);
+  if (universe->uscreen) {
+    fprintf(universe->uscreen,BIGINT_FORMAT,update->ntimestep);
+    for (int i = 0; i < nworlds; i++)
+      fprintf(universe->uscreen," %d",world2temp[i]);
+    fprintf(universe->uscreen,"\n");
+  }
   if (universe->ulogfile) {
-    fputs(status.c_str(), universe->ulogfile);
+    fprintf(universe->ulogfile,BIGINT_FORMAT,update->ntimestep);
+    for (int i = 0; i < nworlds; i++)
+      fprintf(universe->ulogfile," %d",world2temp[i]);
+    fprintf(universe->ulogfile,"\n");
     fflush(universe->ulogfile);
   }
 }

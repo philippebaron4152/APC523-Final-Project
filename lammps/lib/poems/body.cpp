@@ -132,6 +132,6 @@ Body* NewBody(int type){
       case PARTICLE :  // A Particle
         return new Particle;
       default  :  // error
-        return nullptr;
+        return 0;
     }
 }

@@ -6,7 +6,7 @@ fix_modify AtC internal_quadrature command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix_modify <AtC fixID> internal_quadrature <on|off> [region]
 

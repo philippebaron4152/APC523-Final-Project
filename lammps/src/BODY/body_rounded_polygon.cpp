@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -32,7 +32,7 @@
 
 using namespace LAMMPS_NS;
 
-static constexpr double EPSILON = 1.0e-7;
+#define EPSILON 1.0e-7
 enum{SPHERE,LINE};           // also in DumpImage
 
 /* ---------------------------------------------------------------------- */
@@ -155,7 +155,7 @@ int BodyRoundedPolygon::unpack_border_body(AtomVecBody::Bonus *bonus,
 }
 
 /* ----------------------------------------------------------------------
-   populate bonus data structure with data file values for one body
+   populate bonus data structure with data file values
 ------------------------------------------------------------------------- */
 
 void BodyRoundedPolygon::data_body(int ibonus, int ninteger, int ndouble,

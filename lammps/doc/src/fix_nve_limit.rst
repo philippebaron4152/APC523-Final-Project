@@ -6,7 +6,7 @@ fix nve/limit command
 Syntax
 """"""
 
-.. code-block:: LAMMPS
+.. parsed-literal::
 
    fix ID group-ID nve/limit xmax
 

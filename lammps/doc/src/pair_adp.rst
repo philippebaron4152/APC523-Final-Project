@@ -1,11 +1,10 @@
 .. index:: pair_style adp
-.. index:: pair_style adp/kk
 .. index:: pair_style adp/omp
 
 pair_style adp command
 ======================
 
-Accelerator Variants: *adp/kk*, *adp/omp*
+Accelerator Variants: *adp/omp*
 
 Syntax
 """"""
@@ -54,7 +53,7 @@ command to specify them.
 
 **ADP potentials are available from:**
 
-* The NIST WWW site at https://www.ctcms.nist.gov/potentials.
+* The NIST WWW site at http://www.ctcms.nist.gov/potentials.
   Note that ADP potentials obtained from NIST must be converted
   into the extended DYNAMO *setfl* format discussed below.
 * The OpenKIM Project at

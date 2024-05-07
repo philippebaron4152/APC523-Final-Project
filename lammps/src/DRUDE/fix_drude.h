@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -36,17 +36,17 @@ class FixDrude : public Fix {
   bool is_reduced;
 
   FixDrude(class LAMMPS *, int, char **);
-  ~FixDrude() override;
-  int setmask() override;
-  void init() override;
+  virtual ~FixDrude();
+  int setmask();
+  void init();
 
-  void grow_arrays(int nmax) override;
-  void copy_arrays(int i, int j, int delflag) override;
-  void set_arrays(int i) override;
-  int pack_exchange(int i, double *buf) override;
-  int unpack_exchange(int nlocal, double *buf) override;
-  int pack_border(int n, int *list, double *buf) override;
-  int unpack_border(int n, int first, double *buf) override;
+  void grow_arrays(int nmax);
+  void copy_arrays(int i, int j, int delflag);
+  void set_arrays(int i);
+  int pack_exchange(int i, double *buf);
+  int unpack_exchange(int nlocal, double *buf);
+  int pack_border(int n, int *list, double *buf);
+  int unpack_border(int n, int first, double *buf);
 
  private:
   int rebuildflag;
@@ -55,7 +55,7 @@ class FixDrude : public Fix {
   void build_drudeid();
   static void ring_search_drudeid(int size, char *cbuf, void *ptr);
   static void ring_build_partner(int size, char *cbuf, void *ptr);
-  void rebuild_special() override;
+  void rebuild_special();
   static void ring_remove_drude(int size, char *cbuf, void *ptr);
   static void ring_add_drude(int size, char *cbuf, void *ptr);
   static void ring_copy_drude(int size, char *cbuf, void *ptr);

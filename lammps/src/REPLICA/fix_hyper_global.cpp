@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -14,6 +14,8 @@
 
 #include "fix_hyper_global.h"
 
+#include <cmath>
+#include <cstring>
 #include "atom.h"
 #include "update.h"
 #include "group.h"
@@ -21,19 +23,17 @@
 #include "domain.h"
 #include "comm.h"
 #include "neighbor.h"
+#include "neigh_request.h"
 #include "neigh_list.h"
 #include "math_extra.h"
 #include "memory.h"
 #include "error.h"
 
-#include <cmath>
-#include <cstring>
-
 using namespace LAMMPS_NS;
 using namespace FixConst;
 
-static constexpr int DELTABOND = 16384;
-static constexpr int VECLEN = 5;
+#define DELTABOND 16384
+#define VECLEN 5
 
 // possible enhancements
 //   should there be a virial contribution from boosted bond?
@@ -138,7 +138,10 @@ void FixHyperGlobal::init()
 
   // need an occasional half neighbor list
 
-  neighbor->add_request(this, NeighConst::REQ_OCCASIONAL);
+  int irequest = neighbor->request(this,instance_me);
+  neighbor->requests[irequest]->pair = 0;
+  neighbor->requests[irequest]->fix = 1;
+  neighbor->requests[irequest]->occasional = 1;
 }
 
 /* ---------------------------------------------------------------------- */

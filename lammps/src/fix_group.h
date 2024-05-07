@@ -1,7 +1,7 @@
 /* -*- c++ -*- ----------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -27,20 +27,18 @@ namespace LAMMPS_NS {
 class FixGroup : public Fix {
  public:
   FixGroup(class LAMMPS *, int, char **);
-  ~FixGroup() override;
-  int setmask() override;
-  void init() override;
-  void setup(int) override;
-  void post_force(int) override;
-  void post_force_respa(int, int, int) override;
-  int pack_forward_comm(int, int *, double *, int, int *) override;
-  void unpack_forward_comm(int, int, double *) override;
-  void *extract(const char *, int &) override;
+  ~FixGroup();
+  int setmask();
+  void init();
+  void setup(int);
+  void post_integrate();
+  void post_integrate_respa(int, int);
+  void *extract(const char *, int &);
 
  private:
   int gbit, gbitinverse;
   int regionflag, varflag, propflag, proptype;
-  int ivar, iprop;
+  int iregion, ivar, iprop;
   char *idregion, *idvar, *idprop;
   class Region *region;
 
@@ -53,3 +51,41 @@ class FixGroup : public Fix {
 
 #endif
 #endif
+
+/* ERROR/WARNING messages:
+
+E: Illegal ... command
+
+Self-explanatory.  Check the input script syntax and compare to the
+documentation for the command.  You can use -echo screen as a
+command-line option when running LAMMPS to see the offending line.
+
+E: Region ID for group dynamic does not exist
+
+Self-explanatory.
+
+E: Variable name for group dynamic does not exist
+
+Self-explanatory.
+
+E: Per atom property for group dynamic does not exist
+
+Self-explanatory.
+
+E: Group dynamic parent group cannot be dynamic
+
+Self-explanatory.
+
+E: Variable for group dynamic is invalid style
+
+The variable must be an atom-style variable.
+
+W: One or more dynamic groups may not be updated at correct point in timestep
+
+If there are other fixes that act immediately after the initial stage
+of time integration within a timestep (i.e. after atoms move), then
+the command that sets up the dynamic group should appear after those
+fixes.  This will insure that dynamic group assignments are made
+after all atoms have moved.
+
+*/

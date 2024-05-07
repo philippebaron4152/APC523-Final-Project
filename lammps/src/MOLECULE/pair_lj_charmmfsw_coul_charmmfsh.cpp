@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -22,17 +22,17 @@
 
 #include "pair_lj_charmmfsw_coul_charmmfsh.h"
 
-#include "atom.h"
-#include "comm.h"
-#include "error.h"
-#include "force.h"
-#include "memory.h"
-#include "neigh_list.h"
-#include "neighbor.h"
-#include "update.h"
-
 #include <cmath>
 #include <cstring>
+#include "atom.h"
+#include "update.h"
+#include "comm.h"
+#include "force.h"
+#include "neighbor.h"
+#include "neigh_list.h"
+#include "memory.h"
+#include "error.h"
+
 
 using namespace LAMMPS_NS;
 
@@ -188,7 +188,7 @@ void PairLJCharmmfswCoulCharmmfsh::compute(int eflag, int vflag)
               evdwl12 = lj3[itype][jtype]*cut_lj6*denom_lj12 *
                 (r6inv - cut_lj6inv)*(r6inv - cut_lj6inv);
               evdwl6 = -lj4[itype][jtype]*cut_lj3*denom_lj6 *
-                (r3inv - cut_lj3inv)*(r3inv - cut_lj3inv);
+                (r3inv - cut_lj3inv)*(r3inv - cut_lj3inv);;
               evdwl = evdwl12 + evdwl6;
             } else {
               evdwl12 = r6inv*lj3[itype][jtype]*r6inv -
@@ -305,9 +305,10 @@ void PairLJCharmmfswCoulCharmmfsh::coeff(int narg, char **arg)
 void PairLJCharmmfswCoulCharmmfsh::init_style()
 {
   if (!atom->q_flag)
-    error->all(FLERR,"Pair style lj/charmmfsw/coul/charmmfsh requires atom attribute q");
+    error->all(FLERR,"Pair style lj/charmmfsw/coul/charmmfsh "
+               "requires atom attribute q");
 
-  neighbor->add_request(this);
+  neighbor->request(this,instance_me);
 
   // require cut_lj_inner < cut_lj
 
@@ -525,7 +526,7 @@ single(int i, int j, int itype, int jtype,
       philj12 = lj3[itype][jtype]*cut_lj6*denom_lj12 *
         (r6inv - cut_lj6inv)*(r6inv - cut_lj6inv);
       philj6 = -lj4[itype][jtype]*cut_lj3*denom_lj6 *
-        (r3inv - cut_lj3inv)*(r3inv - cut_lj3inv);
+        (r3inv - cut_lj3inv)*(r3inv - cut_lj3inv);;
       philj = philj12 + philj6;
     } else {
       philj12 = r6inv*lj3[itype][jtype]*r6inv -

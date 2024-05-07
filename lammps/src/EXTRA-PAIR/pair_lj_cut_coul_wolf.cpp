@@ -2,7 +2,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -18,16 +18,16 @@
 
 #include "pair_lj_cut_coul_wolf.h"
 
+#include <cmath>
 #include "atom.h"
 #include "comm.h"
-#include "error.h"
 #include "force.h"
+#include "neighbor.h"
+#include "neigh_list.h"
 #include "math_const.h"
 #include "memory.h"
-#include "neigh_list.h"
-#include "neighbor.h"
+#include "error.h"
 
-#include <cmath>
 
 using namespace LAMMPS_NS;
 using namespace MathConst;
@@ -270,7 +270,9 @@ void PairLJCutCoulWolf::init_style()
 
   cut_coulsq = cut_coul * cut_coul;
 
-  neighbor->add_request(this);
+  // request regular or rRESPA neighbor list
+
+  neighbor->request(this,instance_me);
 }
 
 /* ----------------------------------------------------------------------

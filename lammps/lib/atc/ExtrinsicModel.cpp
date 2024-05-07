@@ -181,7 +181,7 @@ namespace ATC {
   //--------------------------------------------------------
   //  compute_scalar
   //--------------------------------------------------------
-  double ExtrinsicModelManager::compute_scalar()
+  double ExtrinsicModelManager::compute_scalar(void)
   {
     double value = 0.;
     vector<ExtrinsicModel *>::iterator imodel;
@@ -360,7 +360,7 @@ namespace ATC {
   //--------------------------------------------------------
   // initialize
   //--------------------------------------------------------
-  void ExtrinsicModel::initialize()
+  void ExtrinsicModel::initialize(void)
   {
     physicsModel_->initialize();
   }

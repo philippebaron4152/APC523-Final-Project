@@ -12,7 +12,7 @@
 /* ----------------------------------------------------------------------
    LAMMPS - Large-scale Atomic/Molecular Massively Parallel Simulator
    https://www.lammps.org/, Sandia National Laboratories
-   LAMMPS development team: developers@lammps.org
+   Steve Plimpton, sjplimp@sandia.gov
 
    Copyright (2003) Sandia Corporation.  Under the terms of Contract
    DE-AC04-94AL85000 with Sandia Corporation, the U.S. Government retains
@@ -38,12 +38,11 @@ namespace LAMMPS_NS {
 class FixSMDIntegrateUlsph : public Fix {
  public:
   FixSMDIntegrateUlsph(class LAMMPS *, int, char **);
-
-  int setmask() override;
-  void init() override;
-  void initial_integrate(int) override;
-  void final_integrate() override;
-  void reset_dt() override;
+  int setmask();
+  virtual void init();
+  virtual void initial_integrate(int);
+  virtual void final_integrate();
+  void reset_dt();
 
  private:
   class NeighList *list;
