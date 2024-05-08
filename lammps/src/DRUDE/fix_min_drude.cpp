@@ -235,17 +235,22 @@ void FixMinDrude::pre_force(int /*vflag*/)
         }
       }
     }
+    double dot_new_global[3];
+    double dot_prev_global[3];
+    MPI_Allreduce(dot_new, dot_new_global, 3, MPI_DOUBLE, MPI_SUM, world);
+    MPI_Allreduce(dot_prev, dot_prev_global, 3, MPI_DOUBLE, MPI_SUM, world);
+
     if (iter == 0){
         beta[0] = 0.0;
         beta[1] = 0.0;
         beta[2] = 0.0;
     } else {
         for (int j = 0; j < 3; j++){
-          if (dot_prev[j] == 0.0){
+          if (dot_prev_global[j] == 0.0){
             beta[j] = 0.0;
           }
           else{
-            beta[j] = dot_new[j]/dot_prev[j];
+            beta[j] = dot_new_global[j]/dot_prev_global[j];
           }
         }
     }
