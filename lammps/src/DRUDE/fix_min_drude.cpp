@@ -313,7 +313,7 @@ void FixMinDrude::pre_force(int /*vflag*/)
     }
     // printf("\n");
     // printf("CONVERGENCE CONDITION - %f\n", conv_condition);
-    if (conv_condition < conv_condition) {
+    if (conv_condition < conv_tol) {
       // for (int i = 0; i < atom->nlocal; i++){
       //   if (atom->mask[i] & groupbit && fix_drude->drudetype[atom->type[i]] == DRUDE_TYPE){
       //     printf("FINAL FORCE OF PARTICLE %i, ITERATION %i: %f %f %f\n", i+1, iter+1, atom->f[i][0], atom->f[i][1], atom->f[i][2]);
