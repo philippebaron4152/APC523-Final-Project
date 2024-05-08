@@ -46,7 +46,7 @@ delete_bonds ATOMS multi
 compute TATOMS ATOMS temp
 fix NPT ATOMS rigid/npt/small molecule temp ${TK} ${TK} 50. iso ${PBAR} ${PBAR} 500. dilate ATOMS
 fix_modify NPT temp TATOMS press thermo_press
-fix dmin all min/drude 10 100 1.0e-4 1.0e-4
+fix dmin all min/drude 15 100 1.0e-5 1.0e-4
 
 compute TEMP all temp/drude
 
