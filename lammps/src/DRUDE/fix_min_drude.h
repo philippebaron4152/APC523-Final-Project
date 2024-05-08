@@ -37,6 +37,7 @@ class FixMinDrude : public Fix {
  protected:
   void force_clear();
   void compute_forces(int, int);
+  void exchange_etc();
   int maxiter, line_search_iter;
   double conv_tol, alpha;
   int nmax;

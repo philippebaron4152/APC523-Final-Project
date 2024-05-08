@@ -146,6 +146,39 @@ void FixMinDrude::force_clear()
 
 /* ---------------------------------------------------------------------- */
 
+void FixMinDrude::exchange_etc(){
+  int nflag = neighbor->decide();
+  int triclinic = domain->triclinic;
+  
+  if (nflag == 0) {
+    comm->forward_comm();
+  } else {
+    if (modify->n_min_pre_exchange) {
+      modify->min_pre_exchange();
+    }
+    if (triclinic) domain->x2lamda(atom->nlocal);
+    domain->pbc();
+    if (domain->box_change) {
+      domain->reset_box();
+      comm->setup();
+      if (neighbor->style) neighbor->setup_bins();
+    }
+    comm->exchange();
+    if (atom->sortfreq > 0 &&
+        update->ntimestep >= atom->nextsort) atom->sort();
+    comm->borders();
+    if (triclinic) domain->lamda2x(atom->nlocal+atom->nghost);
+    if (modify->n_min_pre_neighbor) {
+      modify->min_pre_neighbor();
+    }
+    neighbor->build(1);
+    if (modify->n_min_post_neighbor) {
+      modify->min_post_neighbor();
+    }
+  }
+}
+/* ---------------------------------------------------------------------- */
+
 void FixMinDrude::compute_forces(int eflag, int vflag){
   force_clear();
   modify->setup_pre_force(0); // should arg be 0?
@@ -200,7 +233,6 @@ void FixMinDrude::pre_force(int /*vflag*/)
   int eflag = 1;
 
   force->setup();
-  int triclinic = domain->triclinic;
 
   // initial force calcualtion
   compute_forces(eflag, vflag);  
@@ -278,7 +310,7 @@ void FixMinDrude::pre_force(int /*vflag*/)
           }
         }
       }
-
+      exchange_etc();
       compute_forces(eflag, vflag);
       
       double norm = 0.0;
@@ -330,34 +362,7 @@ void FixMinDrude::pre_force(int /*vflag*/)
     // re-clear forces
     force_clear();
     // reneighbor and exchange
-    int nflag = neighbor->decide();
-
-    if (nflag == 0) {
-      comm->forward_comm();
-    } else {
-      if (modify->n_min_pre_exchange) {
-        modify->min_pre_exchange();
-      }
-      if (triclinic) domain->x2lamda(atom->nlocal);
-      domain->pbc();
-      if (domain->box_change) {
-        domain->reset_box();
-        comm->setup();
-        if (neighbor->style) neighbor->setup_bins();
-      }
-      comm->exchange();
-      if (atom->sortfreq > 0 &&
-          update->ntimestep >= atom->nextsort) atom->sort();
-      comm->borders();
-      if (triclinic) domain->lamda2x(atom->nlocal+atom->nghost);
-      if (modify->n_min_pre_neighbor) {
-        modify->min_pre_neighbor();
-      }
-      neighbor->build(1);
-      if (modify->n_min_post_neighbor) {
-        modify->min_post_neighbor();
-      }
-    }
+    exchange_etc();
     // print the energy :)
     // printf("Energy: %f\n", force->pair->eng_vdwl + force->pair->eng_coul);
   }
